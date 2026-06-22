@@ -1,0 +1,187 @@
+"""Tests for the TripWeaver AI backend.
+
+All external LLM calls are mocked so the suite runs offline with no API key.
+"""
+
+import asyncio
+from unittest.mock import AsyncMock
+
+import pytest
+from fastapi.testclient import TestClient
+
+import trip_api_backend as backend
+from trip_api_backend import (
+    Activity,
+    AgentResponse,
+    TripBuilder,
+    TripData,
+    TripDay,
+    TTSService,
+    app,
+)
+
+client = TestClient(app)
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+def _sample_trip() -> TripData:
+    """Builds a small valid trip used across tests."""
+    return TripData(
+        title="Trip to Rome",
+        dates="Thu - Sun",
+        days=[
+            TripDay(
+                dayNum=1,
+                activities=[
+                    Activity(
+                        id="a1",
+                        time="10:00",
+                        title="Spanish Steps",
+                        desc="A historic landmark.",
+                        type="attraction",
+                        hasPodcast=True,
+                        map_coordinates={"lat": 41.9059, "lng": 12.4827},
+                    )
+                ],
+            )
+        ],
+    )
+
+
+def _trip_with_food() -> TripData:
+    trip = _sample_trip()
+    trip.days[0].activities.append(
+        Activity(
+            id="f1",
+            time="13:00",
+            title="Kosher Lunch",
+            desc="BaGhetto.",
+            type="food",
+            is_kosher=True,
+            map_coordinates={"lat": 41.8925, "lng": 12.4772},
+        )
+    )
+    return trip
+
+
+# ---------------------------------------------------------------------------
+# Model validation
+# ---------------------------------------------------------------------------
+
+def test_activity_defaults():
+    act = Activity(id="x", time="09:00", title="t", desc="d", type="attraction")
+    assert act.hasPodcast is False
+    assert act.podcast_url is None
+    assert act.map_coordinates is None
+
+
+def test_tripdata_roundtrip():
+    trip = _sample_trip()
+    dumped = trip.model_dump()
+    assert dumped["title"] == "Trip to Rome"
+    assert dumped["days"][0]["activities"][0]["type"] == "attraction"
+    # rebuild from dump
+    assert TripData(**dumped).title == trip.title
+
+
+def test_invalid_activity_type_rejected():
+    with pytest.raises(Exception):
+        Activity(id="x", time="09:00", title="t", desc="d", type="spaceship")
+
+
+# ---------------------------------------------------------------------------
+# Pure builder logic (no network)
+# ---------------------------------------------------------------------------
+
+def test_analyze_missing_requirements_flags_missing_food():
+    builder = TripBuilder().load_existing_trip(_sample_trip())
+    msg = builder.analyze_missing_requirements()
+    assert msg is not None  # Hebrew prompt about missing kosher restaurants
+
+
+def test_analyze_missing_requirements_ok_when_food_present():
+    builder = TripBuilder().load_existing_trip(_trip_with_food())
+    assert builder.analyze_missing_requirements() is None
+
+
+def test_analyze_missing_requirements_raises_without_trip():
+    with pytest.raises(ValueError):
+        TripBuilder().analyze_missing_requirements()
+
+
+def test_get_trip_raises_when_empty():
+    with pytest.raises(ValueError):
+        TripBuilder().get_trip()
+
+
+# ---------------------------------------------------------------------------
+# TTS mock service (no network)
+# ---------------------------------------------------------------------------
+
+def test_tts_generates_url():
+    url = asyncio.run(
+        TTSService.generate_podcast_for_activity("Spanish Steps", "history")
+    )
+    assert url.startswith("https://cdn.tripweaver.ai/podcasts/")
+    assert "spanish_steps" in url
+
+
+def test_generate_media_fills_podcast_urls():
+    builder = TripBuilder().load_existing_trip(_sample_trip())
+    asyncio.run(builder.generate_media())
+    act = builder.get_trip().days[0].activities[0]
+    assert act.hasPodcast is True
+    assert act.podcast_url is not None
+
+
+# ---------------------------------------------------------------------------
+# Endpoints (LLM mocked)
+# ---------------------------------------------------------------------------
+
+def test_parse_endpoint(monkeypatch):
+    monkeypatch.setattr(
+        backend.LLMService,
+        "parse_trip_text",
+        AsyncMock(return_value=_sample_trip()),
+    )
+    resp = client.post("/api/trip/parse", json={"raw_text": "Rome for 3 days"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["trip_data"]["title"] == "Trip to Rome"
+    # no food -> proactive agent message present
+    assert body["initial_agent_message"] is not None
+
+
+def test_agent_endpoint(monkeypatch):
+    updated = _trip_with_food()
+    monkeypatch.setattr(
+        backend.LLMService,
+        "agent_interaction",
+        AsyncMock(
+            return_value=AgentResponse(updated_trip=updated, agent_reply="הוספתי מסעדה")
+        ),
+    )
+    resp = client.post(
+        "/api/trip/agent",
+        json={"trip_data": _sample_trip().model_dump(), "user_message": "add kosher food"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["agent_reply"] == "הוספתי מסעדה"
+    types = [a["type"] for d in body["trip_data"]["days"] for a in d["activities"]]
+    assert "food" in types
+
+
+def test_generate_media_endpoint():
+    resp = client.post(
+        "/api/trip/generate-media",
+        json={"trip_data": _sample_trip().model_dump(), "user_message": ""},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "Media generated successfully"
+    act = body["trip_data"]["days"][0]["activities"][0]
+    assert act["podcast_url"] is not None
