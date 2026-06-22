@@ -175,6 +175,17 @@ def test_agent_endpoint(monkeypatch):
     assert "food" in types
 
 
+def test_cors_headers_present():
+    # A cross-origin POST should be echoed an Access-Control-Allow-Origin header.
+    resp = client.post(
+        "/api/trip/generate-media",
+        json={"trip_data": _sample_trip().model_dump(), "user_message": ""},
+        headers={"Origin": "http://localhost:5173"},
+    )
+    assert resp.status_code == 200
+    assert "access-control-allow-origin" in {k.lower() for k in resp.headers}
+
+
 def test_generate_media_endpoint():
     resp = client.post(
         "/api/trip/generate-media",

@@ -1,9 +1,42 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Map, Calendar, Settings, MessageCircle, Wand2, 
-  ChevronRight, Smartphone, Palette, MapPin, 
-  Utensils, Bed, Ticket, Play, Pause, Volume2, X
+import {
+  Map, Calendar, Settings, MessageCircle, Wand2,
+  ChevronRight, Smartphone, Palette, MapPin,
+  Utensils, Bed, Ticket, Play, Pause, Volume2, X, AlertTriangle
 } from 'lucide-react';
+import { parseTrip, agentInteract, generateMedia } from './api';
+import type { TripData } from './api';
+
+// Empty starting point — the preview shows an empty state until a trip is parsed.
+const EMPTY_TRIP: TripData = { title: "", dates: "", days: [] };
+
+// Generic sample trip used as an offline demo / fallback when the backend is
+// unreachable (e.g. no GEMINI_API_KEY). Intentionally not tied to a specific
+// real destination; coordinates are clustered so the auto-fit map looks sensible.
+const DEMO_TRIP: TripData = {
+  title: "טיול לדוגמה ✨",
+  dates: "יום א׳ – יום ג׳",
+  days: [
+    {
+      dayNum: 1,
+      activities: [
+        { id: "d1-1", time: "09:00", title: "צ׳ק-אין במלון", desc: "השארת מזוודות והתארגנות.", type: "lodging", hasPodcast: false, map_coordinates: { lat: 40.416, lng: -3.703 } },
+        { id: "d1-2", time: "11:00", title: "אתר היסטורי מרכזי", desc: "סיור בלב העיר העתיקה.", type: "attraction", hasPodcast: true, map_coordinates: { lat: 40.419, lng: -3.707 } },
+        { id: "d1-3", time: "13:30", title: "מסעדה מקומית", desc: "ארוחת צהריים במרכז העיר.", type: "food", hasPodcast: false, map_coordinates: { lat: 40.414, lng: -3.700 } },
+      ],
+    },
+    {
+      dayNum: 2,
+      activities: [
+        { id: "d2-1", time: "10:00", title: "מוזיאון העיר", desc: "תערוכת קבע ותערוכה מתחלפת.", type: "attraction", hasPodcast: true, map_coordinates: { lat: 40.412, lng: -3.692 } },
+        { id: "d2-2", time: "16:00", title: "שוק מקומי", desc: "קניות וטעימות רחוב.", type: "attraction", hasPodcast: false, map_coordinates: { lat: 40.421, lng: -3.698 } },
+      ],
+    },
+  ],
+};
+
+const DEMO_AGENT_MESSAGE =
+  "טענתי טיול לדוגמה כדי שתוכלו לראות איך האפליקציה עובדת. כדי לפרסר טקסט אמיתי, הגדירו GEMINI_API_KEY בשרת — או המשיכו לערוך ידנית.";
 
 // --- Components for the "Generated App" Preview ---
 
@@ -48,35 +81,65 @@ const GeneratedAppPreview = ({ tripData, theme }) => {
     }
   };
 
+  // Empty-state safe accessors: tripData may have no days yet (before parsing).
+  const days = tripData.days ?? [];
+  const hasTrip = days.length > 0;
+  const safeDayIdx = Math.min(activeDay, Math.max(0, days.length - 1));
+  const day = days[safeDayIdx];
+
+  // Auto-fit map pins: normalize each activity's coordinates into an 8%-92%
+  // box based on the bounds of the current day, so the map works for ANY city
+  // (the original prototype hardcoded Rome's lat/lng as the anchor).
+  const coordActs = (day?.activities ?? []).filter((a) => a.map_coordinates);
+  const lats = coordActs.map((a) => a.map_coordinates!.lat);
+  const lngs = coordActs.map((a) => a.map_coordinates!.lng);
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+  const pinPos = (c: { lat: number; lng: number }) => ({
+    // north (higher lat) -> nearer the top
+    top: `${maxLat === minLat ? 50 : 8 + ((maxLat - c.lat) / (maxLat - minLat)) * 84}%`,
+    left: `${maxLng === minLng ? 50 : 8 + ((c.lng - minLng) / (maxLng - minLng)) * 84}%`,
+  });
+
   return (
     <div className="w-[350px] h-[700px] border-[12px] border-gray-900 rounded-[2.5rem] overflow-hidden flex flex-col bg-gray-50 shadow-2xl relative mx-auto">
       {/* App Header */}
       <div className={`${currentTheme} text-white pt-10 pb-4 px-6 shadow-md transition-colors duration-300`}>
-        <h2 className="text-xl font-bold">{tripData.title}</h2>
-        <p className="text-sm opacity-80">{tripData.dates}</p>
+        <h2 className="text-xl font-bold">{tripData.title || 'האפליקציה שלך'}</h2>
+        <p className="text-sm opacity-80">{tripData.dates || 'התצוגה המקדימה תתעדכן לפי הטקסט'}</p>
       </div>
 
       {/* Days Tabs */}
-      <div className="flex overflow-x-auto bg-white border-b hide-scrollbar">
-        {tripData.days.map((day, idx) => (
-          <button
-            key={idx}
-            onClick={() => setActiveDay(idx)}
-            className={`px-6 py-3 font-medium whitespace-nowrap border-b-2 transition-colors ${
-              activeDay === idx ? `border-blue-600 text-blue-600` : 'border-transparent text-gray-500'
-            }`}
-          >
-            יום {day.dayNum}
-          </button>
-        ))}
-      </div>
+      {hasTrip && (
+        <div className="flex overflow-x-auto bg-white border-b hide-scrollbar">
+          {days.map((d, idx) => (
+            <button
+              key={idx}
+              onClick={() => setActiveDay(idx)}
+              className={`px-6 py-3 font-medium whitespace-nowrap border-b-2 transition-colors ${
+                safeDayIdx === idx ? `border-blue-600 text-blue-600` : 'border-transparent text-gray-500'
+              }`}
+            >
+              יום {d.dayNum}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto p-4 bg-gray-50 pb-24">
+        {/* Empty state (before a trip is parsed) */}
+        {!hasTrip && (
+          <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 gap-3 px-6">
+            <Smartphone size={40} className="opacity-40" />
+            <p className="text-sm">הזינו את תיאור הטיול כדי לראות כאן תצוגה מקדימה חיה של האפליקציה.</p>
+          </div>
+        )}
+
         {/* Itinerary View */}
-        {activeTab === 'itinerary' && (
+        {hasTrip && activeTab === 'itinerary' && (
           <div className="space-y-4">
-            {tripData.days[activeDay].activities.map((act, idx) => (
+            {day.activities.map((act, idx) => (
               <div key={act.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex gap-4 animate-fade-in">
                 <div className="flex flex-col items-center">
                   <div className={`p-2 rounded-full ${currentTheme} text-white bg-opacity-10 text-opacity-90`}>
@@ -84,7 +147,7 @@ const GeneratedAppPreview = ({ tripData, theme }) => {
                      act.type === 'lodging' ? <Bed size={18} /> : 
                      <Ticket size={18} />}
                   </div>
-                  {idx !== tripData.days[activeDay].activities.length - 1 && (
+                  {idx !== day.activities.length - 1 && (
                     <div className="w-0.5 h-full bg-gray-200 mt-2"></div>
                   )}
                 </div>
@@ -115,21 +178,19 @@ const GeneratedAppPreview = ({ tripData, theme }) => {
         )}
 
         {/* Map View */}
-        {activeTab === 'map' && (
+        {hasTrip && activeTab === 'map' && (
           <div className="h-full w-full bg-[#e5e3df] rounded-xl relative overflow-hidden animate-fade-in shadow-inner border border-gray-200">
             {/* Fake Map Background Pattern */}
             <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(#444 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
-            
-            {/* Map Pins */}
-            {tripData.days[activeDay].activities.map((act) => {
+
+            {/* Map Pins (auto-fit to the day's coordinate bounds) */}
+            {day.activities.map((act) => {
               if (!act.map_coordinates) return null;
-              // Mock logic to convert lat/lng to percentage positioning for demo
-              const top = `${Math.abs((act.map_coordinates.lat - 41.9) * 1000)}%`;
-              const left = `${Math.abs((act.map_coordinates.lng - 12.4) * 1000)}%`;
-              
+              const { top, left } = pinPos(act.map_coordinates);
+
               return (
-                <div 
-                  key={`map-${act.id}`} 
+                <div
+                  key={`map-${act.id}`}
                   className="absolute transform -translate-x-1/2 -translate-y-full flex flex-col items-center group"
                   style={{ top, left }}
                 >
@@ -200,49 +261,71 @@ export default function App() {
   const [rawText, setRawText] = useState("היי, אנחנו טסים לרומא מחרתיים עד יום ראשון. ביום הראשון ננחת, ניסע למלון ליד המדרגות הספרדיות ואז נטייל באזור. ביום השני הקולוסיאום והפורום, ומלא קניות. ביום השלישי הוותיקן. צריכים גם למצוא איפה לאכול, אנחנו שומרים כשרות.");
   const [theme, setTheme] = useState('blue');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isGeneratingMedia, setIsGeneratingMedia] = useState(false);
   const [chatInput, setChatInput] = useState("");
-  const chatEndRef = useRef(null);
+  // Set when a backend call fails and we fall back to local mock behaviour.
+  const [apiNotice, setApiNotice] = useState<string | null>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Mock parsed data incorporating map coordinates
-  const [tripData, setTripData] = useState({
-    title: "הטיול לרומא 🇮🇹",
-    dates: "חמישי - ראשון",
-    days: [
-      {
-        dayNum: 1,
-        activities: [
-          { id: "a1", time: "10:00", title: "נחיתה והגעה למלון", desc: "התארגנות במלון באזור המדרגות הספרדיות.", type: "lodging", hasPodcast: false, map_coordinates: {lat: 41.9059, lng: 12.4827} },
-          { id: "a2", time: "13:00", title: "סיור במדרגות הספרדיות", desc: "זמן חופשי והיכרות עם האזור.", type: "attraction", hasPodcast: true, map_coordinates: {lat: 41.9065, lng: 12.4820} },
-          { id: "a3", time: "18:00", title: "ארוחת ערב", desc: "טרם נקבעה מסעדה.", type: "food", hasPodcast: false }
-        ]
-      },
-      {
-        dayNum: 2,
-        activities: [
-          { id: "b1", time: "09:00", title: "הקולוסיאום", desc: "סיור במבנה ההיסטורי. מומלץ להזמין כרטיסים מראש.", type: "attraction", hasPodcast: true, map_coordinates: {lat: 41.8902, lng: 12.4922} },
-          { id: "b2", time: "15:00", title: "זמן קניות", desc: "ויה דל קורסו והרחובות הסמוכים.", type: "attraction", hasPodcast: false, map_coordinates: {lat: 41.9020, lng: 12.4800} }
-        ]
-      }
-    ]
-  });
+  // Starts empty; populated by /api/trip/parse (or DEMO_TRIP on fallback).
+  const [tripData, setTripData] = useState<TripData>(EMPTY_TRIP);
 
-  const [agentMessages, setAgentMessages] = useState([
-    { role: 'agent', text: "זיהיתי את הטיול לרומא! שמתי לב שציינת שאתם שומרים כשרות, אבל אין לכם מסעדות מתוכננות ליום 1 ו-2 באזור הקולוסיאום והמדרגות הספרדיות. תרצו שאוסיף המלצות למסעדות כשרות מהגטו היהודי?" }
-  ]);
+  const [agentMessages, setAgentMessages] = useState<{ role: string; text: string }[]>([]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [agentMessages]);
 
-  const handleProcessText = () => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      setIsProcessing(false);
-      setStep(3); 
-    }, 1500);
+  // Local fallback used when the backend is unreachable, so the prototype
+  // remains demoable without a running API / Gemini key.
+  const mockAgentReply = (userText: string) => {
+    const wantsAdd =
+      userText.includes("כן") || userText.includes("תוסיף") ||
+      userText.includes("מסעד") || userText.includes("אוכל") || userText.includes("כשר");
+    if (wantsAdd) {
+      setTripData(prev => {
+        if (prev.days.length === 0) return prev;
+        const next = { ...prev, days: prev.days.map(d => ({ ...d, activities: [...d.activities] })) };
+        const target = next.days[1] ?? next.days[0];
+        // place the new stop near an existing one so the auto-fit map stays sensible
+        const anchor = target.activities.find(a => a.map_coordinates)?.map_coordinates;
+        target.activities.splice(1, 0, {
+          id: `food-${Date.now()}`, time: "13:30", title: "מסעדה מומלצת", desc: "נוספה על ידי הסוכן לבקשתך.", type: "food", hasPodcast: false,
+          map_coordinates: anchor ? { lat: anchor.lat + 0.001, lng: anchor.lng + 0.001 } : null,
+        });
+        return next;
+      });
+      setAgentMessages(prev => [...prev, { role: 'agent', text: "מצוין! הוספתי מסעדה (בדקו בלו\"ז ובמפה). נעבור לשלב העיצוב?" }]);
+    } else {
+      setAgentMessages(prev => [...prev, { role: 'agent', text: "הבנתי. אם הכל מוכן, בואו נתקדם לשלב העיצוב!" }]);
+    }
   };
 
-  const handleSendMessage = (e) => {
+  const handleProcessText = async () => {
+    if (!rawText.trim()) return;
+    setIsProcessing(true);
+    setApiNotice(null);
+    try {
+      const res = await parseTrip(rawText);
+      setTripData(res.trip_data);
+      setAgentMessages(
+        res.initial_agent_message
+          ? [{ role: 'agent', text: res.initial_agent_message }]
+          : [{ role: 'agent', text: "זיהיתי את הטיול! עברו על הלו\"ז ותקנו מה שצריך." }]
+      );
+      setStep(3);
+    } catch (err) {
+      console.error(err);
+      setApiNotice("לא הצלחנו להתחבר לשרת ה-AI — נטען טיול לדוגמה.");
+      setTripData(DEMO_TRIP);
+      setAgentMessages([{ role: 'agent', text: DEMO_AGENT_MESSAGE }]);
+      setStep(3);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
 
@@ -250,19 +333,29 @@ export default function App() {
     setAgentMessages(prev => [...prev, { role: 'user', text: userText }]);
     setChatInput("");
 
-    setTimeout(() => {
-      if (userText.includes("כן") || userText.includes("תוסיף") || userText.includes("כשר")) {
-        const newTripData = { ...tripData };
-        // Insert Kosher lunch to day 2 with coordinates for the map
-        newTripData.days[1].activities.splice(1, 0, {
-          id: "kosher1", time: "13:30", title: "ארוחת צהריים כשרה בגטו", desc: "מסעדת BaGhetto (בשרי). הוסף על ידי ה-AI לבקשתך.", type: "food", hasPodcast: false, map_coordinates: {lat: 41.8925, lng: 12.4772}
-        });
-        setTripData(newTripData);
-        setAgentMessages(prev => [...prev, { role: 'agent', text: "מצוין! הוספתי מסעדה כשרה לצהריים של היום השני (בדוק בלו\"ז ובמפה). נעבור לשלב העיצוב?" }]);
-      } else {
-         setAgentMessages(prev => [...prev, { role: 'agent', text: "הבנתי. אם הכל מוכן, בואו נתקדם לשלב העיצוב!" }]);
-      }
-    }, 1200);
+    try {
+      const res = await agentInteract(tripData, userText);
+      setTripData(res.trip_data);
+      setAgentMessages(prev => [...prev, { role: 'agent', text: res.agent_reply }]);
+    } catch (err) {
+      console.error(err);
+      setApiNotice("שרת ה-AI לא זמין — מגיב במצב דמו מקומי.");
+      mockAgentReply(userText);
+    }
+  };
+
+  const handleContinueToDesign = async () => {
+    setIsGeneratingMedia(true);
+    try {
+      const res = await generateMedia(tripData);
+      setTripData(res.trip_data);
+    } catch (err) {
+      console.error(err);
+      setApiNotice("יצירת המדיה בשרת נכשלה — ממשיכים ללא קבצי אודיו.");
+    } finally {
+      setIsGeneratingMedia(false);
+      setStep(4);
+    }
   };
 
   return (
@@ -277,6 +370,19 @@ export default function App() {
           שלב {step} מתוך 4
         </div>
       </nav>
+
+      {/* Connectivity / fallback notice */}
+      {apiNotice && (
+        <div className="max-w-7xl mx-auto px-6 pt-4">
+          <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-xl px-4 py-3 shadow-sm">
+            <AlertTriangle size={18} className="shrink-0" />
+            <span className="flex-1">{apiNotice}</span>
+            <button onClick={() => setApiNotice(null)} className="text-amber-500 hover:text-amber-700">
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto p-6 flex flex-col lg:flex-row gap-8">
         
@@ -361,12 +467,13 @@ export default function App() {
                   </button>
                 </form>
 
-                <button 
-                  onClick={() => setStep(4)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-medium flex items-center gap-2 w-full justify-center transition-colors shadow-md mt-auto"
+                <button
+                  onClick={handleContinueToDesign}
+                  disabled={isGeneratingMedia}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white px-8 py-3 rounded-xl font-medium flex items-center gap-2 w-full justify-center transition-colors shadow-md mt-auto"
                 >
-                  המשך לעיצוב האפליקציה
-                  <ChevronRight size={20} />
+                  {isGeneratingMedia ? 'מייצר מדיה (פודקאסטים)...' : 'המשך לעיצוב האפליקציה'}
+                  {!isGeneratingMedia && <ChevronRight size={20} />}
                 </button>
               </div>
             )}

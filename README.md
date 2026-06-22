@@ -52,10 +52,25 @@ npm run build     # type-check + production build into dist/
 npm run preview   # serve the production build
 ```
 
+## How they connect
+
+The frontend calls the backend through `frontend/src/api.ts`. The base URL is set
+by `VITE_API_URL` (see `frontend/.env.example`, default `http://localhost:8000`).
+
+- Step 1 "create app structure" → `POST /api/trip/parse`
+- Step 3 agent chat → `POST /api/trip/agent`
+- Step 3 → 4 "continue to design" → `POST /api/trip/generate-media`
+
+If the backend is unreachable (or the `parse`/`agent` calls fail because no
+`GEMINI_API_KEY` is set), the UI shows a notice and falls back to local mock
+behaviour so the prototype stays demoable. The backend enables CORS (configurable
+via the `CORS_ORIGINS` env var, default `*`) so the browser can reach it.
+
+To run the full stack: start the backend (`python trip_api_backend.py`), then the
+frontend (`npm run dev`), and set `GEMINI_API_KEY` for live LLM parsing.
+
 ## Notes
 
 - The backend is wired to Google Gemini (`gemini-2.5-flash`). The `parse` and `agent`
   endpoints require a valid `GEMINI_API_KEY`; `generate-media` uses a mock TTS service.
-- The frontend prototype currently uses mock in-memory data and is not yet wired to
-  the backend — connecting them is the next step.
 - User profile is hardcoded (Kosher food preference) in `USER_PREFERENCES`.

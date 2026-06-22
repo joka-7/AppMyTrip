@@ -3,13 +3,33 @@ import json
 import asyncio
 import httpx
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError
 from typing import Optional, Literal, Any
 from datetime import datetime
 
+# Load a local backend/.env if present (optional dependency).
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 app = FastAPI(
-    title="TripWeaver AI API", 
+    title="TripWeaver AI API",
     description="Production-ready API for building trip apps dynamically using LLMs."
+)
+
+# Allow the web client (and later the Android app) to call the API from a
+# different origin. Origins are configurable via the CORS_ORIGINS env var
+# (comma-separated); defaults to "*" for local prototype development.
+_cors_origins = os.environ.get("CORS_ORIGINS", "*").split(",")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in _cors_origins],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # ==========================================
