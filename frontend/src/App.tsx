@@ -8,7 +8,6 @@ import {
   ChevronRight,
   Smartphone,
   Palette,
-  MapPin,
   Utensils,
   Bed,
   Ticket,
@@ -20,6 +19,8 @@ import {
 } from "lucide-react";
 import { parseTrip, agentInteract, generateMedia } from "./api";
 import type { TripData } from "./api";
+import MapView from "./components/MapView";
+import "leaflet/dist/leaflet.css";
 
 // Empty starting point — the preview shows an empty state until a trip is parsed.
 const EMPTY_TRIP: TripData = { title: "", dates: "", days: [] };
@@ -141,22 +142,6 @@ const GeneratedAppPreview = ({ tripData, theme }) => {
   const safeDayIdx = Math.min(activeDay, Math.max(0, days.length - 1));
   const day = days[safeDayIdx];
 
-  // Auto-fit map pins: normalize each activity's coordinates into an 8%-92%
-  // box based on the bounds of the current day, so the map works for ANY city
-  // (the original prototype hardcoded Rome's lat/lng as the anchor).
-  const coordActs = (day?.activities ?? []).filter((a) => a.map_coordinates);
-  const lats = coordActs.map((a) => a.map_coordinates!.lat);
-  const lngs = coordActs.map((a) => a.map_coordinates!.lng);
-  const minLat = Math.min(...lats),
-    maxLat = Math.max(...lats);
-  const minLng = Math.min(...lngs),
-    maxLng = Math.max(...lngs);
-  const pinPos = (c: { lat: number; lng: number }) => ({
-    // north (higher lat) -> nearer the top
-    top: `${maxLat === minLat ? 50 : 8 + ((maxLat - c.lat) / (maxLat - minLat)) * 84}%`,
-    left: `${maxLng === minLng ? 50 : 8 + ((c.lng - minLng) / (maxLng - minLng)) * 84}%`,
-  });
-
   return (
     <div className="w-[350px] h-[700px] border-[12px] border-gray-900 rounded-[2.5rem] overflow-hidden flex flex-col bg-gray-50 shadow-2xl relative mx-auto">
       {/* App Header */}
@@ -258,50 +243,8 @@ const GeneratedAppPreview = ({ tripData, theme }) => {
 
         {/* Map View */}
         {hasTrip && activeTab === "map" && (
-          <div className="h-full w-full bg-[#e5e3df] rounded-xl relative overflow-hidden animate-fade-in shadow-inner border border-gray-200">
-            {/* Fake Map Background Pattern */}
-            <div
-              className="absolute inset-0 opacity-10"
-              style={{
-                backgroundImage: "radial-gradient(#444 1px, transparent 1px)",
-                backgroundSize: "20px 20px",
-              }}
-            ></div>
-
-            {/* Map Pins (auto-fit to the day's coordinate bounds) */}
-            {day.activities.map((act) => {
-              if (!act.map_coordinates) return null;
-              const { top, left } = pinPos(act.map_coordinates);
-
-              return (
-                <div
-                  key={`map-${act.id}`}
-                  className="absolute transform -translate-x-1/2 -translate-y-full flex flex-col items-center group"
-                  style={{ top, left }}
-                >
-                  <div className="bg-white px-2 py-1 rounded-md shadow-md text-xs font-bold mb-1 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                    {act.title}
-                  </div>
-                  <div
-                    className={`p-1.5 rounded-full text-white shadow-lg ${
-                      act.type === "food"
-                        ? "bg-red-500"
-                        : act.type === "lodging"
-                          ? "bg-indigo-500"
-                          : "bg-blue-500"
-                    }`}
-                  >
-                    {act.type === "food" ? (
-                      <Utensils size={14} />
-                    ) : act.type === "lodging" ? (
-                      <Bed size={14} />
-                    ) : (
-                      <MapPin size={14} />
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+          <div className="h-full w-full animate-fade-in">
+            <MapView activities={day.activities} />
           </div>
         )}
       </div>

@@ -1,0 +1,36 @@
+import { describe, it, expect } from "vitest";
+import { render, screen } from "@testing-library/react";
+import MapView from "./MapView";
+import type { Activity } from "../api";
+
+const activityWithCoords: Activity = {
+  id: "a1",
+  time: "10:00",
+  title: "Museum",
+  desc: "desc",
+  type: "attraction",
+  map_coordinates: { lat: 41.9, lng: 12.5 },
+};
+
+const activityWithoutCoords: Activity = {
+  id: "a2",
+  time: "11:00",
+  title: "TBD",
+  desc: "desc",
+  type: "food",
+  map_coordinates: null,
+};
+
+describe("MapView", () => {
+  it("renders a marker for each activity with coordinates", () => {
+    const { container } = render(
+      <MapView activities={[activityWithCoords, activityWithoutCoords]} />,
+    );
+    expect(container.querySelectorAll(".leaflet-marker-icon")).toHaveLength(1);
+  });
+
+  it("shows an empty state when no activities have coordinates", () => {
+    render(<MapView activities={[activityWithoutCoords]} />);
+    expect(screen.getByText(/אין קואורדינטות להצגה/)).toBeInTheDocument();
+  });
+});
