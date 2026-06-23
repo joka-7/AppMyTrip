@@ -63,10 +63,7 @@ export function parseTrip(rawText: string): Promise<ParseResponse> {
 }
 
 /** Stage 3: send a chat message + current itinerary, get an updated itinerary. */
-export function agentInteract(
-  tripData: TripData,
-  userMessage: string
-): Promise<AgentResponse> {
+export function agentInteract(tripData: TripData, userMessage: string): Promise<AgentResponse> {
   return postJSON<AgentResponse>("/api/trip/agent", {
     trip_data: tripData,
     user_message: userMessage,

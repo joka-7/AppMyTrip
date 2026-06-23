@@ -32,6 +32,10 @@ pip install -r requirements-dev.txt
 # run tests (no API key / network needed — LLM calls are mocked)
 pytest
 
+# lint / format (ruff)
+ruff check .
+ruff format .
+
 # run the API (needs GEMINI_API_KEY for the LLM-backed endpoints)
 export GEMINI_API_KEY=...     # optional; /generate-media works without it
 python trip_api_backend.py    # serves on http://0.0.0.0:8000, docs at /docs
@@ -40,16 +44,40 @@ python trip_api_backend.py    # serves on http://0.0.0.0:8000, docs at /docs
 Endpoints:
 - `POST /api/trip/parse` — raw text → structured itinerary (LLM)
 - `POST /api/trip/agent` — chat + current itinerary → updated itinerary (LLM)
-- `POST /api/trip/generate-media` — fill TTS podcast URLs for flagged sites (mock, offline)
+- `POST /api/trip/generate-media` — fill TTS podcast URLs for flagged sites
+
+### Text-to-speech provider
+
+`backend/services/tts.py` selects a provider via the `TTS_PROVIDER` env var:
+
+- `mock` (default) — instant fake URLs, no network, no cost. Used in dev/test/CI.
+- `piper` — synthesizes real audio locally with the open-source
+  [Piper](https://github.com/rhasspy/piper) engine (`piper-tts` package, already in
+  `requirements.txt`). Fully offline, no API key, no per-request cost. Requires a
+  one-time voice model download, then:
+  ```bash
+  export TTS_PROVIDER=piper
+  export PIPER_VOICE_MODEL=/path/to/en_US-amy-medium.onnx
+  ```
+  Generated `.wav` files are written to `backend/static/podcasts/` and served at
+  `/static/podcasts/<file>.wav`.
 
 ## Frontend
 
 ```bash
 cd frontend
 npm install
-npm run dev       # dev server
-npm run build     # type-check + production build into dist/
-npm run preview   # serve the production build
+npm run dev           # dev server
+npm run build         # type-check + production build into dist/
+npm run preview       # serve the production build
+
+# lint / format (eslint + prettier)
+npm run lint
+npm run format
+npm run format:check
+
+# run tests (vitest + React Testing Library)
+npm run test
 ```
 
 ## How they connect

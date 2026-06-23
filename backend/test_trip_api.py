@@ -4,12 +4,16 @@ All external LLM calls are mocked so the suite runs offline with no API key.
 """
 
 import asyncio
+import os
 from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
+import services.tts as tts_module
 import trip_api_backend as backend
+from services.tts import MockTTSProvider, PiperTTSProvider
 from trip_api_backend import (
     Activity,
     AgentResponse,
@@ -26,6 +30,7 @@ client = TestClient(app)
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 def _sample_trip() -> TripData:
     """Builds a small valid trip used across tests."""
@@ -71,6 +76,7 @@ def _trip_with_food() -> TripData:
 # Model validation
 # ---------------------------------------------------------------------------
 
+
 def test_activity_defaults():
     act = Activity(id="x", time="09:00", title="t", desc="d", type="attraction")
     assert act.hasPodcast is False
@@ -88,13 +94,14 @@ def test_tripdata_roundtrip():
 
 
 def test_invalid_activity_type_rejected():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         Activity(id="x", time="09:00", title="t", desc="d", type="spaceship")
 
 
 # ---------------------------------------------------------------------------
 # Pure builder logic (no network)
 # ---------------------------------------------------------------------------
+
 
 def test_analyze_missing_requirements_flags_missing_food():
     builder = TripBuilder().load_existing_trip(_sample_trip())
@@ -121,10 +128,9 @@ def test_get_trip_raises_when_empty():
 # TTS mock service (no network)
 # ---------------------------------------------------------------------------
 
+
 def test_tts_generates_url():
-    url = asyncio.run(
-        TTSService.generate_podcast_for_activity("Spanish Steps", "history")
-    )
+    url = asyncio.run(TTSService.generate_podcast_for_activity("Spanish Steps", "history"))
     assert url.startswith("https://cdn.tripweaver.ai/podcasts/")
     assert "spanish_steps" in url
 
@@ -137,9 +143,46 @@ def test_generate_media_fills_podcast_urls():
     assert act.podcast_url is not None
 
 
+def test_tts_provider_defaults_to_mock(monkeypatch):
+    monkeypatch.delenv("TTS_PROVIDER", raising=False)
+    provider = TTSService._get_provider()
+    assert isinstance(provider, MockTTSProvider)
+
+
+def test_tts_provider_explicit_mock(monkeypatch):
+    monkeypatch.setenv("TTS_PROVIDER", "mock")
+    provider = TTSService._get_provider()
+    assert isinstance(provider, MockTTSProvider)
+
+
+def test_tts_provider_unknown_raises_config_error(monkeypatch):
+    monkeypatch.setenv("TTS_PROVIDER", "elevenlabs")
+    with pytest.raises(RuntimeError, match="Unknown TTS_PROVIDER"):
+        TTSService._get_provider()
+
+
+def test_piper_provider_requires_voice_model(monkeypatch):
+    monkeypatch.delenv("PIPER_VOICE_MODEL", raising=False)
+    with pytest.raises(RuntimeError, match="PIPER_VOICE_MODEL"):
+        PiperTTSProvider()
+
+
+@pytest.mark.skipif(
+    not os.environ.get("PIPER_VOICE_MODEL"),
+    reason="requires a downloaded Piper voice model (PIPER_VOICE_MODEL); skipped by default in CI",
+)
+def test_piper_provider_synthesizes_real_audio(tmp_path, monkeypatch):
+    monkeypatch.setattr(tts_module, "PODCASTS_DIR", tmp_path)
+    provider = PiperTTSProvider()
+    url = asyncio.run(provider.synthesize("Hello from Piper", "test_clip"))
+    assert url == "/static/podcasts/test_clip.wav"
+    assert (tmp_path / "test_clip.wav").exists()
+
+
 # ---------------------------------------------------------------------------
 # Endpoints (LLM mocked)
 # ---------------------------------------------------------------------------
+
 
 def test_parse_endpoint(monkeypatch):
     monkeypatch.setattr(
@@ -160,9 +203,7 @@ def test_agent_endpoint(monkeypatch):
     monkeypatch.setattr(
         backend.LLMService,
         "agent_interaction",
-        AsyncMock(
-            return_value=AgentResponse(updated_trip=updated, agent_reply="הוספתי מסעדה")
-        ),
+        AsyncMock(return_value=AgentResponse(updated_trip=updated, agent_reply="הוספתי מסעדה")),
     )
     resp = client.post(
         "/api/trip/agent",
