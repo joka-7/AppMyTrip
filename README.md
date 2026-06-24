@@ -24,11 +24,29 @@ AppMyTrip/
 │   ├── requirements.txt
 │   └── requirements-dev.txt
 ├── frontend/         Vite + React + TypeScript + Tailwind prototype
-│   └── src/App.tsx             4-step builder UI + live preview
+│   ├── src/App.tsx             4-step builder UI + live preview
+│   └── e2e/                    Playwright end-to-end tests (real browser, backend mocked)
+├── .run/             shared PyCharm/WebStorm run configurations
 └── main.py           (legacy scaffold placeholder)
 ```
 
 ## Backend
+
+With [`uv`](https://docs.astral.sh/uv/) (fast, free, no network cost beyond the
+one-time install — recommended):
+
+```bash
+cd backend
+uv sync --group dev    # creates .venv/ and installs from uv.lock
+
+uv run pytest                # run tests (no API key / network needed — LLM calls are mocked)
+uv run ruff check . && uv run ruff format .   # lint / format
+
+export GEMINI_API_KEY=...    # optional; /generate-media works without it
+uv run python trip_api_backend.py   # serves on http://0.0.0.0:8000, docs at /docs
+```
+
+Or with plain `pip`:
 
 ```bash
 cd backend
@@ -101,6 +119,10 @@ npm run format:check
 
 # run tests (vitest + React Testing Library)
 npm run test
+
+# end-to-end tests (Playwright — real browser, real dev server, backend mocked)
+npx playwright install chromium   # one-time browser download
+npm run test:e2e
 ```
 
 ## How they connect
@@ -119,6 +141,17 @@ via the `CORS_ORIGINS` env var, default `*`) so the browser can reach it.
 
 To run the full stack: start the backend (`python trip_api_backend.py`), then the
 frontend (`npm run dev`), and set `GEMINI_API_KEY` for live LLM parsing.
+
+## IDE run configurations
+
+`.run/` contains shared PyCharm/WebStorm run configurations (the VCS-friendly
+alternative to per-user `.idea/` files, which stay gitignored):
+- **Backend (FastAPI)** — runs `trip_api_backend.py`
+- **Backend tests (pytest)** — runs the backend test suite
+- **Frontend (npm dev)** — runs the Vite dev server
+
+They assume a `backend/.venv` (e.g. created by `uv sync --group dev`) and a
+frontend Node interpreter configured in the IDE's Node settings.
 
 ## Notes
 
