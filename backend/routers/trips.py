@@ -3,9 +3,9 @@ from sqlalchemy.orm import Session as DBSession
 
 from auth import get_current_user
 from db import get_db
+from models import TripData
 from models_db import Trip, User
 from models_db import Trip as TripModel
-from trip_api_backend import TripData
 
 router = APIRouter(prefix="/api/trips", tags=["trips"])
 

@@ -15,18 +15,12 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import services.tts as tts_module
-import trip_api_backend as backend
 from db import Base, get_db
-from services.tts import MockTTSProvider, PiperTTSProvider
-from trip_api_backend import (
-    Activity,
-    AgentResponse,
-    TripBuilder,
-    TripData,
-    TripDay,
-    TTSService,
-    app,
-)
+from models import Activity, AgentResponse, TripData, TripDay
+from routers.builder import TripBuilder
+from services.llm import LLMService
+from services.tts import MockTTSProvider, PiperTTSProvider, TTSService
+from trip_api_backend import app
 
 # Isolated in-memory DB for the auth/trips tests — keeps them from touching
 # the real tripweaver.db file and from leaking state across test runs.
@@ -223,7 +217,7 @@ def test_piper_provider_synthesizes_real_audio(tmp_path, monkeypatch):
 
 def test_parse_endpoint(monkeypatch):
     monkeypatch.setattr(
-        backend.LLMService,
+        LLMService,
         "parse_trip_text",
         AsyncMock(return_value=_sample_trip()),
     )
@@ -238,7 +232,7 @@ def test_parse_endpoint(monkeypatch):
 def test_agent_endpoint(monkeypatch):
     updated = _trip_with_food()
     monkeypatch.setattr(
-        backend.LLMService,
+        LLMService,
         "agent_interaction",
         AsyncMock(return_value=AgentResponse(updated_trip=updated, agent_reply="הוספתי מסעדה")),
     )
@@ -393,7 +387,7 @@ def test_parse_endpoint_uses_authenticated_user_preferences(monkeypatch):
         captured["preferences"] = preferences
         return _sample_trip()
 
-    monkeypatch.setattr(backend.LLMService, "parse_trip_text", fake_parse)
+    monkeypatch.setattr(LLMService, "parse_trip_text", fake_parse)
 
     resp = client.post(
         "/api/trip/parse",
@@ -411,7 +405,7 @@ def test_parse_endpoint_anonymous_gets_no_preferences(monkeypatch):
         captured["preferences"] = preferences
         return _sample_trip()
 
-    monkeypatch.setattr(backend.LLMService, "parse_trip_text", fake_parse)
+    monkeypatch.setattr(LLMService, "parse_trip_text", fake_parse)
 
     resp = client.post("/api/trip/parse", json={"raw_text": "Rome"})
     assert resp.status_code == 200

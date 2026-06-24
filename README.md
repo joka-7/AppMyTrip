@@ -13,11 +13,13 @@ through a 4-step build flow with a live phone preview.
 ```
 AppMyTrip/
 ├── backend/          FastAPI service (LLM parse, AI agent, TTS podcasts, auth/persistence)
-│   ├── trip_api_backend.py
+│   ├── trip_api_backend.py     entrypoint: app creation, CORS, static mount, routers
+│   ├── models.py                Pydantic request/response models (Activity, TripData, ...)
+│   ├── models_db.py            User / Session / Trip SQLAlchemy ORM models
 │   ├── db.py                   SQLAlchemy engine/session (SQLite by default)
-│   ├── models_db.py            User / Session / Trip ORM models
 │   ├── auth.py                 password hashing + session-token auth
-│   ├── routers/                auth, /api/me, trips CRUD routers
+│   ├── services/                llm.py (Gemini), tts.py (Piper/mock TTS)
+│   ├── routers/                builder (/api/trip/*), auth, /api/me, trips CRUD
 │   ├── test_trip_api.py        offline tests (LLM mocked, in-memory DB)
 │   ├── requirements.txt
 │   └── requirements-dev.txt
