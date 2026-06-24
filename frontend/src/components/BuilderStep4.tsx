@@ -44,10 +44,17 @@ export default function BuilderStep4({
         </div>
       </div>
 
-      <button className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-xl font-bold text-lg flex items-center gap-2 w-full justify-center mt-10 transition-all hover:shadow-lg hover:-translate-y-1">
+      <button
+        disabled
+        title="שיגור לאפליקציית מובייל אינו ממומש עדיין — בשלב זה אפשר לשמור ולשתף את הטיול באמצעות כפתור העננה בראש העמוד"
+        className="bg-gray-300 text-gray-500 px-8 py-4 rounded-xl font-bold text-lg flex items-center gap-2 w-full justify-center mt-10 cursor-not-allowed"
+      >
         <Smartphone size={24} />
-        שגר למכשיר! האפליקציה מוכנה
+        שגר למכשיר! (בקרוב)
       </button>
+      <p className="text-xs text-gray-400 text-center mt-2">
+        כדי לשמור ולשתף את הטיול כעת, השתמשו בכפתור העננה בראש העמוד.
+      </p>
     </div>
   );
 }
