@@ -4,11 +4,13 @@ import os
 from typing import Literal
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ValidationError
 
+from auth import get_optional_user
+from models_db import User
 from services.tts import PODCASTS_DIR, STATIC_DIR, TTSService
 
 # Load a local backend/.env if present (optional dependency).
@@ -48,9 +50,6 @@ app.add_middleware(
 # Fallback to empty string assumes the runtime environment injects it if needed
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key={GEMINI_API_KEY}"
-
-# Personalization: Automatically appended to System Prompts
-USER_PREFERENCES = "The user strictly eats Kosher food. All food recommendations MUST be Kosher."
 
 # ==========================================
 # Data Models (Pydantic - Python 3.12+)
@@ -159,13 +158,19 @@ class LLMService:
         return {}
 
     @classmethod
-    async def parse_trip_text(cls, raw_text: str) -> TripData:
-        """Calls the LLM to parse raw text into a structured TripData object."""
+    async def parse_trip_text(cls, raw_text: str, preferences: str | None = None) -> TripData:
+        """Calls the LLM to parse raw text into a structured TripData object.
+
+        `preferences` is the requesting user's dietary/other free-text preference
+        (set via PUT /api/me/preferences). Anonymous requests pass None — no
+        dietary assumption is injected into the prompt.
+        """
+        preferences_fragment = f"IMPORTANT: {preferences} " if preferences else ""
         system_prompt = (
             "You are an expert travel planner AI. Your task is to parse the user's free text "
             "into a structured JSON trip schedule. "
-            f"IMPORTANT: {USER_PREFERENCES} "
-            "If the user asks for food or restaurants, ensure they are Kosher and flag 'is_kosher' as true. "
+            f"{preferences_fragment}"
+            "If the user mentions a dietary preference for restaurants, flag 'is_kosher' accordingly. "
             "Also, if a location is a historical site, set 'hasPodcast' to true. "
             "Generate realistic latitude ('lat') and longitude ('lng') for 'map_coordinates' for each activity."
         )
@@ -197,13 +202,16 @@ class LLMService:
             ) from e
 
     @classmethod
-    async def agent_interaction(cls, current_trip: TripData, user_message: str) -> AgentResponse:
+    async def agent_interaction(
+        cls, current_trip: TripData, user_message: str, preferences: str | None = None
+    ) -> AgentResponse:
         """Calls the LLM to update the trip based on user chat and return a conversational reply."""
+        preferences_fragment = f"IMPORTANT: {preferences} " if preferences else ""
         system_prompt = (
             "You are a helpful travel assistant AI. The user is reviewing their current trip itinerary. "
             "Your task is to listen to the user's request, update the JSON itinerary accordingly, "
             "and provide a friendly conversational response IN HEBREW. "
-            f"IMPORTANT: {USER_PREFERENCES} "
+            f"{preferences_fragment}"
             "Always include realistic 'map_coordinates' for new locations."
         )
 
@@ -247,15 +255,21 @@ class TripBuilder:
     def __init__(self) -> None:
         self._trip: TripData | None = None
         self._raw_text: str = ""
+        self._preferences: str | None = None
 
     def load_initial_text(self, text: str) -> "TripBuilder":
         """Receives the raw text from the user."""
         self._raw_text = text
         return self
 
+    def set_preferences(self, preferences: str | None) -> "TripBuilder":
+        """Sets the requesting user's preferences (None for anonymous requests)."""
+        self._preferences = preferences
+        return self
+
     async def extract_with_llm(self) -> "TripBuilder":
         """Invokes the LLMService to parse the text."""
-        self._trip = await LLMService.parse_trip_text(self._raw_text)
+        self._trip = await LLMService.parse_trip_text(self._raw_text, self._preferences)
         return self
 
     def load_existing_trip(self, trip_data: TripData) -> "TripBuilder":
@@ -265,13 +279,16 @@ class TripBuilder:
 
     def analyze_missing_requirements(self) -> str | None:
         """
-        Analyzes the schedule for deficiencies based on user profile.
-        Returns a proactive AI agent message if needed.
+        Analyzes the schedule for deficiencies based on the user's preferences.
+        Returns a proactive AI agent message if needed. Anonymous users (no
+        preferences set) get no proactive dietary nudge.
         """
         if not self._trip:
             raise ValueError("Trip has not been parsed yet.")
 
-        # Check for Kosher food presence
+        if not self._preferences or "kosher" not in self._preferences.lower():
+            return None
+
         has_food = any(act.type == "food" for day in self._trip.days for act in day.activities)
         if not has_food:
             return "שמתי לב שאתם שומרים כשרות, אבל לא מצאתי מסעדות בלוז שתכננו. תרצו שאחפש ואוסיף המלצות למסעדות כשרות באזורי הטיול?"
@@ -282,7 +299,9 @@ class TripBuilder:
         if not self._trip:
             raise ValueError("Trip has not been initialized.")
 
-        agent_response = await LLMService.agent_interaction(self._trip, user_message)
+        agent_response = await LLMService.agent_interaction(
+            self._trip, user_message, self._preferences
+        )
 
         # Update builder state with the new trip
         self._trip = agent_response.updated_trip
@@ -316,12 +335,17 @@ class TripBuilder:
 
 
 @app.post("/api/trip/parse", response_model=dict)
-async def parse_initial_trip(request: ParseRequest) -> dict:
+async def parse_initial_trip(
+    request: ParseRequest, current_user: User | None = Depends(get_optional_user)
+) -> dict:
     """
     Endpoint for Stage 1 & 2:
     Receives raw text, parses it using Gemini AI, and returns the structured itinerary.
+    Logged-in users get their saved preferences injected into the prompt;
+    anonymous requests get no dietary assumption.
     """
     builder = TripBuilder()
+    builder.set_preferences(current_user.preferences_text if current_user else None)
 
     # Execute the LLM pipeline asynchronously
     builder.load_initial_text(request.raw_text)
@@ -334,12 +358,15 @@ async def parse_initial_trip(request: ParseRequest) -> dict:
 
 
 @app.post("/api/trip/agent", response_model=dict)
-async def agent_interaction(request: AgentInteractRequest) -> dict:
+async def agent_interaction(
+    request: AgentInteractRequest, current_user: User | None = Depends(get_optional_user)
+) -> dict:
     """
     Endpoint for Stage 3:
     Sends user chat + current itinerary to Gemini AI to apply modifications.
     """
     builder = TripBuilder().load_existing_trip(request.trip_data)
+    builder.set_preferences(current_user.preferences_text if current_user else None)
 
     # AI modifies the trip and generates a reply
     reply_text = await builder.process_agent_update(request.user_message)
@@ -359,6 +386,23 @@ async def generate_media_endpoint(request: AgentInteractRequest) -> dict:
     await builder.generate_media()
 
     return {"trip_data": builder.get_trip().model_dump(), "status": "Media generated successfully"}
+
+
+# ==========================================
+# Persistence + Auth routers
+# ==========================================
+# Imported here (rather than at module top) so the routers — which need
+# TripData — can import it back from this module without a circular import.
+
+from db import Base, engine  # noqa: E402
+from routers.auth import me_router  # noqa: E402
+from routers.auth import router as auth_router  # noqa: E402
+from routers.trips import router as trips_router  # noqa: E402
+
+Base.metadata.create_all(bind=engine)
+app.include_router(auth_router)
+app.include_router(me_router)
+app.include_router(trips_router)
 
 
 # Entry point for local testing

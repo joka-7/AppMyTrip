@@ -12,9 +12,13 @@ through a 4-step build flow with a live phone preview.
 
 ```
 AppMyTrip/
-├── backend/          FastAPI service (LLM parse, AI agent, mock TTS podcasts)
+├── backend/          FastAPI service (LLM parse, AI agent, TTS podcasts, auth/persistence)
 │   ├── trip_api_backend.py
-│   ├── test_trip_api.py        offline tests (LLM mocked)
+│   ├── db.py                   SQLAlchemy engine/session (SQLite by default)
+│   ├── models_db.py            User / Session / Trip ORM models
+│   ├── auth.py                 password hashing + session-token auth
+│   ├── routers/                auth, /api/me, trips CRUD routers
+│   ├── test_trip_api.py        offline tests (LLM mocked, in-memory DB)
 │   ├── requirements.txt
 │   └── requirements-dev.txt
 ├── frontend/         Vite + React + TypeScript + Tailwind prototype
@@ -41,10 +45,27 @@ export GEMINI_API_KEY=...     # optional; /generate-media works without it
 python trip_api_backend.py    # serves on http://0.0.0.0:8000, docs at /docs
 ```
 
-Endpoints:
+Builder endpoints (work with or without a logged-in user):
 - `POST /api/trip/parse` — raw text → structured itinerary (LLM)
 - `POST /api/trip/agent` — chat + current itinerary → updated itinerary (LLM)
 - `POST /api/trip/generate-media` — fill TTS podcast URLs for flagged sites
+
+Auth + persistence endpoints:
+- `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`
+- `GET /api/me`, `PUT /api/me/preferences` — free-text dietary/other preference
+- `GET/POST /api/trips`, `GET/PUT/DELETE /api/trips/{id}` — saved trips, scoped to the
+  authenticated user (require `Authorization: Bearer <token>`)
+
+### Database
+
+SQLite by default (`sqlite:///./tripweaver.db`, gitignored, created automatically on
+startup). Override with `DATABASE_URL` for another SQLAlchemy-supported database.
+Auth uses opaque session tokens (bcrypt-hashed passwords, `secrets.token_urlsafe`
+tokens stored in a `sessions` table) — no OAuth/JWT, no third-party auth cost.
+
+If you're logged in, `PUT /api/me/preferences` lets you set a free-text dietary/other
+preference (e.g. "Kosher", "Vegan") that's injected into the `parse`/`agent` LLM
+prompts. Anonymous requests get no dietary assumption.
 
 ### Text-to-speech provider
 
@@ -100,5 +121,7 @@ frontend (`npm run dev`), and set `GEMINI_API_KEY` for live LLM parsing.
 ## Notes
 
 - The backend is wired to Google Gemini (`gemini-2.5-flash`). The `parse` and `agent`
-  endpoints require a valid `GEMINI_API_KEY`; `generate-media` uses a mock TTS service.
-- User profile is hardcoded (Kosher food preference) in `USER_PREFERENCES`.
+  endpoints require a valid `GEMINI_API_KEY`; `generate-media` defaults to a mock TTS
+  service (see "Text-to-speech provider" above for the free local Piper option).
+- Dietary/other preferences are a per-user, opt-in setting (`PUT /api/me/preferences`),
+  not a hardcoded assumption — see "Database" above.

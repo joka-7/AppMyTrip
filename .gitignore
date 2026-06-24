@@ -10,6 +10,9 @@ venv/
 backend/static/podcasts/*
 !backend/static/podcasts/.gitkeep
 
+# SQLite database (backend/db.py)
+*.db
+
 # Node / frontend
 node_modules/
 dist/

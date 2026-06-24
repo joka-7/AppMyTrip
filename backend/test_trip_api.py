@@ -10,9 +10,13 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 import services.tts as tts_module
 import trip_api_backend as backend
+from db import Base, get_db
 from services.tts import MockTTSProvider, PiperTTSProvider
 from trip_api_backend import (
     Activity,
@@ -24,7 +28,34 @@ from trip_api_backend import (
     app,
 )
 
+# Isolated in-memory DB for the auth/trips tests — keeps them from touching
+# the real tripweaver.db file and from leaking state across test runs.
+_test_engine = create_engine(
+    "sqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
+_TestSessionLocal = sessionmaker(bind=_test_engine, autoflush=False, autocommit=False)
+Base.metadata.create_all(bind=_test_engine)
+
+
+def _override_get_db():
+    db = _TestSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+app.dependency_overrides[get_db] = _override_get_db
+
 client = TestClient(app)
+
+
+def _register(email: str, password: str = "pw123456") -> str:
+    resp = client.post("/api/auth/register", json={"email": email, "password": password})
+    assert resp.status_code == 200
+    return resp.json()["token"]
 
 
 # ---------------------------------------------------------------------------
@@ -104,13 +135,19 @@ def test_invalid_activity_type_rejected():
 
 
 def test_analyze_missing_requirements_flags_missing_food():
-    builder = TripBuilder().load_existing_trip(_sample_trip())
+    builder = TripBuilder().load_existing_trip(_sample_trip()).set_preferences("Kosher")
     msg = builder.analyze_missing_requirements()
     assert msg is not None  # Hebrew prompt about missing kosher restaurants
 
 
 def test_analyze_missing_requirements_ok_when_food_present():
-    builder = TripBuilder().load_existing_trip(_trip_with_food())
+    builder = TripBuilder().load_existing_trip(_trip_with_food()).set_preferences("Kosher")
+    assert builder.analyze_missing_requirements() is None
+
+
+def test_analyze_missing_requirements_anonymous_gets_no_nudge():
+    # No preferences set (anonymous request) -> no dietary assumption at all.
+    builder = TripBuilder().load_existing_trip(_sample_trip())
     assert builder.analyze_missing_requirements() is None
 
 
@@ -194,8 +231,8 @@ def test_parse_endpoint(monkeypatch):
     assert resp.status_code == 200
     body = resp.json()
     assert body["trip_data"]["title"] == "Trip to Rome"
-    # no food -> proactive agent message present
-    assert body["initial_agent_message"] is not None
+    # anonymous request -> no dietary assumption, so no proactive nudge
+    assert body["initial_agent_message"] is None
 
 
 def test_agent_endpoint(monkeypatch):
@@ -237,3 +274,145 @@ def test_generate_media_endpoint():
     assert body["status"] == "Media generated successfully"
     act = body["trip_data"]["days"][0]["activities"][0]
     assert act["podcast_url"] is not None
+
+
+# ---------------------------------------------------------------------------
+# Auth (register / login / logout / preferences)
+# ---------------------------------------------------------------------------
+
+
+def test_register_and_login():
+    token = _register("alice@example.com")
+
+    resp = client.get("/api/me", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    assert resp.json() == {"email": "alice@example.com", "preferences_text": None}
+
+    resp = client.post(
+        "/api/auth/login", json={"email": "alice@example.com", "password": "pw123456"}
+    )
+    assert resp.status_code == 200
+    assert resp.json()["email"] == "alice@example.com"
+
+
+def test_register_duplicate_email_rejected():
+    _register("dup@example.com")
+    resp = client.post(
+        "/api/auth/register", json={"email": "dup@example.com", "password": "pw123456"}
+    )
+    assert resp.status_code == 400
+
+
+def test_login_wrong_password_rejected():
+    _register("bob@example.com")
+    resp = client.post(
+        "/api/auth/login", json={"email": "bob@example.com", "password": "wrong-password"}
+    )
+    assert resp.status_code == 401
+
+
+def test_me_requires_auth():
+    resp = client.get("/api/me")
+    assert resp.status_code == 401
+
+
+def test_update_preferences():
+    token = _register("carol@example.com")
+    resp = client.put(
+        "/api/me/preferences",
+        json={"preferences_text": "Vegan"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["preferences_text"] == "Vegan"
+
+
+def test_logout_invalidates_token():
+    token = _register("dave@example.com")
+    resp = client.post("/api/auth/logout", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    resp = client.get("/api/me", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Trips CRUD + ownership
+# ---------------------------------------------------------------------------
+
+
+def test_trip_crud_and_ownership():
+    owner_token = _register("owner@example.com")
+    other_token = _register("intruder@example.com")
+    headers_owner = {"Authorization": f"Bearer {owner_token}"}
+    headers_other = {"Authorization": f"Bearer {other_token}"}
+
+    resp = client.post("/api/trips", json=_sample_trip().model_dump(), headers=headers_owner)
+    assert resp.status_code == 200
+    trip_id = resp.json()["id"]
+
+    resp = client.get("/api/trips", headers=headers_owner)
+    assert resp.status_code == 200
+    assert any(t["id"] == trip_id for t in resp.json())
+
+    # Another user's request for the same id is a 404, not a 403, so it
+    # doesn't leak that the trip exists for someone else.
+    resp = client.get(f"/api/trips/{trip_id}", headers=headers_other)
+    assert resp.status_code == 404
+
+    updated = _trip_with_food().model_dump()
+    resp = client.put(f"/api/trips/{trip_id}", json=updated, headers=headers_owner)
+    assert resp.status_code == 200
+
+    resp = client.delete(f"/api/trips/{trip_id}", headers=headers_owner)
+    assert resp.status_code == 200
+    resp = client.get(f"/api/trips/{trip_id}", headers=headers_owner)
+    assert resp.status_code == 404
+
+
+def test_trips_require_auth():
+    resp = client.get("/api/trips")
+    assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Per-user preferences wired into the LLM prompt
+# ---------------------------------------------------------------------------
+
+
+def test_parse_endpoint_uses_authenticated_user_preferences(monkeypatch):
+    token = _register("pref@example.com")
+    client.put(
+        "/api/me/preferences",
+        json={"preferences_text": "Vegan"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    captured = {}
+
+    async def fake_parse(raw_text, preferences=None):
+        captured["preferences"] = preferences
+        return _sample_trip()
+
+    monkeypatch.setattr(backend.LLMService, "parse_trip_text", fake_parse)
+
+    resp = client.post(
+        "/api/trip/parse",
+        json={"raw_text": "Rome"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert captured["preferences"] == "Vegan"
+
+
+def test_parse_endpoint_anonymous_gets_no_preferences(monkeypatch):
+    captured = {}
+
+    async def fake_parse(raw_text, preferences=None):
+        captured["preferences"] = preferences
+        return _sample_trip()
+
+    monkeypatch.setattr(backend.LLMService, "parse_trip_text", fake_parse)
+
+    resp = client.post("/api/trip/parse", json={"raw_text": "Rome"})
+    assert resp.status_code == 200
+    assert captured["preferences"] is None
