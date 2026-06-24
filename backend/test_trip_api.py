@@ -1,6 +1,8 @@
 """Tests for the TripWeaver AI backend.
 
 All external LLM calls are mocked so the suite runs offline with no API key.
+The backend holds no per-user state: persistence/sharing lives in each
+user's own Google Drive on the frontend, so there's no DB/auth to test here.
 """
 
 import asyncio
@@ -10,46 +12,15 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import services.tts as tts_module
-from db import Base, get_db
 from models import Activity, AgentResponse, TripData, TripDay
 from routers.builder import TripBuilder
 from services.llm import LLMService
 from services.tts import MockTTSProvider, PiperTTSProvider, TTSService
 from trip_api_backend import app
 
-# Isolated in-memory DB for the auth/trips tests — keeps them from touching
-# the real tripweaver.db file and from leaking state across test runs.
-_test_engine = create_engine(
-    "sqlite:///:memory:",
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-_TestSessionLocal = sessionmaker(bind=_test_engine, autoflush=False, autocommit=False)
-Base.metadata.create_all(bind=_test_engine)
-
-
-def _override_get_db():
-    db = _TestSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-app.dependency_overrides[get_db] = _override_get_db
-
 client = TestClient(app)
-
-
-def _register(email: str, password: str = "pw123456") -> str:
-    resp = client.post("/api/auth/register", json={"email": email, "password": password})
-    assert resp.status_code == 200
-    return resp.json()["token"]
 
 
 # ---------------------------------------------------------------------------
@@ -225,7 +196,7 @@ def test_parse_endpoint(monkeypatch):
     assert resp.status_code == 200
     body = resp.json()
     assert body["trip_data"]["title"] == "Trip to Rome"
-    # anonymous request -> no dietary assumption, so no proactive nudge
+    # no preferences supplied -> no dietary assumption, so no proactive nudge
     assert body["initial_agent_message"] is None
 
 
@@ -271,116 +242,11 @@ def test_generate_media_endpoint():
 
 
 # ---------------------------------------------------------------------------
-# Auth (register / login / logout / preferences)
+# Client-supplied preferences wired into the LLM prompt
 # ---------------------------------------------------------------------------
 
 
-def test_register_and_login():
-    token = _register("alice@example.com")
-
-    resp = client.get("/api/me", headers={"Authorization": f"Bearer {token}"})
-    assert resp.status_code == 200
-    assert resp.json() == {"email": "alice@example.com", "preferences_text": None}
-
-    resp = client.post(
-        "/api/auth/login", json={"email": "alice@example.com", "password": "pw123456"}
-    )
-    assert resp.status_code == 200
-    assert resp.json()["email"] == "alice@example.com"
-
-
-def test_register_duplicate_email_rejected():
-    _register("dup@example.com")
-    resp = client.post(
-        "/api/auth/register", json={"email": "dup@example.com", "password": "pw123456"}
-    )
-    assert resp.status_code == 400
-
-
-def test_login_wrong_password_rejected():
-    _register("bob@example.com")
-    resp = client.post(
-        "/api/auth/login", json={"email": "bob@example.com", "password": "wrong-password"}
-    )
-    assert resp.status_code == 401
-
-
-def test_me_requires_auth():
-    resp = client.get("/api/me")
-    assert resp.status_code == 401
-
-
-def test_update_preferences():
-    token = _register("carol@example.com")
-    resp = client.put(
-        "/api/me/preferences",
-        json={"preferences_text": "Vegan"},
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert resp.status_code == 200
-    assert resp.json()["preferences_text"] == "Vegan"
-
-
-def test_logout_invalidates_token():
-    token = _register("dave@example.com")
-    resp = client.post("/api/auth/logout", headers={"Authorization": f"Bearer {token}"})
-    assert resp.status_code == 200
-    resp = client.get("/api/me", headers={"Authorization": f"Bearer {token}"})
-    assert resp.status_code == 401
-
-
-# ---------------------------------------------------------------------------
-# Trips CRUD + ownership
-# ---------------------------------------------------------------------------
-
-
-def test_trip_crud_and_ownership():
-    owner_token = _register("owner@example.com")
-    other_token = _register("intruder@example.com")
-    headers_owner = {"Authorization": f"Bearer {owner_token}"}
-    headers_other = {"Authorization": f"Bearer {other_token}"}
-
-    resp = client.post("/api/trips", json=_sample_trip().model_dump(), headers=headers_owner)
-    assert resp.status_code == 200
-    trip_id = resp.json()["id"]
-
-    resp = client.get("/api/trips", headers=headers_owner)
-    assert resp.status_code == 200
-    assert any(t["id"] == trip_id for t in resp.json())
-
-    # Another user's request for the same id is a 404, not a 403, so it
-    # doesn't leak that the trip exists for someone else.
-    resp = client.get(f"/api/trips/{trip_id}", headers=headers_other)
-    assert resp.status_code == 404
-
-    updated = _trip_with_food().model_dump()
-    resp = client.put(f"/api/trips/{trip_id}", json=updated, headers=headers_owner)
-    assert resp.status_code == 200
-
-    resp = client.delete(f"/api/trips/{trip_id}", headers=headers_owner)
-    assert resp.status_code == 200
-    resp = client.get(f"/api/trips/{trip_id}", headers=headers_owner)
-    assert resp.status_code == 404
-
-
-def test_trips_require_auth():
-    resp = client.get("/api/trips")
-    assert resp.status_code == 401
-
-
-# ---------------------------------------------------------------------------
-# Per-user preferences wired into the LLM prompt
-# ---------------------------------------------------------------------------
-
-
-def test_parse_endpoint_uses_authenticated_user_preferences(monkeypatch):
-    token = _register("pref@example.com")
-    client.put(
-        "/api/me/preferences",
-        json={"preferences_text": "Vegan"},
-        headers={"Authorization": f"Bearer {token}"},
-    )
-
+def test_parse_endpoint_passes_through_supplied_preferences(monkeypatch):
     captured = {}
 
     async def fake_parse(raw_text, preferences=None):
@@ -389,16 +255,12 @@ def test_parse_endpoint_uses_authenticated_user_preferences(monkeypatch):
 
     monkeypatch.setattr(LLMService, "parse_trip_text", fake_parse)
 
-    resp = client.post(
-        "/api/trip/parse",
-        json={"raw_text": "Rome"},
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    resp = client.post("/api/trip/parse", json={"raw_text": "Rome", "preferences": "Vegan"})
     assert resp.status_code == 200
     assert captured["preferences"] == "Vegan"
 
 
-def test_parse_endpoint_anonymous_gets_no_preferences(monkeypatch):
+def test_parse_endpoint_no_preferences_supplied(monkeypatch):
     captured = {}
 
     async def fake_parse(raw_text, preferences=None):

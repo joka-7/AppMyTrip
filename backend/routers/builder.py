@@ -1,8 +1,6 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
-from auth import get_optional_user
 from models import AgentInteractRequest, ParseRequest, TripData
-from models_db import User
 from services.llm import LLMService
 from services.tts import TTSService
 
@@ -93,17 +91,16 @@ class TripBuilder:
 
 
 @router.post("/parse", response_model=dict)
-async def parse_initial_trip(
-    request: ParseRequest, current_user: User | None = Depends(get_optional_user)
-) -> dict:
+async def parse_initial_trip(request: ParseRequest) -> dict:
     """
     Endpoint for Stage 1 & 2:
     Receives raw text, parses it using Gemini AI, and returns the structured itinerary.
-    Logged-in users get their saved preferences injected into the prompt;
-    anonymous requests get no dietary assumption.
+    `preferences` is an optional free-text dietary/other preference supplied
+    directly by the client (e.g. loaded from the user's own Google Drive
+    settings) — the backend holds no per-user state of its own.
     """
     builder = TripBuilder()
-    builder.set_preferences(current_user.preferences_text if current_user else None)
+    builder.set_preferences(request.preferences)
 
     # Execute the LLM pipeline asynchronously
     builder.load_initial_text(request.raw_text)
@@ -116,15 +113,13 @@ async def parse_initial_trip(
 
 
 @router.post("/agent", response_model=dict)
-async def agent_interaction(
-    request: AgentInteractRequest, current_user: User | None = Depends(get_optional_user)
-) -> dict:
+async def agent_interaction(request: AgentInteractRequest) -> dict:
     """
     Endpoint for Stage 3:
     Sends user chat + current itinerary to Gemini AI to apply modifications.
     """
     builder = TripBuilder().load_existing_trip(request.trip_data)
-    builder.set_preferences(current_user.preferences_text if current_user else None)
+    builder.set_preferences(request.preferences)
 
     # AI modifies the trip and generates a reply
     reply_text = await builder.process_agent_update(request.user_message)

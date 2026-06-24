@@ -58,15 +58,23 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
 }
 
 /** Stage 1: parse free trip text into a structured itinerary. */
-export function parseTrip(rawText: string): Promise<ParseResponse> {
-  return postJSON<ParseResponse>("/api/trip/parse", { raw_text: rawText });
+export function parseTrip(rawText: string, preferences?: string | null): Promise<ParseResponse> {
+  return postJSON<ParseResponse>("/api/trip/parse", {
+    raw_text: rawText,
+    preferences: preferences ?? null,
+  });
 }
 
 /** Stage 3: send a chat message + current itinerary, get an updated itinerary. */
-export function agentInteract(tripData: TripData, userMessage: string): Promise<AgentResponse> {
+export function agentInteract(
+  tripData: TripData,
+  userMessage: string,
+  preferences?: string | null,
+): Promise<AgentResponse> {
   return postJSON<AgentResponse>("/api/trip/agent", {
     trip_data: tripData,
     user_message: userMessage,
+    preferences: preferences ?? null,
   });
 }
 

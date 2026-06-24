@@ -3,11 +3,15 @@ import { ChevronRight } from "lucide-react";
 export default function BuilderStep1({
   rawText,
   onChangeRawText,
+  preferences,
+  onChangePreferences,
   onSubmit,
   isProcessing,
 }: {
   rawText: string;
   onChangeRawText: (text: string) => void;
+  preferences: string;
+  onChangePreferences: (text: string) => void;
   onSubmit: () => void;
   isProcessing: boolean;
 }) {
@@ -20,8 +24,18 @@ export default function BuilderStep1({
       <textarea
         value={rawText}
         onChange={(e) => onChangeRawText(e.target.value)}
-        className="w-full h-48 p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none mb-6 shadow-sm"
+        className="w-full h-48 p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none mb-4 shadow-sm"
         placeholder="למשל: ביום ראשון טסים ללונדון..."
+      />
+      <label className="block text-sm font-medium text-gray-600 mb-2">
+        העדפות (אופציונלי) — למשל כשרות, טבעוני, נגישות
+      </label>
+      <input
+        type="text"
+        value={preferences}
+        onChange={(e) => onChangePreferences(e.target.value)}
+        className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none mb-6 shadow-sm"
+        placeholder="למשל: שומרים כשרות"
       />
       <button
         onClick={onSubmit}

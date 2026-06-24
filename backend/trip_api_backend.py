@@ -4,11 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from db import Base, engine
-from routers.auth import me_router
-from routers.auth import router as auth_router
 from routers.builder import router as builder_router
-from routers.trips import router as trips_router
 from services.tts import PODCASTS_DIR, STATIC_DIR
 
 # Load a local backend/.env if present (optional dependency).
@@ -40,11 +36,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-Base.metadata.create_all(bind=engine)
 app.include_router(builder_router)
-app.include_router(auth_router)
-app.include_router(me_router)
-app.include_router(trips_router)
 
 
 # Entry point for local testing

@@ -51,12 +51,18 @@ class AgentInteractRequest(BaseModel):
 
     trip_data: TripData
     user_message: str
+    preferences: str | None = Field(
+        None, description="Free-text dietary/other preference (e.g. 'Kosher', 'Vegan')"
+    )
 
 
 class ParseRequest(BaseModel):
     """Payload for the initial text parsing in Stage 1."""
 
     raw_text: str
+    preferences: str | None = Field(
+        None, description="Free-text dietary/other preference (e.g. 'Kosher', 'Vegan')"
+    )
 
 
 class AgentResponse(BaseModel):

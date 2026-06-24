@@ -12,19 +12,18 @@ through a 4-step build flow with a live phone preview.
 
 ```
 AppMyTrip/
-├── backend/          FastAPI service (LLM parse, AI agent, TTS podcasts, auth/persistence)
+├── backend/          FastAPI service (LLM parse, AI agent, TTS podcasts) — stateless
 │   ├── trip_api_backend.py     entrypoint: app creation, CORS, static mount, routers
 │   ├── models.py                Pydantic request/response models (Activity, TripData, ...)
-│   ├── models_db.py            User / Session / Trip SQLAlchemy ORM models
-│   ├── db.py                   SQLAlchemy engine/session (SQLite by default)
-│   ├── auth.py                 password hashing + session-token auth
 │   ├── services/                llm.py (Gemini), tts.py (Piper/mock TTS)
-│   ├── routers/                builder (/api/trip/*), auth, /api/me, trips CRUD
-│   ├── test_trip_api.py        offline tests (LLM mocked, in-memory DB)
+│   ├── routers/                builder.py (/api/trip/*)
+│   ├── test_trip_api.py        offline tests (LLM mocked)
 │   ├── requirements.txt
 │   └── requirements-dev.txt
 ├── frontend/         Vite + React + TypeScript + Tailwind prototype
 │   ├── src/App.tsx             4-step builder UI + live preview
+│   ├── src/firebase.ts         Firebase init (Google sign-in only, no Firestore/Hosting)
+│   ├── src/services/googleDrive.ts   save/load/share trips in the user's own Drive
 │   └── e2e/                    Playwright end-to-end tests (real browser, backend mocked)
 ├── .run/             shared PyCharm/WebStorm run configurations
 └── main.py           (legacy scaffold placeholder)
@@ -65,27 +64,19 @@ export GEMINI_API_KEY=...     # optional; /generate-media works without it
 python trip_api_backend.py    # serves on http://0.0.0.0:8000, docs at /docs
 ```
 
-Builder endpoints (work with or without a logged-in user):
-- `POST /api/trip/parse` — raw text → structured itinerary (LLM)
-- `POST /api/trip/agent` — chat + current itinerary → updated itinerary (LLM)
+The backend is fully stateless — no database, no auth, no server-side persistence:
+- `POST /api/trip/parse` — raw text (+ optional `preferences` string) → structured
+  itinerary (LLM)
+- `POST /api/trip/agent` — chat + current itinerary (+ optional `preferences`) →
+  updated itinerary (LLM)
 - `POST /api/trip/generate-media` — fill TTS podcast URLs for flagged sites
 
-Auth + persistence endpoints:
-- `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`
-- `GET /api/me`, `PUT /api/me/preferences` — free-text dietary/other preference
-- `GET/POST /api/trips`, `GET/PUT/DELETE /api/trips/{id}` — saved trips, scoped to the
-  authenticated user (require `Authorization: Bearer <token>`)
-
-### Database
-
-SQLite by default (`sqlite:///./tripweaver.db`, gitignored, created automatically on
-startup). Override with `DATABASE_URL` for another SQLAlchemy-supported database.
-Auth uses opaque session tokens (bcrypt-hashed passwords, `secrets.token_urlsafe`
-tokens stored in a `sessions` table) — no OAuth/JWT, no third-party auth cost.
-
-If you're logged in, `PUT /api/me/preferences` lets you set a free-text dietary/other
-preference (e.g. "Kosher", "Vegan") that's injected into the `parse`/`agent` LLM
-prompts. Anonymous requests get no dietary assumption.
+`preferences` (e.g. "Kosher", "Vegan") is a plain free-text field the frontend sends
+with each request — there's no hardcoded global assumption and no per-account storage
+on the backend. Saving/loading/sharing trips, and remembering a preferences string
+between sessions, is handled entirely client-side via each user's own Google Drive
+(see "Frontend" → "Google Drive integration" below) — no database to run, back up, or
+pay for.
 
 ### Text-to-speech provider
 
@@ -125,6 +116,49 @@ npx playwright install chromium   # one-time browser download
 npm run test:e2e
 ```
 
+### Google Drive integration (save / load / share trips)
+
+Each user can sign in with their own Google account and save trips as JSON files in
+their **own** Google Drive — there's no backend database and no storage cost to us.
+The app uses the `drive.file` OAuth scope, which only grants access to files the app
+itself creates (or files the user explicitly opens with it), so this never sees the
+rest of the user's Drive. Sharing a trip reuses Drive's native "anyone with the link"
+permission on that one file — also free.
+
+Firebase is used **only** for the Google sign-in popup (to obtain a Drive-scoped OAuth
+access token via `firebase/auth`) — there is no Firestore and no Firebase Hosting
+involved, so this stays within Firebase's free Spark plan with normal usage.
+
+Setup (free, no billing required):
+1. Create a project at the [Firebase console](https://console.firebase.google.com/).
+2. **Build → Authentication → Sign-in method** → enable the **Google** provider.
+3. **Project settings → General → Your apps** → add a Web app, copy the config values.
+4. Copy `frontend/.env.example` to `.env.local` and fill in:
+   ```bash
+   VITE_FIREBASE_API_KEY=...
+   VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+   VITE_FIREBASE_PROJECT_ID=your-project
+   VITE_FIREBASE_APP_ID=...
+   ```
+5. In **Authentication → Settings → Authorized domains**, add `localhost` (already
+   there by default) and your Vercel domain once deployed.
+
+In the app, the cloud icon in the top-right of the navbar lets a user sign in, save
+the current trip to Drive, browse/load previously saved trips, and share/delete them.
+
+## Deploying
+
+- **Frontend → Vercel** (free Hobby tier): import the repo, set the root directory to
+  `frontend/`, build command `npm run build`, output directory `dist`. Add the
+  `VITE_FIREBASE_*` and `VITE_API_URL` env vars from above in the Vercel project
+  settings. A `frontend/vercel.json` is included so SPA routes don't 404 on refresh.
+- **Backend**: stateless FastAPI app — deploy anywhere that runs a long-lived Python
+  process (e.g. a free-tier instance on Render/Fly.io/a VM). It doesn't fit Vercel's
+  serverless functions well as a single long-running app, and isn't deployed there.
+- **Auth/Drive → Firebase**: no separate deploy step — Firebase Authentication is a
+  managed service; you only need the project + Web app config from the setup steps
+  above.
+
 ## How they connect
 
 The frontend calls the backend through `frontend/src/api.ts`. The base URL is set
@@ -158,5 +192,8 @@ frontend Node interpreter configured in the IDE's Node settings.
 - The backend is wired to Google Gemini (`gemini-2.5-flash`). The `parse` and `agent`
   endpoints require a valid `GEMINI_API_KEY`; `generate-media` defaults to a mock TTS
   service (see "Text-to-speech provider" above for the free local Piper option).
-- Dietary/other preferences are a per-user, opt-in setting (`PUT /api/me/preferences`),
-  not a hardcoded assumption — see "Database" above.
+- Dietary/other preferences are entered as free text in the builder UI and sent with
+  each request — not a hardcoded assumption, and not stored server-side (see
+  "Backend" above and "Google Drive integration" under "Frontend").
+- Everything in this app is free to run: Gemini's free tier, local Piper TTS, Vercel's
+  Hobby tier, Firebase's Spark plan, and each user's own Google Drive storage.

@@ -5,6 +5,18 @@ import * as api from "./api";
 import type { TripData } from "./api";
 
 vi.mock("./api");
+vi.mock("./services/googleDrive", () => ({
+  onAuthChange: () => () => {},
+  signInWithGoogle: vi.fn(),
+  signOutOfGoogle: vi.fn(),
+  getCachedAccessToken: vi.fn(),
+  ensureAppFolder: vi.fn(),
+  listTrips: vi.fn(),
+  saveTrip: vi.fn(),
+  loadTrip: vi.fn(),
+  deleteTrip: vi.fn(),
+  shareTrip: vi.fn(),
+}));
 
 const sampleTrip: TripData = {
   title: "Sample Trip",

@@ -6,6 +6,7 @@ import ApiNotice from "./components/ApiNotice";
 import BuilderStep1 from "./components/BuilderStep1";
 import BuilderStep3, { type AgentMessage } from "./components/BuilderStep3";
 import BuilderStep4 from "./components/BuilderStep4";
+import DriveMenu from "./components/DriveMenu";
 import PhonePreview from "./components/PhonePreview";
 import ProgressBar from "./components/ProgressBar";
 import type { Theme } from "./components/ThemeSelector";
@@ -90,6 +91,7 @@ export default function App() {
     "היי, אנחנו טסים לרומא מחרתיים עד יום ראשון. ביום הראשון ננחת, ניסע למלון ליד המדרגות הספרדיות ואז נטייל באזור. ביום השני הקולוסיאום והפורום, ומלא קניות. ביום השלישי הוותיקן. צריכים גם למצוא איפה לאכול, אנחנו שומרים כשרות.",
   );
   const [theme, setTheme] = useState<Theme>("blue");
+  const [preferences, setPreferences] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isGeneratingMedia, setIsGeneratingMedia] = useState(false);
   const [chatInput, setChatInput] = useState("");
@@ -153,7 +155,7 @@ export default function App() {
     setIsProcessing(true);
     setApiNotice(null);
     try {
-      const res = await parseTrip(rawText);
+      const res = await parseTrip(rawText, preferences || null);
       setTripData(res.trip_data);
       setAgentMessages(
         res.initial_agent_message
@@ -181,7 +183,7 @@ export default function App() {
     setChatInput("");
 
     try {
-      const res = await agentInteract(tripData, userText);
+      const res = await agentInteract(tripData, userText, preferences || null);
       setTripData(res.trip_data);
       setAgentMessages((prev) => [...prev, { role: "agent", text: res.agent_reply }]);
     } catch (err) {
@@ -213,8 +215,20 @@ export default function App() {
           <Wand2 className="text-blue-600" />
           <h1 className="text-xl font-bold text-gray-800">TripWeaver AI</h1>
         </div>
-        <div className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-          שלב {step} מתוך 4
+        <div className="flex items-center gap-3">
+          <div className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+            שלב {step} מתוך 4
+          </div>
+          <DriveMenu
+            tripData={tripData}
+            onLoadTrip={(trip) => {
+              setTripData(trip);
+              setAgentMessages([
+                { role: "agent", text: "הטיול נטען מ-Google Drive. אפשר להמשיך לערוך." },
+              ]);
+              setStep(3);
+            }}
+          />
         </div>
       </nav>
 
@@ -231,6 +245,8 @@ export default function App() {
               <BuilderStep1
                 rawText={rawText}
                 onChangeRawText={setRawText}
+                preferences={preferences}
+                onChangePreferences={setPreferences}
                 onSubmit={handleProcessText}
                 isProcessing={isProcessing}
               />

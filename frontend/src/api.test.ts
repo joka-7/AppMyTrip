@@ -30,10 +30,26 @@ describe("api client", () => {
       expect.objectContaining({
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ raw_text: "some trip text" }),
+        body: JSON.stringify({ raw_text: "some trip text", preferences: null }),
       }),
     );
     expect(result).toEqual(responseBody);
+  });
+
+  it("parseTrip threads an explicit preferences string through to the request body", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ trip_data: sampleTrip, initial_agent_message: null }),
+    } as Response);
+
+    await parseTrip("some trip text", "Vegan");
+
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_BASE_URL}/api/trip/parse`,
+      expect.objectContaining({
+        body: JSON.stringify({ raw_text: "some trip text", preferences: "Vegan" }),
+      }),
+    );
   });
 
   it("agentInteract posts trip data + message to /api/trip/agent", async () => {
@@ -49,7 +65,11 @@ describe("api client", () => {
       `${API_BASE_URL}/api/trip/agent`,
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ trip_data: sampleTrip, user_message: "add food" }),
+        body: JSON.stringify({
+          trip_data: sampleTrip,
+          user_message: "add food",
+          preferences: null,
+        }),
       }),
     );
     expect(result).toEqual(responseBody);
