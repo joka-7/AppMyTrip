@@ -16,15 +16,19 @@ import {
 /** Sign-in + "My Trips" + Save/Share controls backed by Firestore. */
 export default function CloudMenu({
   tripData,
+  tripId,
+  onTripIdChange,
   onLoadTrip,
 }: {
   tripData: TripData;
-  onLoadTrip: (trip: TripData) => void;
+  /** Id of the trip currently being edited, shared with the step-4 deploy flow. */
+  tripId: string | null;
+  onTripIdChange: (tripId: string | null) => void;
+  onLoadTrip: (trip: TripData, tripId: string) => void;
 }) {
   const [email, setEmail] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(null);
   const [trips, setTrips] = useState<CloudTripSummary[]>([]);
-  const [savedTripId, setSavedTripId] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -64,7 +68,7 @@ export default function CloudMenu({
     setEmail(null);
     setUid(null);
     setTrips([]);
-    setSavedTripId(null);
+    onTripIdChange(null);
     setIsOpen(false);
   };
 
@@ -73,8 +77,8 @@ export default function CloudMenu({
     setBusy(true);
     setNotice(null);
     try {
-      const tripId = await saveTrip(uid, tripData, savedTripId ?? undefined);
-      setSavedTripId(tripId);
+      const savedId = await saveTrip(uid, tripData, tripId ?? undefined);
+      onTripIdChange(savedId);
       await refreshTrips(uid);
       setNotice("הטיול נשמר בחשבונכם.");
     } catch (err) {
@@ -86,14 +90,14 @@ export default function CloudMenu({
   };
 
   const handleShare = async () => {
-    if (!uid || !savedTripId) {
+    if (!uid || !tripId) {
       setNotice("שמרו את הטיול לפני שיתופו.");
       return;
     }
     setBusy(true);
     setNotice(null);
     try {
-      const link = await shareTrip(uid, savedTripId, tripData);
+      const link = await shareTrip(uid, tripId, tripData);
       await navigator.clipboard.writeText(link).catch(() => {});
       setNotice("קישור השיתוף הועתק ללוח.");
     } catch (err) {
@@ -110,8 +114,7 @@ export default function CloudMenu({
     setNotice(null);
     try {
       const loaded = await loadTrip(uid, trip.id);
-      onLoadTrip(loaded);
-      setSavedTripId(trip.id);
+      onLoadTrip(loaded, trip.id);
       setIsOpen(false);
     } catch (err) {
       console.error(err);
@@ -127,7 +130,7 @@ export default function CloudMenu({
     try {
       await deleteTrip(uid, trip.id);
       await refreshTrips(uid);
-      if (savedTripId === trip.id) setSavedTripId(null);
+      if (tripId === trip.id) onTripIdChange(null);
     } catch (err) {
       console.error(err);
       setNotice("מחיקת הטיול נכשלה.");

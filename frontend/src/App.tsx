@@ -108,6 +108,11 @@ export default function App() {
 
   // Starts empty; populated by /api/trip/parse (or DEMO_TRIP on fallback).
   const [tripData, setTripData] = useState<TripData>(EMPTY_TRIP);
+  // Id of the trip currently being edited, once saved/loaded — null means
+  // "not saved yet", so the next deploy/save creates a new trip rather than
+  // overwriting one. Shared between CloudMenu and BuilderStep4 so both stay
+  // in sync about which trip is "current".
+  const [tripId, setTripId] = useState<string | null>(null);
 
   const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([]);
 
@@ -122,6 +127,8 @@ export default function App() {
     loadSharedTrip(sharedId)
       .then((trip) => {
         setTripData(trip);
+        // Not the viewer's own trip yet — saving/deploying creates their own copy.
+        setTripId(null);
         setAgentMessages([{ role: "agent", text: "טיול משותף נטען. אפשר להמשיך לערוך." }]);
         setStep(3);
       })
@@ -180,6 +187,7 @@ export default function App() {
     try {
       const res = await parseTrip(rawText, preferences || null);
       setTripData(res.trip_data);
+      setTripId(null);
       setAgentMessages(
         res.initial_agent_message
           ? [{ role: "agent", text: res.initial_agent_message }]
@@ -252,8 +260,11 @@ export default function App() {
           </div>
           <CloudMenu
             tripData={tripData}
-            onLoadTrip={(trip) => {
+            tripId={tripId}
+            onTripIdChange={setTripId}
+            onLoadTrip={(trip, loadedTripId) => {
               setTripData(trip);
+              setTripId(loadedTripId);
               setAgentMessages([{ role: "agent", text: "הטיול נטען. אפשר להמשיך לערוך." }]);
               setStep(3);
             }}
@@ -294,7 +305,16 @@ export default function App() {
             )}
 
             {step === 4 && (
-              <BuilderStep4 theme={theme} onChangeTheme={setTheme} tripData={tripData} />
+              <BuilderStep4
+                theme={theme}
+                onChangeTheme={setTheme}
+                tripData={tripData}
+                tripId={tripId}
+                onSaved={(savedId, title) => {
+                  setTripId(savedId);
+                  setTripData((prev) => ({ ...prev, title }));
+                }}
+              />
             )}
           </div>
         </div>

@@ -25,7 +25,9 @@ describe("CloudMenu", () => {
   });
 
   it("shows a sign-in button when signed out", () => {
-    render(<CloudMenu tripData={sampleTrip} onLoadTrip={vi.fn()} />);
+    render(
+      <CloudMenu tripData={sampleTrip} tripId={null} onTripIdChange={vi.fn()} onLoadTrip={vi.fn()} />,
+    );
     expect(screen.getByRole("button", { name: /התחברות עם Google/ })).toBeInTheDocument();
   });
 
@@ -41,7 +43,14 @@ describe("CloudMenu", () => {
     vi.mocked(trips.loadTrip).mockResolvedValue(sampleTrip);
 
     const onLoadTrip = vi.fn();
-    render(<CloudMenu tripData={sampleTrip} onLoadTrip={onLoadTrip} />);
+    render(
+      <CloudMenu
+        tripData={sampleTrip}
+        tripId={null}
+        onTripIdChange={vi.fn()}
+        onLoadTrip={onLoadTrip}
+      />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: /התחברות עם Google/ }));
 
@@ -53,7 +62,7 @@ describe("CloudMenu", () => {
     fireEvent.click(screen.getByText("My Trip"));
 
     await waitFor(() => {
-      expect(onLoadTrip).toHaveBeenCalledWith(sampleTrip);
+      expect(onLoadTrip).toHaveBeenCalledWith(sampleTrip, "trip-1");
     });
     expect(trips.loadTrip).toHaveBeenCalledWith("uid-123", "trip-1");
   });
