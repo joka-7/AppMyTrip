@@ -183,7 +183,12 @@ class LLMService:
             "Your task is to listen to the user's request, update the JSON itinerary accordingly, "
             "and provide a friendly conversational response IN HEBREW. "
             f"{preferences_fragment}"
-            "Always include realistic 'map_coordinates' for new locations."
+            "Always include realistic 'map_coordinates' for new locations. "
+            "When the request changes the number of days or the overall structure of the trip "
+            "(e.g. adding/removing a day, or moving an activity to a different day), reassign each "
+            "affected activity's 'dayNum' and reorder the 'days' array so it stays consistent — for "
+            "example, an end-of-trip activity like a flight home or hotel checkout must always end up "
+            "on the actual last day, not stranded on the day it was originally on."
         )
 
         schema = AgentResponse.model_json_schema()
