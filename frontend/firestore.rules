@@ -1,0 +1,22 @@
+rules_version = '2';
+
+// Trip storage rules for AppMyTrip (Firebase Spark/free plan).
+// Paste this into Firebase console -> Firestore Database -> Rules
+// (see README "Trip storage").
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Each signed-in user can only read/write their own trips.
+    match /users/{userId}/trips/{tripId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Publicly readable (no sign-in) once shared; only the owner can publish
+    // or unpublish a share — checked against ownerId on the doc itself.
+    match /sharedTrips/{tripId} {
+      allow read: if true;
+      allow create, update: if request.auth != null
+        && request.auth.uid == request.resource.data.ownerId;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId;
+    }
+  }
+}

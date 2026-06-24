@@ -2,9 +2,8 @@ import { useEffect, useState } from "react";
 import { Cloud, LogIn, LogOut, Save, Share2, FolderOpen, X } from "lucide-react";
 import type { TripData } from "../api";
 import {
-  type DriveTripSummary,
+  type CloudTripSummary,
   deleteTrip,
-  ensureAppFolder,
   listTrips,
   loadTrip,
   onAuthChange,
@@ -12,10 +11,10 @@ import {
   shareTrip,
   signInWithGoogle,
   signOutOfGoogle,
-} from "../services/googleDrive";
+} from "../services/tripsStore";
 
-/** Sign-in + "My Trips" + Save/Share controls backed by the user's own Google Drive. */
-export default function DriveMenu({
+/** Sign-in + "My Trips" + Save/Share controls backed by Firestore. */
+export default function CloudMenu({
   tripData,
   onLoadTrip,
 }: {
@@ -23,10 +22,9 @@ export default function DriveMenu({
   onLoadTrip: (trip: TripData) => void;
 }) {
   const [email, setEmail] = useState<string | null>(null);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [folderId, setFolderId] = useState<string | null>(null);
-  const [trips, setTrips] = useState<DriveTripSummary[]>([]);
-  const [savedFileId, setSavedFileId] = useState<string | null>(null);
+  const [uid, setUid] = useState<string | null>(null);
+  const [trips, setTrips] = useState<CloudTripSummary[]>([]);
+  const [savedTripId, setSavedTripId] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -35,16 +33,14 @@ export default function DriveMenu({
     return onAuthChange((user) => {
       if (!user) {
         setEmail(null);
-        setAccessToken(null);
-        setFolderId(null);
+        setUid(null);
         setTrips([]);
       }
     });
   }, []);
 
-  const refreshTrips = async (token: string, folder: string) => {
-    const list = await listTrips(token, folder);
-    setTrips(list);
+  const refreshTrips = async (id: string) => {
+    setTrips(await listTrips(id));
   };
 
   const handleSignIn = async () => {
@@ -53,10 +49,8 @@ export default function DriveMenu({
     try {
       const session = await signInWithGoogle();
       setEmail(session.email);
-      setAccessToken(session.accessToken);
-      const folder = await ensureAppFolder(session.accessToken);
-      setFolderId(folder);
-      await refreshTrips(session.accessToken, folder);
+      setUid(session.uid);
+      await refreshTrips(session.uid);
     } catch (err) {
       console.error(err);
       setNotice("ההתחברות ל-Google נכשלה. נסו שוב.");
@@ -68,39 +62,38 @@ export default function DriveMenu({
   const handleSignOut = async () => {
     await signOutOfGoogle();
     setEmail(null);
-    setAccessToken(null);
-    setFolderId(null);
+    setUid(null);
     setTrips([]);
-    setSavedFileId(null);
+    setSavedTripId(null);
     setIsOpen(false);
   };
 
   const handleSave = async () => {
-    if (!accessToken || !folderId) return;
+    if (!uid) return;
     setBusy(true);
     setNotice(null);
     try {
-      const fileId = await saveTrip(accessToken, folderId, tripData, savedFileId ?? undefined);
-      setSavedFileId(fileId);
-      await refreshTrips(accessToken, folderId);
-      setNotice("הטיול נשמר ב-Google Drive שלכם.");
+      const tripId = await saveTrip(uid, tripData, savedTripId ?? undefined);
+      setSavedTripId(tripId);
+      await refreshTrips(uid);
+      setNotice("הטיול נשמר בחשבונכם.");
     } catch (err) {
       console.error(err);
-      setNotice("שמירה ל-Drive נכשלה.");
+      setNotice("שמירת הטיול נכשלה.");
     } finally {
       setBusy(false);
     }
   };
 
   const handleShare = async () => {
-    if (!accessToken || !savedFileId) {
+    if (!uid || !savedTripId) {
       setNotice("שמרו את הטיול לפני שיתופו.");
       return;
     }
     setBusy(true);
     setNotice(null);
     try {
-      const link = await shareTrip(accessToken, savedFileId);
+      const link = await shareTrip(uid, savedTripId, tripData);
       await navigator.clipboard.writeText(link).catch(() => {});
       setNotice("קישור השיתוף הועתק ללוח.");
     } catch (err) {
@@ -111,14 +104,14 @@ export default function DriveMenu({
     }
   };
 
-  const handleLoad = async (trip: DriveTripSummary) => {
-    if (!accessToken) return;
+  const handleLoad = async (trip: CloudTripSummary) => {
+    if (!uid) return;
     setBusy(true);
     setNotice(null);
     try {
-      const loaded = await loadTrip(accessToken, trip.id);
+      const loaded = await loadTrip(uid, trip.id);
       onLoadTrip(loaded);
-      setSavedFileId(trip.id);
+      setSavedTripId(trip.id);
       setIsOpen(false);
     } catch (err) {
       console.error(err);
@@ -128,13 +121,13 @@ export default function DriveMenu({
     }
   };
 
-  const handleDelete = async (trip: DriveTripSummary) => {
-    if (!accessToken || !folderId) return;
+  const handleDelete = async (trip: CloudTripSummary) => {
+    if (!uid) return;
     setBusy(true);
     try {
-      await deleteTrip(accessToken, trip.id);
-      await refreshTrips(accessToken, folderId);
-      if (savedFileId === trip.id) setSavedFileId(null);
+      await deleteTrip(uid, trip.id);
+      await refreshTrips(uid);
+      if (savedTripId === trip.id) setSavedTripId(null);
     } catch (err) {
       console.error(err);
       setNotice("מחיקת הטיול נכשלה.");
@@ -191,7 +184,7 @@ export default function DriveMenu({
 
           <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 mb-2">
             <FolderOpen size={14} />
-            הטיולים שלי ב-Drive
+            הטיולים שלי
           </div>
           <ul className="max-h-48 overflow-y-auto space-y-1 mb-3">
             {trips.length === 0 && (
@@ -204,7 +197,7 @@ export default function DriveMenu({
                   disabled={busy}
                   className="flex-1 text-sm text-gray-700 text-right truncate hover:text-blue-600 px-2 py-1.5 rounded-lg hover:bg-gray-50"
                 >
-                  {trip.name.replace(/\.json$/, "")}
+                  {trip.name}
                 </button>
                 <button
                   onClick={() => handleDelete(trip)}

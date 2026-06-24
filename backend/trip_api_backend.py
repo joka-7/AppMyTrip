@@ -21,8 +21,13 @@ app = FastAPI(
 )
 
 # Serves locally-synthesized TTS audio (see services/tts.py: PiperTTSProvider).
-PODCASTS_DIR.mkdir(parents=True, exist_ok=True)
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+# Skipped on read-only filesystems (e.g. Vercel serverless) — fine there since
+# TTS_PROVIDER=mock never writes local files; Piper needs a writable host.
+try:
+    PODCASTS_DIR.mkdir(parents=True, exist_ok=True)
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+except OSError:
+    pass
 
 # Allow the web client (and later the Android app) to call the API from a
 # different origin. Origins are configurable via the CORS_ORIGINS env var

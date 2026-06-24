@@ -6,10 +6,11 @@ import ApiNotice from "./components/ApiNotice";
 import BuilderStep1 from "./components/BuilderStep1";
 import BuilderStep3, { type AgentMessage } from "./components/BuilderStep3";
 import BuilderStep4 from "./components/BuilderStep4";
-import DriveMenu from "./components/DriveMenu";
+import CloudMenu from "./components/CloudMenu";
 import PhonePreview from "./components/PhonePreview";
 import ProgressBar from "./components/ProgressBar";
 import type { Theme } from "./components/ThemeSelector";
+import { loadSharedTrip } from "./services/tripsStore";
 import "leaflet/dist/leaflet.css";
 
 // Empty starting point — the preview shows an empty state until a trip is parsed.
@@ -107,6 +108,22 @@ export default function App() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [agentMessages]);
+
+  // Loads a trip shared via a "?shared=<tripId>" link (no sign-in required).
+  useEffect(() => {
+    const sharedId = new URLSearchParams(window.location.search).get("shared");
+    if (!sharedId) return;
+    loadSharedTrip(sharedId)
+      .then((trip) => {
+        setTripData(trip);
+        setAgentMessages([{ role: "agent", text: "טיול משותף נטען. אפשר להמשיך לערוך." }]);
+        setStep(3);
+      })
+      .catch((err) => {
+        console.error(err);
+        setApiNotice("טעינת הטיול המשותף נכשלה.");
+      });
+  }, []);
 
   // Local fallback used when the backend is unreachable, so the prototype
   // remains demoable without a running API / Gemini key.
@@ -219,13 +236,11 @@ export default function App() {
           <div className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
             שלב {step} מתוך 4
           </div>
-          <DriveMenu
+          <CloudMenu
             tripData={tripData}
             onLoadTrip={(trip) => {
               setTripData(trip);
-              setAgentMessages([
-                { role: "agent", text: "הטיול נטען מ-Google Drive. אפשר להמשיך לערוך." },
-              ]);
+              setAgentMessages([{ role: "agent", text: "הטיול נטען. אפשר להמשיך לערוך." }]);
               setStep(3);
             }}
           />

@@ -1,49 +1,47 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import DriveMenu from "./DriveMenu";
-import * as drive from "../services/googleDrive";
+import CloudMenu from "./CloudMenu";
+import * as trips from "../services/tripsStore";
 import type { TripData } from "../api";
 
-vi.mock("../services/googleDrive", () => ({
+vi.mock("../services/tripsStore", () => ({
   onAuthChange: vi.fn(),
   signInWithGoogle: vi.fn(),
   signOutOfGoogle: vi.fn(),
-  getCachedAccessToken: vi.fn(),
-  ensureAppFolder: vi.fn(),
   listTrips: vi.fn(),
   saveTrip: vi.fn(),
   loadTrip: vi.fn(),
   deleteTrip: vi.fn(),
   shareTrip: vi.fn(),
+  loadSharedTrip: vi.fn(),
 }));
 
 const sampleTrip: TripData = { title: "Trip", dates: "Mon", days: [] };
 
-describe("DriveMenu", () => {
+describe("CloudMenu", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    vi.mocked(drive.onAuthChange).mockImplementation(() => () => {});
+    vi.mocked(trips.onAuthChange).mockImplementation(() => () => {});
   });
 
   it("shows a sign-in button when signed out", () => {
-    render(<DriveMenu tripData={sampleTrip} onLoadTrip={vi.fn()} />);
+    render(<CloudMenu tripData={sampleTrip} onLoadTrip={vi.fn()} />);
     expect(screen.getByRole("button", { name: /התחברות עם Google/ })).toBeInTheDocument();
   });
 
-  it("signs in, lists Drive trips, and loads a selected trip", async () => {
-    vi.mocked(drive.signInWithGoogle).mockResolvedValue({
-      accessToken: "token-123",
+  it("signs in, lists trips, and loads a selected trip", async () => {
+    vi.mocked(trips.signInWithGoogle).mockResolvedValue({
+      uid: "uid-123",
       email: "user@example.com",
       displayName: "User",
     });
-    vi.mocked(drive.ensureAppFolder).mockResolvedValue("folder-1");
-    vi.mocked(drive.listTrips).mockResolvedValue([
-      { id: "file-1", name: "My Trip.json", modifiedTime: "2024-01-01" },
+    vi.mocked(trips.listTrips).mockResolvedValue([
+      { id: "trip-1", name: "My Trip", modifiedTime: "2024-01-01" },
     ]);
-    vi.mocked(drive.loadTrip).mockResolvedValue(sampleTrip);
+    vi.mocked(trips.loadTrip).mockResolvedValue(sampleTrip);
 
     const onLoadTrip = vi.fn();
-    render(<DriveMenu tripData={sampleTrip} onLoadTrip={onLoadTrip} />);
+    render(<CloudMenu tripData={sampleTrip} onLoadTrip={onLoadTrip} />);
 
     fireEvent.click(screen.getByRole("button", { name: /התחברות עם Google/ }));
 
@@ -57,6 +55,6 @@ describe("DriveMenu", () => {
     await waitFor(() => {
       expect(onLoadTrip).toHaveBeenCalledWith(sampleTrip);
     });
-    expect(drive.loadTrip).toHaveBeenCalledWith("token-123", "file-1");
+    expect(trips.loadTrip).toHaveBeenCalledWith("uid-123", "trip-1");
   });
 });
