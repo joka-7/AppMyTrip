@@ -80,6 +80,23 @@ on the backend. Saving/loading/sharing trips, and remembering a preferences stri
 between sessions, is handled entirely client-side via Firestore (see "Frontend" →
 "Trip storage" below) — no database for us to run or back up.
 
+### LLM provider
+
+`backend/services/llm.py` selects a provider via the `LLM_PROVIDER` env var:
+
+- `gemini` (default) — Google Gemini. Requires `GEMINI_API_KEY` (free tier at
+  [ai.google.dev](https://ai.google.dev/)).
+- `groq` — Groq's free, OpenAI-compatible API. Requires `GROQ_API_KEY` (get one free
+  at [console.groq.com/keys](https://console.groq.com/keys)):
+  ```bash
+  export LLM_PROVIDER=groq
+  export GROQ_API_KEY=...
+  # optional, defaults to llama-3.3-70b-versatile:
+  export GROQ_MODEL=llama-3.3-70b-versatile
+  ```
+
+`/generate-media` doesn't call the LLM at all, so it works without either key set.
+
 ### Text-to-speech provider
 
 `backend/services/tts.py` selects a provider via the `TTS_PROVIDER` env var:
@@ -199,9 +216,9 @@ frontend Node interpreter configured in the IDE's Node settings.
 
 ## Notes
 
-- The backend is wired to Google Gemini (`gemini-2.5-flash`). The `parse` and `agent`
-  endpoints require a valid `GEMINI_API_KEY`; `generate-media` defaults to a mock TTS
-  service (see "Text-to-speech provider" above for the free local Piper option).
+- The `parse` and `agent` endpoints need an LLM key — Gemini by default, or Groq (see
+  "LLM provider" above). `generate-media` defaults to a mock TTS service (see
+  "Text-to-speech provider" above for the free local Piper option).
 - Dietary/other preferences are entered as free text in the builder UI and sent with
   each request — not a hardcoded assumption, and not stored server-side (see
   "Backend" above and "Trip storage" under "Frontend").

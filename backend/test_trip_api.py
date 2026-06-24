@@ -1,8 +1,8 @@
 """Tests for the TripWeaver AI backend.
 
 All external LLM calls are mocked so the suite runs offline with no API key.
-The backend holds no per-user state: persistence/sharing lives in each
-user's own Google Drive on the frontend, so there's no DB/auth to test here.
+The backend holds no per-user state: persistence/sharing lives in Firestore on
+the frontend, so there's no DB/auth to test here.
 """
 
 import asyncio
@@ -16,7 +16,7 @@ from pydantic import ValidationError
 import services.tts as tts_module
 from models import Activity, AgentResponse, TripData, TripDay
 from routers.builder import TripBuilder
-from services.llm import LLMService
+from services.llm import GeminiProvider, GroqProvider, LLMService
 from services.tts import MockTTSProvider, PiperTTSProvider, TTSService
 from trip_api_backend import app
 
@@ -179,6 +179,23 @@ def test_piper_provider_synthesizes_real_audio(tmp_path, monkeypatch):
     url = asyncio.run(provider.synthesize("Hello from Piper", "test_clip"))
     assert url == "/static/podcasts/test_clip.wav"
     assert (tmp_path / "test_clip.wav").exists()
+
+
+def test_llm_provider_defaults_to_gemini(monkeypatch):
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    assert isinstance(LLMService._get_provider(), GeminiProvider)
+
+
+def test_llm_provider_explicit_groq(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "groq")
+    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    assert isinstance(LLMService._get_provider(), GroqProvider)
+
+
+def test_llm_provider_unknown_raises_config_error(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "claude")
+    with pytest.raises(RuntimeError, match="Unknown LLM_PROVIDER"):
+        LLMService._get_provider()
 
 
 # ---------------------------------------------------------------------------
