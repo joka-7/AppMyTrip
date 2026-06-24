@@ -293,7 +293,9 @@ export default function App() {
               />
             )}
 
-            {step === 4 && <BuilderStep4 theme={theme} onChangeTheme={setTheme} />}
+            {step === 4 && (
+              <BuilderStep4 theme={theme} onChangeTheme={setTheme} tripData={tripData} />
+            )}
           </div>
         </div>
 

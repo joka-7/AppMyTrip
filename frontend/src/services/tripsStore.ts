@@ -52,6 +52,13 @@ export function onAuthChange(callback: (user: FirebaseUser | null) => void): () 
   return onAuthStateChanged(auth, callback);
 }
 
+/** Returns the signed-in user, if any, without triggering a sign-in popup. */
+export function getCurrentSession(): CloudSession | null {
+  const user = auth?.currentUser;
+  if (!user) return null;
+  return { uid: user.uid, email: user.email, displayName: user.displayName };
+}
+
 export async function signInWithGoogle(): Promise<CloudSession> {
   if (!auth) {
     throw new Error(
