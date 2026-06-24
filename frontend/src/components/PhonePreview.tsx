@@ -103,7 +103,11 @@ export default function PhonePreview({ tripData, theme }: { tripData: TripData; 
           <Map size={20} />
           <span className="text-[10px]">מפה</span>
         </button>
-        <button className="flex flex-col items-center gap-1 text-gray-400">
+        <button
+          disabled
+          title="תכונה זו תהיה זמינה באפליקציה הסופית — בשלב הבנייה משתמשים בסוכן ה-AI שמשמאל"
+          className="flex flex-col items-center gap-1 text-gray-300 cursor-not-allowed"
+        >
           <MessageCircle size={20} />
           <span className="text-[10px]">צ'אט AI</span>
         </button>
