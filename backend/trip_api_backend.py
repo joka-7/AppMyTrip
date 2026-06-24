@@ -32,7 +32,7 @@ except OSError:
 # Allow the web client (and later the Android app) to call the API from a
 # different origin. Origins are configurable via the CORS_ORIGINS env var
 # (comma-separated); defaults to "*" for local prototype development.
-_cors_origins = os.environ.get("CORS_ORIGINS", "*").split(",")
+_cors_origins = (os.environ.get("CORS_ORIGINS") or "*").split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in _cors_origins],
