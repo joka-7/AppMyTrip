@@ -27,7 +27,7 @@ class LLMProvider(Protocol):
 class GeminiProvider:
     def __init__(self) -> None:
         api_key = os.environ.get("GEMINI_API_KEY", "")
-        model = os.environ.get("GEMINI_MODEL") or "gemini-flash-latest"
+        model = os.environ.get("GEMINI_MODEL") or "gemini-2.5-flash"
         self.url = (
             f"https://generativelanguage.googleapis.com/v1beta/models/"
             f"{model}:generateContent?key={api_key}"
