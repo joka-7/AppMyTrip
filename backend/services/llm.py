@@ -27,9 +27,10 @@ class LLMProvider(Protocol):
 class GeminiProvider:
     def __init__(self) -> None:
         api_key = os.environ.get("GEMINI_API_KEY", "")
+        model = os.environ.get("GEMINI_MODEL") or "gemini-flash-latest"
         self.url = (
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"gemini-2.5-flash-preview-09-2025:generateContent?key={api_key}"
+            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{model}:generateContent?key={api_key}"
         )
 
     async def complete_json(self, system_prompt: str, user_content: str) -> dict:
