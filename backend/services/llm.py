@@ -113,6 +113,23 @@ class LLMService:
         for attempt in range(max_retries):
             try:
                 return await provider.complete_json(system_prompt, user_content)
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429:
+                    if attempt == max_retries - 1:
+                        raise HTTPException(
+                            status_code=429,
+                            detail="The LLM provider is rate-limiting this API key. "
+                            "Wait a bit before trying again, or use a different model/key.",
+                        ) from e
+                    retry_after = e.response.headers.get("retry-after")
+                    delay = float(retry_after) if retry_after else delays[attempt]
+                    await asyncio.sleep(delay)
+                    continue
+                if attempt == max_retries - 1:
+                    raise HTTPException(
+                        status_code=502, detail=f"LLM API failed after retries: {str(e)}"
+                    ) from e
+                await asyncio.sleep(delays[attempt])
             except (httpx.HTTPError, ValueError, json.JSONDecodeError) as e:
                 if attempt == max_retries - 1:
                     raise HTTPException(

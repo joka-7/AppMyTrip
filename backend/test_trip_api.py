@@ -9,7 +9,9 @@ import asyncio
 import os
 from unittest.mock import AsyncMock
 
+import httpx
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
@@ -196,6 +198,22 @@ def test_llm_provider_unknown_raises_config_error(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "claude")
     with pytest.raises(RuntimeError, match="Unknown LLM_PROVIDER"):
         LLMService._get_provider()
+
+
+def test_execute_with_retry_raises_429_after_exhausting_retries(monkeypatch):
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    response = httpx.Response(429, request=request, headers={"retry-after": "0"})
+    error = httpx.HTTPStatusError("rate limited", request=request, response=response)
+
+    class RateLimitedProvider:
+        async def complete_json(self, system_prompt, user_content):
+            raise error
+
+    monkeypatch.setattr(LLMService, "_get_provider", staticmethod(lambda: RateLimitedProvider()))
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(LLMService._execute_with_retry("sys", "user", max_retries=2))
+    assert exc_info.value.status_code == 429
 
 
 # ---------------------------------------------------------------------------

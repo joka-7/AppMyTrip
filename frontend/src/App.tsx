@@ -16,6 +16,12 @@ import "leaflet/dist/leaflet.css";
 // Empty starting point — the preview shows an empty state until a trip is parsed.
 const EMPTY_TRIP: TripData = { title: "", dates: "", days: [] };
 
+// The backend surfaces a 429 status when the LLM provider is rate-limiting
+// the configured API key — worth telling the user apart from a generic
+// "server unreachable" failure, since it's transient and not a config issue.
+const isRateLimited = (err: unknown): boolean =>
+  err instanceof Error && err.message.includes("(429)");
+
 // Generic sample trip used as an offline demo / fallback when the backend is
 // unreachable (e.g. no GEMINI_API_KEY). Intentionally not tied to a specific
 // real destination; coordinates are clustered so the auto-fit map looks sensible.
@@ -182,7 +188,11 @@ export default function App() {
       setStep(3);
     } catch (err) {
       console.error(err);
-      setApiNotice("לא הצלחנו להתחבר לשרת ה-AI — נטען טיול לדוגמה.");
+      setApiNotice(
+        isRateLimited(err)
+          ? "ספק ה-AI מגביל קצב בקשות כרגע — נסו שוב בעוד דקה. בינתיים נטען טיול לדוגמה."
+          : "לא הצלחנו להתחבר לשרת ה-AI — נטען טיול לדוגמה.",
+      );
       setTripData(DEMO_TRIP);
       setAgentMessages([{ role: "agent", text: DEMO_AGENT_MESSAGE }]);
       setStep(3);
@@ -205,7 +215,11 @@ export default function App() {
       setAgentMessages((prev) => [...prev, { role: "agent", text: res.agent_reply }]);
     } catch (err) {
       console.error(err);
-      setApiNotice("שרת ה-AI לא זמין — מגיב במצב דמו מקומי.");
+      setApiNotice(
+        isRateLimited(err)
+          ? "ספק ה-AI מגביל קצב בקשות כרגע — נסו שוב בעוד דקה. בינתיים מגיב במצב דמו מקומי."
+          : "שרת ה-AI לא זמין — מגיב במצב דמו מקומי.",
+      );
       mockAgentReply(userText);
     }
   };
