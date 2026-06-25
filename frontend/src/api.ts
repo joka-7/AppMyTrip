@@ -2,9 +2,11 @@
 //
 // Base URL is configurable via VITE_API_URL (see .env.example); it defaults to
 // the local FastAPI dev server.
+import { cleanEnvVar } from "./services/env";
 
-export const API_BASE_URL: string =
-  (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
+export const API_BASE_URL: string = (
+  cleanEnvVar(import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000"
+).replace(/\/+$/, "");
 
 export interface Activity {
   id: string;
