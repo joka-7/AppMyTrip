@@ -6,11 +6,24 @@ venv/
 .pytest_cache/
 *.egg-info/
 
+# Locally-synthesized TTS audio (backend/services/tts.py: PiperTTSProvider)
+backend/static/podcasts/*
+!backend/static/podcasts/.gitkeep
+
+# SQLite database (backend/db.py)
+*.db
+
 # Node / frontend
 node_modules/
 dist/
 dist-ssr/
 *.local
+
+# Playwright (frontend/e2e)
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+frontend/playwright/.cache/
 
 # Editors / OS
 .idea/
