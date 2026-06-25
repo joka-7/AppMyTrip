@@ -44,7 +44,6 @@ uv sync --group dev    # creates .venv/ and installs from uv.lock
 uv run pytest                # run tests (no API key / network needed — LLM calls are mocked)
 uv run ruff check . && uv run ruff format .   # lint / format
 
-export GEMINI_API_KEY=...    # optional; /generate-media works without it
 uv run python trip_api_backend.py   # serves on http://0.0.0.0:8000, docs at /docs
 ```
 
@@ -62,16 +61,16 @@ pytest
 ruff check .
 ruff format .
 
-# run the API (needs GEMINI_API_KEY for the LLM-backed endpoints)
-export GEMINI_API_KEY=...     # optional; /generate-media works without it
+# run the API — no LLM API key needed to start the server itself; see
+# "LLM provider" below for how keys are supplied
 python trip_api_backend.py    # serves on http://0.0.0.0:8000, docs at /docs
 ```
 
 The backend is fully stateless — no database, no auth, no server-side persistence:
-- `POST /api/trip/parse` — raw text (+ optional `preferences` string) → structured
-  itinerary (LLM)
-- `POST /api/trip/agent` — chat + current itinerary (+ optional `preferences`) →
-  updated itinerary (LLM)
+- `POST /api/trip/parse` — raw text (+ optional `preferences`, `api_key`, `provider`) →
+  structured itinerary (LLM)
+- `POST /api/trip/agent` — chat + current itinerary (+ optional `preferences`, `api_key`,
+  `provider`) → updated itinerary (LLM)
 - `POST /api/trip/generate-media` — fill TTS podcast URLs for flagged sites
 
 `preferences` (e.g. "Kosher", "Vegan") is a plain free-text field the frontend sends
@@ -80,22 +79,35 @@ on the backend. Saving/loading/sharing trips, and remembering a preferences stri
 between sessions, is handled entirely client-side via Firestore (see "Frontend" →
 "Trip storage" below) — no database for us to run or back up.
 
-### LLM provider
+### LLM provider — bring your own key
 
-`backend/services/llm.py` selects a provider via the `LLM_PROVIDER` env var:
+Each user supplies their **own** LLM API key from the frontend's "הגדרת מפתח API"
+(API key) menu in the navbar — it's stored only in that browser's `localStorage`
+and sent as `api_key` (+ which provider it belongs to, as `provider`) with every
+`/api/trip/parse`/`/api/trip/agent` request. This means each user burns their own
+quota/cost instead of sharing the app operator's key, and the app works without the
+operator ever configuring an LLM key at all. If a request omits `api_key`, the
+backend falls back to its own env vars (handy for local dev) and returns
+`401 Unauthorized` if neither is set.
 
-- `gemini` (default) — Google Gemini. Requires `GEMINI_API_KEY` (free tier at
+`backend/services/llm.py` supports four providers, selected per-request via
+`provider` (or the server-side `LLM_PROVIDER` env var as a fallback, default
+`gemini`):
+
+- `gemini` — Google Gemini. Server fallback key: `GEMINI_API_KEY` (free tier at
   [ai.google.dev](https://ai.google.dev/)).
-- `groq` — Groq's free, OpenAI-compatible API. Requires `GROQ_API_KEY` (get one free
-  at [console.groq.com/keys](https://console.groq.com/keys)):
-  ```bash
-  export LLM_PROVIDER=groq
-  export GROQ_API_KEY=...
-  # optional, defaults to llama-3.3-70b-versatile:
-  export GROQ_MODEL=llama-3.3-70b-versatile
-  ```
+- `openai` — OpenAI GPT models. Server fallback key: `OPENAI_API_KEY` (get one at
+  [platform.openai.com/api-keys](https://platform.openai.com/api-keys)).
+- `anthropic` — Anthropic Claude models. Server fallback key: `ANTHROPIC_API_KEY`
+  (get one at
+  [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys)).
+- `groq` — Groq's free, OpenAI-compatible API. Server fallback key: `GROQ_API_KEY`
+  (get one free at [console.groq.com/keys](https://console.groq.com/keys)).
 
-`/generate-media` doesn't call the LLM at all, so it works without either key set.
+Each provider's default model can be overridden with `GEMINI_MODEL`/`OPENAI_MODEL`/
+`ANTHROPIC_MODEL`/`GROQ_MODEL` env vars.
+
+`/generate-media` doesn't call the LLM at all, so it works without any key set.
 
 ### Text-to-speech provider
 
@@ -176,8 +188,12 @@ the current trip, browse/load previously saved trips, and share/delete them.
   import the repo as a *second* Vercel project, set the root directory to `backend/`.
   `backend/vercel.json` + `backend/api/index.py` expose the FastAPI app as a Python
   serverless function; `requirements.txt` is installed automatically. Add the
-  `GEMINI_API_KEY` and `CORS_ORIGINS` (your frontend's Vercel domain) env vars in the
-  Vercel project settings. Leave `TTS_PROVIDER` unset (defaults to `mock`) — Vercel's
+  `CORS_ORIGINS` (your frontend's Vercel domain) env var in the Vercel project
+  settings. Since each user supplies their own LLM API key from the frontend (see
+  "LLM provider — bring your own key" above), you don't need to set
+  `GEMINI_API_KEY`/`OPENAI_API_KEY`/`ANTHROPIC_API_KEY`/`GROQ_API_KEY` for a deployed
+  instance — they're only useful as a local-dev fallback. Leave `TTS_PROVIDER` unset
+  (defaults to `mock`) — Vercel's
   functions have an ephemeral, mostly read-only filesystem, so the local Piper engine
   (which needs a writable, persistent voice-model + audio directory) isn't a fit here.
   Alternatively, deploy the same FastAPI app as a long-lived process on a free-tier
@@ -195,13 +211,15 @@ by `VITE_API_URL` (see `frontend/.env.example`, default `http://localhost:8000`)
 - Step 3 agent chat → `POST /api/trip/agent`
 - Step 3 → 4 "continue to design" → `POST /api/trip/generate-media`
 
-If the backend is unreachable (or the `parse`/`agent` calls fail because no
-`GEMINI_API_KEY` is set), the UI shows a notice and falls back to local mock
-behaviour so the prototype stays demoable. The backend enables CORS (configurable
-via the `CORS_ORIGINS` env var, default `*`) so the browser can reach it.
+If the backend is unreachable (or the `parse`/`agent` calls fail because no API key
+is configured — either via the frontend's API key menu or a server-side env var),
+the UI shows a notice and falls back to local mock behaviour so the prototype stays
+demoable. The backend enables CORS (configurable via the `CORS_ORIGINS` env var,
+default `*`) so the browser can reach it.
 
 To run the full stack: start the backend (`python trip_api_backend.py`), then the
-frontend (`npm run dev`), and set `GEMINI_API_KEY` for live LLM parsing.
+frontend (`npm run dev`), and set your own LLM API key via the navbar's "הגדרת מפתח
+API" menu (or set e.g. `GEMINI_API_KEY` server-side for local dev).
 
 ## IDE run configurations
 

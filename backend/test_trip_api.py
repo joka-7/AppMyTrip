@@ -18,7 +18,7 @@ from pydantic import ValidationError
 import services.tts as tts_module
 from models import Activity, AgentResponse, TripData, TripDay
 from routers.builder import TripBuilder
-from services.llm import GeminiProvider, GroqProvider, LLMService
+from services.llm import AnthropicProvider, GeminiProvider, GroqProvider, LLMService, OpenAIProvider
 from services.tts import MockTTSProvider, PiperTTSProvider, TTSService
 from trip_api_backend import app
 
@@ -185,7 +185,7 @@ def test_piper_provider_synthesizes_real_audio(tmp_path, monkeypatch):
 
 def test_llm_provider_defaults_to_gemini(monkeypatch):
     monkeypatch.delenv("LLM_PROVIDER", raising=False)
-    assert isinstance(LLMService._get_provider(), GeminiProvider)
+    assert isinstance(LLMService._get_provider(api_key="test-key"), GeminiProvider)
 
 
 def test_llm_provider_explicit_groq(monkeypatch):
@@ -194,10 +194,36 @@ def test_llm_provider_explicit_groq(monkeypatch):
     assert isinstance(LLMService._get_provider(), GroqProvider)
 
 
+def test_llm_provider_explicit_openai(monkeypatch):
+    assert isinstance(
+        LLMService._get_provider(api_key="test-key", provider="openai"), OpenAIProvider
+    )
+
+
+def test_llm_provider_explicit_anthropic(monkeypatch):
+    assert isinstance(
+        LLMService._get_provider(api_key="test-key", provider="anthropic"), AnthropicProvider
+    )
+
+
+def test_llm_provider_param_overrides_env_var(monkeypatch):
+    # Per-request provider choice takes precedence over the server's LLM_PROVIDER env var.
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    assert isinstance(LLMService._get_provider(api_key="test-key", provider="groq"), GroqProvider)
+
+
 def test_llm_provider_unknown_raises_config_error(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "claude")
-    with pytest.raises(RuntimeError, match="Unknown LLM_PROVIDER"):
+    with pytest.raises(RuntimeError, match="Unknown LLM provider"):
+        LLMService._get_provider(api_key="test-key")
+
+
+def test_llm_provider_requires_an_api_key(monkeypatch):
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    with pytest.raises(HTTPException) as exc_info:
         LLMService._get_provider()
+    assert exc_info.value.status_code == 401
 
 
 def test_execute_with_retry_raises_429_after_exhausting_retries(monkeypatch):
@@ -209,7 +235,11 @@ def test_execute_with_retry_raises_429_after_exhausting_retries(monkeypatch):
         async def complete_json(self, system_prompt, user_content):
             raise error
 
-    monkeypatch.setattr(LLMService, "_get_provider", staticmethod(lambda: RateLimitedProvider()))
+    monkeypatch.setattr(
+        LLMService,
+        "_get_provider",
+        staticmethod(lambda api_key=None, provider=None: RateLimitedProvider()),
+    )
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(LLMService._execute_with_retry("sys", "user", max_retries=2))
@@ -284,7 +314,7 @@ def test_generate_media_endpoint():
 def test_parse_endpoint_passes_through_supplied_preferences(monkeypatch):
     captured = {}
 
-    async def fake_parse(raw_text, preferences=None):
+    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None):
         captured["preferences"] = preferences
         return _sample_trip()
 
@@ -298,7 +328,7 @@ def test_parse_endpoint_passes_through_supplied_preferences(monkeypatch):
 def test_parse_endpoint_no_preferences_supplied(monkeypatch):
     captured = {}
 
-    async def fake_parse(raw_text, preferences=None):
+    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None):
         captured["preferences"] = preferences
         return _sample_trip()
 
@@ -307,3 +337,41 @@ def test_parse_endpoint_no_preferences_supplied(monkeypatch):
     resp = client.post("/api/trip/parse", json={"raw_text": "Rome"})
     assert resp.status_code == 200
     assert captured["preferences"] is None
+
+
+def test_parse_endpoint_passes_through_caller_api_key(monkeypatch):
+    captured = {}
+
+    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None):
+        captured["api_key"] = api_key
+        return _sample_trip()
+
+    monkeypatch.setattr(LLMService, "parse_trip_text", fake_parse)
+
+    resp = client.post("/api/trip/parse", json={"raw_text": "Rome", "api_key": "user-supplied-key"})
+    assert resp.status_code == 200
+    assert captured["api_key"] == "user-supplied-key"
+
+
+def test_parse_endpoint_passes_through_caller_provider(monkeypatch):
+    captured = {}
+
+    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None):
+        captured["provider"] = provider
+        return _sample_trip()
+
+    monkeypatch.setattr(LLMService, "parse_trip_text", fake_parse)
+
+    resp = client.post(
+        "/api/trip/parse",
+        json={"raw_text": "Rome", "api_key": "user-supplied-key", "provider": "anthropic"},
+    )
+    assert resp.status_code == 200
+    assert captured["provider"] == "anthropic"
+
+
+def test_parse_endpoint_requires_api_key_when_none_configured(monkeypatch):
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    resp = client.post("/api/trip/parse", json={"raw_text": "Rome"})
+    assert resp.status_code == 401

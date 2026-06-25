@@ -1,8 +1,15 @@
 """Communication with the external LLM provider, with exponential-backoff retries.
 
-Provider is selected via the LLM_PROVIDER env var (default "gemini"):
-- gemini — Google Gemini (GEMINI_API_KEY), free tier
-- groq   — Groq's OpenAI-compatible API (GROQ_API_KEY), free tier — see
+Each request can pick its own provider (gemini / openai / anthropic / groq)
+and supply its own API key, so each user pays for/rate-limits their own
+usage instead of sharing the server operator's key. The LLM_PROVIDER env
+var and the GEMINI_API_KEY/OPENAI_API_KEY/ANTHROPIC_API_KEY/GROQ_API_KEY env
+vars are only a fallback, useful for local development when no per-request
+provider/key is supplied:
+- gemini    — Google Gemini (GEMINI_API_KEY), free tier — default
+- openai    — OpenAI GPT models (OPENAI_API_KEY)
+- anthropic — Anthropic Claude models (ANTHROPIC_API_KEY)
+- groq      — Groq's free, OpenAI-compatible API (GROQ_API_KEY) — see
   https://console.groq.com/keys
 """
 
@@ -25,22 +32,22 @@ class LLMProvider(Protocol):
 
 
 class GeminiProvider:
-    def __init__(self) -> None:
-        api_key = os.environ.get("GEMINI_API_KEY", "")
-        model = os.environ.get("GEMINI_MODEL") or "gemini-2.5-flash"
-        self.url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{model}:generateContent?key={api_key}"
-        )
+    def __init__(self, api_key: str | None = None) -> None:
+        self.api_key = api_key or os.environ.get("GEMINI_API_KEY", "")
+        self.model = os.environ.get("GEMINI_MODEL") or "gemini-2.5-flash"
 
     async def complete_json(self, system_prompt: str, user_content: str) -> dict:
+        url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{self.model}:generateContent?key={self.api_key}"
+        )
         payload = {
             "systemInstruction": {"parts": [{"text": system_prompt}]},
             "contents": [{"parts": [{"text": user_content}]}],
             "generationConfig": {"responseMimeType": "application/json"},
         }
         async with httpx.AsyncClient() as client:
-            response = await client.post(self.url, json=payload, timeout=30.0)
+            response = await client.post(url, json=payload, timeout=30.0)
             response.raise_for_status()
             result = response.json()
 
@@ -55,13 +62,16 @@ class GeminiProvider:
         return json.loads(text_content)
 
 
-class GroqProvider:
-    """Groq's free, OpenAI-compatible chat completions API."""
+class _OpenAICompatibleProvider:
+    """Base for providers that speak the OpenAI chat-completions JSON-mode API."""
 
-    def __init__(self) -> None:
-        self.api_key = os.environ.get("GROQ_API_KEY", "")
-        self.model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
-        self.url = "https://api.groq.com/openai/v1/chat/completions"
+    url: str
+
+    def __init__(
+        self, api_key: str | None, env_key_var: str, model_env_var: str, default_model: str
+    ) -> None:
+        self.api_key = api_key or os.environ.get(env_key_var, "")
+        self.model = os.environ.get(model_env_var, default_model)
 
     async def complete_json(self, system_prompt: str, user_content: str) -> dict:
         payload = {
@@ -84,8 +94,67 @@ class GroqProvider:
         return json.loads(text_content)
 
 
+class GroqProvider(_OpenAICompatibleProvider):
+    """Groq's free, OpenAI-compatible chat completions API."""
+
+    def __init__(self, api_key: str | None = None) -> None:
+        super().__init__(api_key, "GROQ_API_KEY", "GROQ_MODEL", "llama-3.3-70b-versatile")
+        self.url = "https://api.groq.com/openai/v1/chat/completions"
+
+
+class OpenAIProvider(_OpenAICompatibleProvider):
+    """OpenAI's chat completions API (GPT models)."""
+
+    def __init__(self, api_key: str | None = None) -> None:
+        super().__init__(api_key, "OPENAI_API_KEY", "OPENAI_MODEL", "gpt-4o-mini")
+        self.url = "https://api.openai.com/v1/chat/completions"
+
+
+class AnthropicProvider:
+    """Anthropic's Messages API (Claude models).
+
+    The Messages API has no JSON-mode response_format, so the prompt
+    explicitly asks for bare JSON and any accidental markdown code fence is
+    stripped before parsing.
+    """
+
+    def __init__(self, api_key: str | None = None) -> None:
+        self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+        self.model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929")
+        self.url = "https://api.anthropic.com/v1/messages"
+
+    async def complete_json(self, system_prompt: str, user_content: str) -> dict:
+        headers = {
+            "x-api-key": self.api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+        payload = {
+            "model": self.model,
+            "max_tokens": 4096,
+            "system": f"{system_prompt}\nRespond with ONLY valid JSON — no markdown fences, no commentary.",
+            "messages": [{"role": "user", "content": user_content}],
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.post(self.url, json=payload, headers=headers, timeout=30.0)
+            response.raise_for_status()
+            result = response.json()
+
+        text_content = result.get("content", [{}])[0].get("text", "").strip()
+        if not text_content:
+            raise ValueError("Empty response from LLM")
+        if text_content.startswith("```"):
+            text_content = text_content.strip("`")
+            if text_content.startswith("json"):
+                text_content = text_content[4:]
+            text_content = text_content.strip()
+        return json.loads(text_content)
+
+
 _PROVIDERS: dict[str, type] = {
     "gemini": GeminiProvider,
+    "openai": OpenAIProvider,
+    "anthropic": AnthropicProvider,
     "groq": GroqProvider,
 }
 
@@ -94,26 +163,39 @@ class LLMService:
     """Handles all communication with the configured LLM provider; retries with backoff."""
 
     @staticmethod
-    def _get_provider() -> LLMProvider:
-        name = os.environ.get("LLM_PROVIDER", "gemini").strip().lower()
+    def _get_provider(api_key: str | None = None, provider: str | None = None) -> LLMProvider:
+        name = (provider or os.environ.get("LLM_PROVIDER", "gemini")).strip().lower()
         try:
             provider_cls = _PROVIDERS[name]
         except KeyError:
             raise RuntimeError(
-                f"Unknown LLM_PROVIDER '{name}'. Valid options: {', '.join(_PROVIDERS)}"
+                f"Unknown LLM provider '{name}'. Valid options: {', '.join(_PROVIDERS)}"
             ) from None
-        return provider_cls()
+        instance = provider_cls(api_key)
+        if not instance.api_key:
+            raise HTTPException(
+                status_code=401,
+                detail="No LLM API key configured. Add your own API key in the app's "
+                "settings (or set GEMINI_API_KEY/OPENAI_API_KEY/ANTHROPIC_API_KEY/GROQ_API_KEY "
+                "on the server).",
+            )
+        return instance
 
     @classmethod
     async def _execute_with_retry(
-        cls, system_prompt: str, user_content: str, max_retries: int = 5
+        cls,
+        system_prompt: str,
+        user_content: str,
+        api_key: str | None = None,
+        provider: str | None = None,
+        max_retries: int = 5,
     ) -> dict:
-        provider = cls._get_provider()
+        llm_provider = cls._get_provider(api_key, provider)
         delays = [1, 2, 4, 8, 16]
 
         for attempt in range(max_retries):
             try:
-                return await provider.complete_json(system_prompt, user_content)
+                return await llm_provider.complete_json(system_prompt, user_content)
             except httpx.HTTPStatusError as e:
                 if e.response.status_code == 429:
                     if attempt == max_retries - 1:
@@ -140,12 +222,20 @@ class LLMService:
         return {}
 
     @classmethod
-    async def parse_trip_text(cls, raw_text: str, preferences: str | None = None) -> TripData:
+    async def parse_trip_text(
+        cls,
+        raw_text: str,
+        preferences: str | None = None,
+        api_key: str | None = None,
+        provider: str | None = None,
+    ) -> TripData:
         """Calls the LLM to parse raw text into a structured TripData object.
 
         `preferences` is the requesting user's dietary/other free-text preference
         (set via PUT /api/me/preferences). Anonymous requests pass None — no
-        dietary assumption is injected into the prompt.
+        dietary assumption is injected into the prompt. `api_key`/`provider` are
+        the caller's own LLM provider choice + key, falling back to the server's
+        env vars if omitted.
         """
         preferences_fragment = f"IMPORTANT: {preferences} " if preferences else ""
         system_prompt = (
@@ -163,7 +253,9 @@ class LLMService:
             f"{json.dumps(schema)}"
         )
 
-        json_data = await cls._execute_with_retry(system_prompt, user_content)
+        json_data = await cls._execute_with_retry(
+            system_prompt, user_content, api_key=api_key, provider=provider
+        )
 
         try:
             return TripData(**json_data)
@@ -174,7 +266,12 @@ class LLMService:
 
     @classmethod
     async def agent_interaction(
-        cls, current_trip: TripData, user_message: str, preferences: str | None = None
+        cls,
+        current_trip: TripData,
+        user_message: str,
+        preferences: str | None = None,
+        api_key: str | None = None,
+        provider: str | None = None,
     ) -> AgentResponse:
         """Calls the LLM to update the trip based on user chat and return a conversational reply."""
         preferences_fragment = f"IMPORTANT: {preferences} " if preferences else ""
@@ -198,7 +295,9 @@ class LLMService:
             f"{json.dumps(schema)}"
         )
 
-        json_data = await cls._execute_with_retry(system_prompt, user_content)
+        json_data = await cls._execute_with_retry(
+            system_prompt, user_content, api_key=api_key, provider=provider
+        )
 
         try:
             return AgentResponse(**json_data)

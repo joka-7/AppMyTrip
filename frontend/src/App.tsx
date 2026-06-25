@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Wand2 } from "lucide-react";
 import { parseTrip, agentInteract, generateMedia } from "./api";
 import type { TripData } from "./api";
+import ApiKeyMenu from "./components/ApiKeyMenu";
 import ApiNotice from "./components/ApiNotice";
 import BuilderStep1 from "./components/BuilderStep1";
 import BuilderStep3, { type AgentMessage } from "./components/BuilderStep3";
@@ -11,6 +12,7 @@ import PhonePreview from "./components/PhonePreview";
 import ProgressBar from "./components/ProgressBar";
 import SharedAppPage from "./components/SharedAppPage";
 import type { Theme } from "./components/ThemeSelector";
+import { getApiKey, getApiProvider } from "./services/apiKey";
 import { loadSharedTrip } from "./services/tripsStore";
 import "leaflet/dist/leaflet.css";
 
@@ -94,7 +96,7 @@ const DEMO_TRIP: TripData = {
 };
 
 const DEMO_AGENT_MESSAGE =
-  "טענתי טיול לדוגמה כדי שתוכלו לראות איך האפליקציה עובדת. כדי לפרסר טקסט אמיתי, הגדירו GEMINI_API_KEY בשרת — או המשיכו לערוך ידנית.";
+  "טענתי טיול לדוגמה כדי שתוכלו לראות איך האפליקציה עובדת. כדי לפרסר טקסט אמיתי, הגדירו מפתח Gemini API משלכם (כפתור 'הגדרת מפתח API' למעלה) — או המשיכו לערוך ידנית.";
 
 // --- Main App Builder Component ---
 
@@ -173,7 +175,7 @@ function TripBuilder() {
     setIsProcessing(true);
     setApiNotice(null);
     try {
-      const res = await parseTrip(rawText, preferences || null);
+      const res = await parseTrip(rawText, preferences || null, getApiKey(), getApiProvider());
       setTripData(res.trip_data);
       setTripId(null);
       setAgentMessages(
@@ -206,7 +208,13 @@ function TripBuilder() {
     setChatInput("");
 
     try {
-      const res = await agentInteract(tripData, userText, preferences || null);
+      const res = await agentInteract(
+        tripData,
+        userText,
+        preferences || null,
+        getApiKey(),
+        getApiProvider(),
+      );
       setTripData(res.trip_data);
       setAgentMessages((prev) => [...prev, { role: "agent", text: res.agent_reply }]);
     } catch (err) {
@@ -246,6 +254,7 @@ function TripBuilder() {
           <div className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
             שלב {step} מתוך 4
           </div>
+          <ApiKeyMenu />
           <CloudMenu
             tripData={tripData}
             theme={theme}

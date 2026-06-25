@@ -1,7 +1,4 @@
-"""Pydantic request/response models for the trip-builder API.
-
-Disambiguated from `models_db.py`, which holds the SQLAlchemy ORM models.
-"""
+"""Pydantic request/response models for the trip-builder API."""
 
 from typing import Literal
 
@@ -54,6 +51,17 @@ class AgentInteractRequest(BaseModel):
     preferences: str | None = Field(
         None, description="Free-text dietary/other preference (e.g. 'Kosher', 'Vegan')"
     )
+    api_key: str | None = Field(
+        None,
+        description="Caller's own LLM provider API key. Falls back to the server's "
+        "GEMINI_API_KEY/OPENAI_API_KEY/ANTHROPIC_API_KEY/GROQ_API_KEY env var if omitted.",
+    )
+    provider: str | None = Field(
+        None,
+        description="Which LLM provider `api_key` belongs to: 'gemini', 'openai', "
+        "'anthropic', or 'groq'. Falls back to the server's LLM_PROVIDER env var "
+        "(default 'gemini') if omitted.",
+    )
 
 
 class ParseRequest(BaseModel):
@@ -62,6 +70,17 @@ class ParseRequest(BaseModel):
     raw_text: str
     preferences: str | None = Field(
         None, description="Free-text dietary/other preference (e.g. 'Kosher', 'Vegan')"
+    )
+    api_key: str | None = Field(
+        None,
+        description="Caller's own LLM provider API key. Falls back to the server's "
+        "GEMINI_API_KEY/OPENAI_API_KEY/ANTHROPIC_API_KEY/GROQ_API_KEY env var if omitted.",
+    )
+    provider: str | None = Field(
+        None,
+        description="Which LLM provider `api_key` belongs to: 'gemini', 'openai', "
+        "'anthropic', or 'groq'. Falls back to the server's LLM_PROVIDER env var "
+        "(default 'gemini') if omitted.",
     )
 
 

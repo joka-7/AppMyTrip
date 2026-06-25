@@ -17,6 +17,8 @@ class TripBuilder:
         self._trip: TripData | None = None
         self._raw_text: str = ""
         self._preferences: str | None = None
+        self._api_key: str | None = None
+        self._provider: str | None = None
 
     def load_initial_text(self, text: str) -> "TripBuilder":
         """Receives the raw text from the user."""
@@ -28,9 +30,21 @@ class TripBuilder:
         self._preferences = preferences
         return self
 
+    def set_api_key(self, api_key: str | None) -> "TripBuilder":
+        """Sets the caller's own LLM provider API key (falls back to server env var)."""
+        self._api_key = api_key
+        return self
+
+    def set_provider(self, provider: str | None) -> "TripBuilder":
+        """Sets which LLM provider `api_key` belongs to (falls back to server env var)."""
+        self._provider = provider
+        return self
+
     async def extract_with_llm(self) -> "TripBuilder":
         """Invokes the LLMService to parse the text."""
-        self._trip = await LLMService.parse_trip_text(self._raw_text, self._preferences)
+        self._trip = await LLMService.parse_trip_text(
+            self._raw_text, self._preferences, api_key=self._api_key, provider=self._provider
+        )
         return self
 
     def load_existing_trip(self, trip_data: TripData) -> "TripBuilder":
@@ -61,7 +75,11 @@ class TripBuilder:
             raise ValueError("Trip has not been initialized.")
 
         agent_response = await LLMService.agent_interaction(
-            self._trip, user_message, self._preferences
+            self._trip,
+            user_message,
+            self._preferences,
+            api_key=self._api_key,
+            provider=self._provider,
         )
 
         # Update builder state with the new trip
@@ -97,10 +115,14 @@ async def parse_initial_trip(request: ParseRequest) -> dict:
     Receives raw text, parses it using Gemini AI, and returns the structured itinerary.
     `preferences` is an optional free-text dietary/other preference supplied
     directly by the client (e.g. loaded from the user's own Google Drive
-    settings) — the backend holds no per-user state of its own.
+    settings) — the backend holds no per-user state of its own. `api_key` is
+    the caller's own LLM provider API key; the server's env var is only a
+    fallback for local development.
     """
     builder = TripBuilder()
     builder.set_preferences(request.preferences)
+    builder.set_api_key(request.api_key)
+    builder.set_provider(request.provider)
 
     # Execute the LLM pipeline asynchronously
     builder.load_initial_text(request.raw_text)
@@ -120,6 +142,8 @@ async def agent_interaction(request: AgentInteractRequest) -> dict:
     """
     builder = TripBuilder().load_existing_trip(request.trip_data)
     builder.set_preferences(request.preferences)
+    builder.set_api_key(request.api_key)
+    builder.set_provider(request.provider)
 
     # AI modifies the trip and generates a reply
     reply_text = await builder.process_agent_update(request.user_message)

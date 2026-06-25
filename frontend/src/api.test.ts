@@ -30,7 +30,12 @@ describe("api client", () => {
       expect.objectContaining({
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ raw_text: "some trip text", preferences: null }),
+        body: JSON.stringify({
+          raw_text: "some trip text",
+          preferences: null,
+          api_key: null,
+          provider: null,
+        }),
       }),
     );
     expect(result).toEqual(responseBody);
@@ -47,7 +52,33 @@ describe("api client", () => {
     expect(fetch).toHaveBeenCalledWith(
       `${API_BASE_URL}/api/trip/parse`,
       expect.objectContaining({
-        body: JSON.stringify({ raw_text: "some trip text", preferences: "Vegan" }),
+        body: JSON.stringify({
+          raw_text: "some trip text",
+          preferences: "Vegan",
+          api_key: null,
+          provider: null,
+        }),
+      }),
+    );
+  });
+
+  it("parseTrip threads the caller's own API key + provider through to the request body", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ trip_data: sampleTrip, initial_agent_message: null }),
+    } as Response);
+
+    await parseTrip("some trip text", null, "my-claude-key", "anthropic");
+
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_BASE_URL}/api/trip/parse`,
+      expect.objectContaining({
+        body: JSON.stringify({
+          raw_text: "some trip text",
+          preferences: null,
+          api_key: "my-claude-key",
+          provider: "anthropic",
+        }),
       }),
     );
   });
@@ -69,6 +100,8 @@ describe("api client", () => {
           trip_data: sampleTrip,
           user_message: "add food",
           preferences: null,
+          api_key: null,
+          provider: null,
         }),
       }),
     );
