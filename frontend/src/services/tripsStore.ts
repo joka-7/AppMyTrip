@@ -27,6 +27,7 @@ import {
 } from "firebase/firestore";
 import { firebaseApp } from "../firebase";
 import type { TripData } from "../api";
+import type { Theme } from "../components/ThemeSelector";
 
 // Only initialized when Firebase is configured (see README "Trip storage").
 const auth = firebaseApp ? getAuth(firebaseApp) : null;
@@ -96,17 +97,23 @@ export async function listTrips(uid: string): Promise<CloudTripSummary[]> {
 }
 
 /** Creates a new trip doc, or overwrites an existing one if tripId is given. */
-export async function saveTrip(uid: string, trip: TripData, tripId?: string): Promise<string> {
-  const ref = tripId ? doc(tripsCollection(uid), tripId) : doc(tripsCollection(uid));
-  await setDoc(ref, { ...trip, updatedAt: serverTimestamp() });
+export async function saveTrip(
+  uid: string,
+  trip: TripData,
+  options?: { theme?: Theme; tripId?: string },
+): Promise<string> {
+  const ref = options?.tripId
+    ? doc(tripsCollection(uid), options.tripId)
+    : doc(tripsCollection(uid));
+  await setDoc(ref, { ...trip, theme: options?.theme ?? "blue", updatedAt: serverTimestamp() });
   return ref.id;
 }
 
-export async function loadTrip(uid: string, tripId: string): Promise<TripData> {
+export async function loadTrip(uid: string, tripId: string): Promise<{ trip: TripData; theme: Theme }> {
   const snap = await getDoc(doc(tripsCollection(uid), tripId));
   if (!snap.exists()) throw new Error("Trip not found.");
-  const { title, dates, days } = snap.data() as TripData;
-  return { title, dates, days };
+  const { title, dates, days, theme } = snap.data() as TripData & { theme?: Theme };
+  return { trip: { title, dates, days }, theme: theme ?? "blue" };
 }
 
 export async function deleteTrip(uid: string, tripId: string): Promise<void> {
@@ -114,10 +121,16 @@ export async function deleteTrip(uid: string, tripId: string): Promise<void> {
 }
 
 /** Publishes a read-only copy to the public sharedTrips collection and returns its link. */
-export async function shareTrip(uid: string, tripId: string, trip: TripData): Promise<string> {
+export async function shareTrip(
+  uid: string,
+  tripId: string,
+  trip: TripData,
+  theme?: Theme,
+): Promise<string> {
   if (!db) throw new Error("Firestore is not configured.");
   await setDoc(doc(db, "sharedTrips", tripId), {
     ...trip,
+    theme: theme ?? "blue",
     ownerId: uid,
     sharedAt: serverTimestamp(),
   });
@@ -127,10 +140,10 @@ export async function shareTrip(uid: string, tripId: string, trip: TripData): Pr
 }
 
 /** Loads a publicly-shared trip — no sign-in required. Used for ?shared=<id> links. */
-export async function loadSharedTrip(tripId: string): Promise<TripData> {
+export async function loadSharedTrip(tripId: string): Promise<{ trip: TripData; theme: Theme }> {
   if (!db) throw new Error("Firestore is not configured.");
   const snap = await getDoc(doc(db, "sharedTrips", tripId));
   if (!snap.exists()) throw new Error("Shared trip not found.");
-  const { title, dates, days } = snap.data() as TripData;
-  return { title, dates, days };
+  const { title, dates, days, theme } = snap.data() as TripData & { theme?: Theme };
+  return { trip: { title, dates, days }, theme: theme ?? "blue" };
 }

@@ -9,9 +9,15 @@ import BuilderStep4 from "./components/BuilderStep4";
 import CloudMenu from "./components/CloudMenu";
 import PhonePreview from "./components/PhonePreview";
 import ProgressBar from "./components/ProgressBar";
+import SharedAppPage from "./components/SharedAppPage";
 import type { Theme } from "./components/ThemeSelector";
 import { loadSharedTrip } from "./services/tripsStore";
 import "leaflet/dist/leaflet.css";
+
+// Present only on "?shared=<tripId>" links — those open straight into the
+// standalone generated app (no builder chrome), so people the trip is
+// shared with see something that looks like the real app, not the editor.
+const SHARED_TRIP_ID = new URLSearchParams(window.location.search).get("shared");
 
 // Empty starting point — the preview shows an empty state until a trip is parsed.
 const EMPTY_TRIP: TripData = { title: "", dates: "", days: [] };
@@ -92,7 +98,7 @@ const DEMO_AGENT_MESSAGE =
 
 // --- Main App Builder Component ---
 
-export default function App() {
+function TripBuilder() {
   const [step, setStep] = useState(1);
   const [rawText, setRawText] = useState(
     "היי, אנחנו טסים לרומא מחרתיים עד יום ראשון. ביום הראשון ננחת, ניסע למלון ליד המדרגות הספרדיות ואז נטייל באזור. ביום השני הקולוסיאום והפורום, ומלא קניות. ביום השלישי הוותיקן. צריכים גם למצוא איפה לאכול, אנחנו שומרים כשרות.",
@@ -119,24 +125,6 @@ export default function App() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [agentMessages]);
-
-  // Loads a trip shared via a "?shared=<tripId>" link (no sign-in required).
-  useEffect(() => {
-    const sharedId = new URLSearchParams(window.location.search).get("shared");
-    if (!sharedId) return;
-    loadSharedTrip(sharedId)
-      .then((trip) => {
-        setTripData(trip);
-        // Not the viewer's own trip yet — saving/deploying creates their own copy.
-        setTripId(null);
-        setAgentMessages([{ role: "agent", text: "טיול משותף נטען. אפשר להמשיך לערוך." }]);
-        setStep(3);
-      })
-      .catch((err) => {
-        console.error(err);
-        setApiNotice("טעינת הטיול המשותף נכשלה.");
-      });
-  }, []);
 
   // Local fallback used when the backend is unreachable, so the prototype
   // remains demoable without a running API / Gemini key.
@@ -260,11 +248,13 @@ export default function App() {
           </div>
           <CloudMenu
             tripData={tripData}
+            theme={theme}
             tripId={tripId}
             onTripIdChange={setTripId}
-            onLoadTrip={(trip, loadedTripId) => {
+            onLoadTrip={(trip, loadedTripId, loadedTheme) => {
               setTripData(trip);
               setTripId(loadedTripId);
+              setTheme(loadedTheme);
               setAgentMessages([{ role: "agent", text: "הטיול נטען. אפשר להמשיך לערוך." }]);
               setStep(3);
             }}
@@ -330,4 +320,50 @@ export default function App() {
       </div>
     </div>
   );
+}
+
+// Loads a "?shared=<tripId>" link's trip and renders only the generated
+// app — no builder chrome, no AI chat — so it looks like the real
+// mobile/web app trip participants would actually use.
+function SharedTripViewer({ tripId }: { tripId: string }) {
+  const [trip, setTrip] = useState<TripData | null>(null);
+  const [theme, setTheme] = useState<Theme>("blue");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadSharedTrip(tripId)
+      .then((result) => {
+        setTrip(result.trip);
+        setTheme(result.theme);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError("טעינת הטיול המשותף נכשלה. ייתכן שהקישור שגוי או שהטיול הוסר.");
+      });
+  }, [tripId]);
+
+  if (error) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center text-center text-gray-500 p-6"
+        dir="rtl"
+      >
+        {error}
+      </div>
+    );
+  }
+
+  if (!trip) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-gray-400" dir="rtl">
+        טוען את הטיול...
+      </div>
+    );
+  }
+
+  return <SharedAppPage tripData={trip} theme={theme} />;
+}
+
+export default function App() {
+  return SHARED_TRIP_ID ? <SharedTripViewer tripId={SHARED_TRIP_ID} /> : <TripBuilder />;
 }

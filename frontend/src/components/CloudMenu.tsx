@@ -12,19 +12,22 @@ import {
   signInWithGoogle,
   signOutOfGoogle,
 } from "../services/tripsStore";
+import type { Theme } from "./ThemeSelector";
 
 /** Sign-in + "My Trips" + Save/Share controls backed by Firestore. */
 export default function CloudMenu({
   tripData,
+  theme,
   tripId,
   onTripIdChange,
   onLoadTrip,
 }: {
   tripData: TripData;
+  theme: Theme;
   /** Id of the trip currently being edited, shared with the step-4 deploy flow. */
   tripId: string | null;
   onTripIdChange: (tripId: string | null) => void;
-  onLoadTrip: (trip: TripData, tripId: string) => void;
+  onLoadTrip: (trip: TripData, tripId: string, theme: Theme) => void;
 }) {
   const [email, setEmail] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(null);
@@ -77,7 +80,7 @@ export default function CloudMenu({
     setBusy(true);
     setNotice(null);
     try {
-      const savedId = await saveTrip(uid, tripData, tripId ?? undefined);
+      const savedId = await saveTrip(uid, tripData, { theme, tripId: tripId ?? undefined });
       onTripIdChange(savedId);
       await refreshTrips(uid);
       setNotice("הטיול נשמר בחשבונכם.");
@@ -97,7 +100,7 @@ export default function CloudMenu({
     setBusy(true);
     setNotice(null);
     try {
-      const link = await shareTrip(uid, tripId, tripData);
+      const link = await shareTrip(uid, tripId, tripData, theme);
       await navigator.clipboard.writeText(link).catch(() => {});
       setNotice("קישור השיתוף הועתק ללוח.");
     } catch (err) {
@@ -113,8 +116,8 @@ export default function CloudMenu({
     setBusy(true);
     setNotice(null);
     try {
-      const loaded = await loadTrip(uid, trip.id);
-      onLoadTrip(loaded, trip.id);
+      const { trip: loaded, theme: loadedTheme } = await loadTrip(uid, trip.id);
+      onLoadTrip(loaded, trip.id, loadedTheme);
       setIsOpen(false);
     } catch (err) {
       console.error(err);

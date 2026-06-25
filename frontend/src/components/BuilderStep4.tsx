@@ -30,8 +30,11 @@ export default function BuilderStep4({
     try {
       const namedTrip = { ...tripData, title: tripName.trim() || tripData.title };
       const session = getCurrentSession() ?? (await signInWithGoogle());
-      const savedId = await saveTrip(session.uid, namedTrip, asNewCopy ? undefined : (tripId ?? undefined));
-      const url = await shareTrip(session.uid, savedId, namedTrip);
+      const savedId = await saveTrip(session.uid, namedTrip, {
+        theme,
+        tripId: asNewCopy ? undefined : (tripId ?? undefined),
+      });
+      const url = await shareTrip(session.uid, savedId, namedTrip, theme);
       setShareUrl(url);
       setStatus("done");
       onSaved(savedId, namedTrip.title);
