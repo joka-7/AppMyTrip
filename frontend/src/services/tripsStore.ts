@@ -109,7 +109,10 @@ export async function saveTrip(
   return ref.id;
 }
 
-export async function loadTrip(uid: string, tripId: string): Promise<{ trip: TripData; theme: Theme }> {
+export async function loadTrip(
+  uid: string,
+  tripId: string,
+): Promise<{ trip: TripData; theme: Theme }> {
   const snap = await getDoc(doc(tripsCollection(uid), tripId));
   if (!snap.exists()) throw new Error("Trip not found.");
   const { title, dates, days, theme } = snap.data() as TripData & { theme?: Theme };
