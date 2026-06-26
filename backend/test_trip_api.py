@@ -283,6 +283,67 @@ def test_agent_endpoint(monkeypatch):
     assert "food" in types
 
 
+def _multi_day_trip(num_days: int) -> TripData:
+    """A trip with one activity per day, used to exercise the truncation guard."""
+    return TripData(
+        title="Trip to Georgia",
+        dates="9 days",
+        days=[
+            TripDay(
+                dayNum=day,
+                activities=[
+                    Activity(
+                        id=f"d{day}_a1",
+                        time="10:00",
+                        title=f"Day {day} activity",
+                        desc="...",
+                        type="attraction",
+                        hasPodcast=False,
+                        map_coordinates={"lat": 41.0, "lng": 44.0},
+                    )
+                ],
+            )
+            for day in range(1, num_days + 1)
+        ],
+    )
+
+
+def test_agent_endpoint_rejects_response_that_drops_most_of_the_trip(monkeypatch):
+    # Simulates a truncated/hallucinated LLM response that echoes back only the
+    # last day of a long itinerary instead of the whole thing.
+    collapsed = _multi_day_trip(1)
+    collapsed.days[0].dayNum = 9
+    monkeypatch.setattr(
+        LLMService,
+        "agent_interaction",
+        AsyncMock(return_value=AgentResponse(updated_trip=collapsed, agent_reply="עדכנתי")),
+    )
+    resp = client.post(
+        "/api/trip/agent",
+        json={
+            "trip_data": _multi_day_trip(9).model_dump(),
+            "user_message": "add a coffee stop on day 3",
+        },
+    )
+    assert resp.status_code == 502
+    assert "incomplete" in resp.json()["detail"]
+
+
+def test_agent_endpoint_allows_a_legitimate_partial_change(monkeypatch):
+    # A normal edit (e.g. adding one activity) shouldn't trip the guard.
+    updated = _trip_with_food()
+    monkeypatch.setattr(
+        LLMService,
+        "agent_interaction",
+        AsyncMock(return_value=AgentResponse(updated_trip=updated, agent_reply="הוספתי מסעדה")),
+    )
+    resp = client.post(
+        "/api/trip/agent",
+        json={"trip_data": _sample_trip().model_dump(), "user_message": "add kosher food"},
+    )
+    assert resp.status_code == 200
+
+
 def test_cors_headers_present():
     # A cross-origin POST should be echoed an Access-Control-Allow-Origin header.
     resp = client.post(
