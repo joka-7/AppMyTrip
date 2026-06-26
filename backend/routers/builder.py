@@ -1,10 +1,26 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from models import AgentInteractRequest, ParseRequest, TripData
 from services.llm import LLMService
 from services.tts import TTSService
 
 router = APIRouter(prefix="/api/trip", tags=["trip"])
+
+
+def _activity_count(trip: TripData) -> int:
+    return sum(len(day.activities) for day in trip.days)
+
+
+def _looks_truncated(previous: TripData, updated: TripData) -> bool:
+    """Heuristic guard against a truncated/hallucinated agent response that
+    silently drops most of the existing itinerary — observed in practice as a
+    long multi-day trip collapsing to a single day after one chat message,
+    most likely from the LLM's response hitting a token limit mid-echo
+    (each agent turn re-sends the *entire* itinerary, not just a diff)."""
+    prev_count = _activity_count(previous)
+    if prev_count < 4:
+        return False
+    return _activity_count(updated) < prev_count / 2
 
 
 class TripBuilder:
@@ -74,6 +90,7 @@ class TripBuilder:
         if not self._trip:
             raise ValueError("Trip has not been initialized.")
 
+        previous_trip = self._trip
         agent_response = await LLMService.agent_interaction(
             self._trip,
             user_message,
@@ -81,6 +98,14 @@ class TripBuilder:
             api_key=self._api_key,
             provider=self._provider,
         )
+
+        if _looks_truncated(previous_trip, agent_response.updated_trip):
+            raise HTTPException(
+                status_code=502,
+                detail="The AI's response looks incomplete — it dropped most of the "
+                "existing itinerary, which can happen on long trips. Your itinerary "
+                "was left unchanged; try again, or break your request into smaller steps.",
+            )
 
         # Update builder state with the new trip
         self._trip = agent_response.updated_trip

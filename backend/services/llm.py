@@ -131,7 +131,10 @@ class AnthropicProvider:
         }
         payload = {
             "model": self.model,
-            "max_tokens": 4096,
+            # Each agent turn echoes back the *entire* itinerary (not a diff), which can
+            # run long for multi-day trips with many activities — too low a cap here
+            # truncates the JSON mid-day, silently dropping the rest of the trip.
+            "max_tokens": 8192,
             "system": f"{system_prompt}\nRespond with ONLY valid JSON — no markdown fences, no commentary.",
             "messages": [{"role": "user", "content": user_content}],
         }
