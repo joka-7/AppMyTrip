@@ -248,7 +248,7 @@ function TripBuilder() {
       <nav className="bg-white shadow-sm px-6 py-4 flex justify-between items-center sticky top-0 z-30">
         <div className="flex items-center gap-2">
           <Wand2 className="text-blue-600" />
-          <h1 className="text-xl font-bold text-gray-800">TripWeaver AI</h1>
+          <h1 className="text-xl font-bold text-gray-800">תכנון טיול באמצעות AI</h1>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
@@ -288,6 +288,8 @@ function TripBuilder() {
                 onChangePreferences={setPreferences}
                 onSubmit={handleProcessText}
                 isProcessing={isProcessing}
+                hasExistingTrip={tripData.days.length > 0}
+                onContinueWithoutReprocessing={() => setStep(3)}
               />
             )}
 
@@ -351,7 +353,11 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
       })
       .catch((err) => {
         console.error(err);
-        setError("טעינת הטיול המשותף נכשלה. ייתכן שהקישור שגוי או שהטיול הוסר.");
+        setError(
+          err instanceof Error && err.message.includes("expired")
+            ? "קישור השיתוף הזה פג תוקף."
+            : "טעינת הטיול המשותף נכשלה. ייתכן שהקישור שגוי או שהטיול הוסר.",
+        );
       });
   }, [tripId]);
 
