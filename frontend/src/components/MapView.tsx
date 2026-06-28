@@ -72,7 +72,13 @@ function FitBounds({ activities }: { activities: Activity[] }) {
   return null;
 }
 
-export default function MapView({ activities }: { activities: Activity[] }) {
+export default function MapView({
+  activities,
+  onUpdateActivity,
+}: {
+  activities: Activity[];
+  onUpdateActivity?: (activityId: string, patch: Partial<Activity>) => void;
+}) {
   const coordActs = activities.filter((a) => a.map_coordinates);
 
   if (coordActs.length === 0) {
@@ -134,6 +140,17 @@ export default function MapView({ activities }: { activities: Activity[] }) {
               key={act.id}
               position={[act.map_coordinates!.lat, act.map_coordinates!.lng]}
               icon={markerIcon(act.type)}
+              draggable={Boolean(onUpdateActivity)}
+              eventHandlers={
+                onUpdateActivity
+                  ? {
+                      dragend: (e) => {
+                        const { lat, lng } = e.target.getLatLng();
+                        onUpdateActivity(act.id, { map_coordinates: { lat, lng } });
+                      },
+                    }
+                  : undefined
+              }
             >
               <Popup>{act.title}</Popup>
             </Marker>

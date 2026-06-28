@@ -1,7 +1,10 @@
 import { useRef, useState } from "react";
+import type { RefObject } from "react";
 import { Calendar, ChevronLeft, ChevronRight, Map, MessageCircle, Smartphone } from "lucide-react";
-import type { TripData } from "../api";
+import type { Activity, TripData } from "../api";
 import { usePodcastPlayer } from "../hooks/usePodcastPlayer";
+import type { AgentMessage } from "./ChatPanel";
+import ChatPanel from "./ChatPanel";
 import ItineraryList from "./ItineraryList";
 import MapView from "./MapView";
 import PodcastPlayer from "./PodcastPlayer";
@@ -18,7 +21,7 @@ const THEME_CLASSES: Record<Theme, string> = {
 const SCROLL_ARROW_THRESHOLD = 4;
 
 /**
- * The actual generated-app UI: header, day tabs, itinerary/map content,
+ * The actual generated-app UI: header, day tabs, itinerary/map/chat content,
  * podcast player and bottom nav. Rendered inside a phone bezel by
  * PhonePreview (live builder preview) and full-screen by SharedAppPage
  * (the standalone link people share with trip participants).
@@ -26,14 +29,32 @@ const SCROLL_ARROW_THRESHOLD = 4;
 export default function AppFrame({
   tripData,
   theme,
-  chatDisabledHint,
+  agentMessages,
+  chatInput,
+  onChangeChatInput,
+  onSendMessage,
+  chatEndRef,
+  isSendingMessage,
+  chatNotice,
+  onUpdateActivity,
+  isLocalOnly,
+  localOnlyNoticeText,
 }: {
   tripData: TripData;
   theme: Theme;
-  chatDisabledHint: string;
+  agentMessages: AgentMessage[];
+  chatInput: string;
+  onChangeChatInput: (text: string) => void;
+  onSendMessage: (e: React.FormEvent) => void;
+  chatEndRef: RefObject<HTMLDivElement>;
+  isSendingMessage?: boolean;
+  chatNotice?: string | null;
+  onUpdateActivity: (dayIndex: number, activityId: string, patch: Partial<Activity>) => void;
+  isLocalOnly?: boolean;
+  localOnlyNoticeText?: string;
 }) {
   const [activeDay, setActiveDay] = useState(0);
-  const [activeTab, setActiveTab] = useState<"itinerary" | "map">("itinerary");
+  const [activeTab, setActiveTab] = useState<"itinerary" | "map" | "chat">("itinerary");
   const { playingPodcast, progress, togglePlay, stop } = usePodcastPlayer();
   const tabsRef = useRef<HTMLDivElement>(null);
 
@@ -52,6 +73,9 @@ export default function AppFrame({
     tabsRef.current?.scrollBy({ left: -direction * 140, behavior: "smooth" });
   };
 
+  const handleUpdateActivity = (activityId: string, patch: Partial<Activity>) =>
+    onUpdateActivity(safeDayIdx, activityId, patch);
+
   return (
     <div className="w-full h-full flex flex-col bg-gray-50">
       {/* App Header */}
@@ -61,6 +85,12 @@ export default function AppFrame({
         <h2 className="text-xl font-bold">{tripData.title || "האפליקציה שלך"}</h2>
         <p className="text-sm opacity-80">{tripData.dates || "התצוגה המקדימה תתעדכן לפי הטקסט"}</p>
       </div>
+
+      {isLocalOnly && hasTrip && (
+        <p className="bg-amber-50 border-b border-amber-200 text-amber-800 text-xs text-center py-1.5 px-3">
+          {localOnlyNoticeText ?? "שינויים שתבצעו כאן יישמרו רק בדפדפן הזה ולא יישלחו לשרת."}
+        </p>
+      )}
 
       {/* Days Tabs */}
       {hasTrip && (
@@ -118,12 +148,28 @@ export default function AppFrame({
             themeClass={themeClass}
             playingPodcast={playingPodcast}
             onPlayPodcast={togglePlay}
+            onUpdateActivity={handleUpdateActivity}
+            isLocalOnly={isLocalOnly}
           />
         )}
 
         {hasTrip && activeTab === "map" && (
           <div className="h-full w-full animate-fade-in">
-            <MapView activities={day.activities} />
+            <MapView activities={day.activities} onUpdateActivity={handleUpdateActivity} />
+          </div>
+        )}
+
+        {hasTrip && activeTab === "chat" && (
+          <div className="h-full animate-fade-in">
+            <ChatPanel
+              agentMessages={agentMessages}
+              chatEndRef={chatEndRef}
+              chatInput={chatInput}
+              onChangeChatInput={onChangeChatInput}
+              onSendMessage={onSendMessage}
+              isSending={isSendingMessage}
+              notice={chatNotice}
+            />
           </div>
         )}
       </div>
@@ -150,9 +196,8 @@ export default function AppFrame({
           <span className="text-[10px]">מפה</span>
         </button>
         <button
-          disabled
-          title={chatDisabledHint}
-          className="flex flex-col items-center gap-1 text-gray-300 cursor-not-allowed"
+          onClick={() => setActiveTab("chat")}
+          className={`flex flex-col items-center gap-1 ${activeTab === "chat" ? "text-blue-600" : "text-gray-400"}`}
         >
           <MessageCircle size={20} />
           <span className="text-[10px]">צ'אט AI</span>

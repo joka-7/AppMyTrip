@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
-import { Cloud, LogIn, LogOut, Save, Share2, FolderOpen, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Cloud, Download, LogIn, LogOut, Save, Share2, FolderOpen, Upload, X } from "lucide-react";
 import type { TripData } from "../api";
+import { exportTripToFile, importTripFromFile } from "../services/tripFile";
 import {
   type CloudTripSummary,
   deleteSharedTrip,
@@ -30,6 +31,7 @@ export default function CloudMenu({
   tripId,
   onTripIdChange,
   onLoadTrip,
+  onImportTrip,
 }: {
   tripData: TripData;
   theme: Theme;
@@ -37,6 +39,7 @@ export default function CloudMenu({
   tripId: string | null;
   onTripIdChange: (tripId: string | null) => void;
   onLoadTrip: (trip: TripData, tripId: string, theme: Theme) => void;
+  onImportTrip: (trip: TripData, theme: Theme) => void;
 }) {
   const [email, setEmail] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(null);
@@ -45,6 +48,20 @@ export default function CloudMenu({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [shareDays, setShareDays] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const { tripData: imported, theme: importedTheme } = await importTripFromFile(file);
+      onImportTrip(imported, importedTheme);
+      setNotice("הטיול יובא מהקובץ.");
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "ייבוא הקובץ נכשל.");
+    }
+  };
 
   useEffect(() => {
     return onAuthChange((user) => {
@@ -154,103 +171,135 @@ export default function CloudMenu({
     }
   };
 
+  const fileImportControls = (
+    <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/json"
+        onChange={handleImportFile}
+        className="hidden"
+      />
+      <button
+        onClick={() => exportTripToFile(tripData, theme)}
+        className="flex items-center gap-1.5 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-full transition-colors"
+      >
+        <Download size={16} />
+        ייצוא
+      </button>
+      <button
+        onClick={() => fileInputRef.current?.click()}
+        className="flex items-center gap-1.5 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-full transition-colors"
+      >
+        <Upload size={16} />
+        ייבוא
+      </button>
+    </>
+  );
+
   if (!email) {
     return (
-      <button
-        onClick={handleSignIn}
-        disabled={busy}
-        className="flex items-center gap-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-full transition-colors"
-      >
-        <LogIn size={16} />
-        {busy ? "מתחבר..." : "התחברות עם Google"}
-      </button>
+      <div className="flex items-center gap-2">
+        {fileImportControls}
+        <button
+          onClick={handleSignIn}
+          disabled={busy}
+          className="flex items-center gap-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-full transition-colors"
+        >
+          <LogIn size={16} />
+          {busy ? "מתחבר..." : "התחברות עם Google"}
+        </button>
+      </div>
     );
   }
 
   return (
-    <div className="relative">
-      <button
-        onClick={() => setIsOpen((v) => !v)}
-        className="flex items-center gap-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-full transition-colors"
-      >
-        <Cloud size={16} />
-        {email}
-      </button>
+    <div className="flex items-center gap-2">
+      {fileImportControls}
+      <div className="relative">
+        <button
+          onClick={() => setIsOpen((v) => !v)}
+          className="flex items-center gap-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-full transition-colors"
+        >
+          <Cloud size={16} />
+          {email}
+        </button>
 
-      {isOpen && (
-        <div className="absolute left-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 p-4 z-40 text-right">
-          {notice && <p className="text-xs text-amber-700 mb-3">{notice}</p>}
+        {isOpen && (
+          <div className="absolute left-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 p-4 z-40 text-right">
+            {notice && <p className="text-xs text-amber-700 mb-3">{notice}</p>}
 
-          <div className="flex gap-2 mb-2">
-            <button
-              onClick={handleSave}
-              disabled={busy}
-              className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-2 rounded-lg"
-            >
-              <Save size={14} />
-              שמירה
-            </button>
-            <button
-              onClick={handleShare}
-              disabled={busy}
-              className="flex-1 flex items-center justify-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-3 py-2 rounded-lg"
-            >
-              <Share2 size={14} />
-              שיתוף
-            </button>
-          </div>
-          <label className="block text-xs text-gray-500 mb-4">
-            תוקף קישור השיתוף:{" "}
-            <select
-              value={shareDays}
-              onChange={(e) => setShareDays(Number(e.target.value))}
-              className="border border-gray-200 rounded-md px-1.5 py-0.5 text-xs"
-            >
-              {SHARE_DURATIONS.map((opt) => (
-                <option key={opt.days} value={opt.days}>
-                  {opt.label}
-                </option>
+            <div className="flex gap-2 mb-2">
+              <button
+                onClick={handleSave}
+                disabled={busy}
+                className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-2 rounded-lg"
+              >
+                <Save size={14} />
+                שמירה
+              </button>
+              <button
+                onClick={handleShare}
+                disabled={busy}
+                className="flex-1 flex items-center justify-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-3 py-2 rounded-lg"
+              >
+                <Share2 size={14} />
+                שיתוף
+              </button>
+            </div>
+            <label className="block text-xs text-gray-500 mb-4">
+              תוקף קישור השיתוף:{" "}
+              <select
+                value={shareDays}
+                onChange={(e) => setShareDays(Number(e.target.value))}
+                className="border border-gray-200 rounded-md px-1.5 py-0.5 text-xs"
+              >
+                {SHARE_DURATIONS.map((opt) => (
+                  <option key={opt.days} value={opt.days}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 mb-2">
+              <FolderOpen size={14} />
+              הטיולים שלי
+            </div>
+            <ul className="max-h-48 overflow-y-auto space-y-1 mb-3">
+              {trips.length === 0 && (
+                <li className="text-xs text-gray-400 py-2">אין טיולים שמורים עדיין.</li>
+              )}
+              {trips.map((trip) => (
+                <li key={trip.id} className="flex items-center gap-1 group">
+                  <button
+                    onClick={() => handleLoad(trip)}
+                    disabled={busy}
+                    className="flex-1 text-sm text-gray-700 text-right truncate hover:text-blue-600 px-2 py-1.5 rounded-lg hover:bg-gray-50"
+                  >
+                    {trip.name}
+                  </button>
+                  <button
+                    onClick={() => handleDelete(trip)}
+                    disabled={busy}
+                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 p-1"
+                  >
+                    <X size={14} />
+                  </button>
+                </li>
               ))}
-            </select>
-          </label>
+            </ul>
 
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 mb-2">
-            <FolderOpen size={14} />
-            הטיולים שלי
+            <button
+              onClick={handleSignOut}
+              className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700"
+            >
+              <LogOut size={14} />
+              התנתקות
+            </button>
           </div>
-          <ul className="max-h-48 overflow-y-auto space-y-1 mb-3">
-            {trips.length === 0 && (
-              <li className="text-xs text-gray-400 py-2">אין טיולים שמורים עדיין.</li>
-            )}
-            {trips.map((trip) => (
-              <li key={trip.id} className="flex items-center gap-1 group">
-                <button
-                  onClick={() => handleLoad(trip)}
-                  disabled={busy}
-                  className="flex-1 text-sm text-gray-700 text-right truncate hover:text-blue-600 px-2 py-1.5 rounded-lg hover:bg-gray-50"
-                >
-                  {trip.name}
-                </button>
-                <button
-                  onClick={() => handleDelete(trip)}
-                  disabled={busy}
-                  className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 p-1"
-                >
-                  <X size={14} />
-                </button>
-              </li>
-            ))}
-          </ul>
-
-          <button
-            onClick={handleSignOut}
-            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700"
-          >
-            <LogOut size={14} />
-            התנתקות
-          </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
