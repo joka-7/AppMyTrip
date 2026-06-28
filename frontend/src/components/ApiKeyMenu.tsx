@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Check, KeyRound, Trash2 } from "lucide-react";
+import { Check, Eye, EyeOff, KeyRound, Trash2 } from "lucide-react";
 import {
   clearApiKey,
-  getApiKey,
+  getApiKeyForProvider,
   getApiProvider,
   PROVIDERS,
   setApiKey,
@@ -12,15 +12,23 @@ import {
 /**
  * Lets each user pick their preferred LLM provider (Gemini, OpenAI, Claude,
  * or Groq) and paste in their own API key for it, so the app calls the LLM
- * with their key/quota instead of sharing the developer's. Stored in
- * localStorage and sent with each builder request; never touches our
- * backend's env vars.
+ * with their key/quota instead of sharing the developer's. Each provider's
+ * key is stored separately in localStorage and sent with each builder
+ * request; never touches our backend's env vars.
  */
 export default function ApiKeyMenu() {
   const [isOpen, setIsOpen] = useState(false);
-  const [draft, setDraft] = useState(getApiKey() ?? "");
   const [provider, setProvider] = useState<LLMProvider>(getApiProvider());
-  const [savedKey, setSavedKey] = useState(getApiKey());
+  const [draft, setDraft] = useState(getApiKeyForProvider(provider) ?? "");
+  const [savedKey, setSavedKey] = useState(getApiKeyForProvider(provider));
+  const [showKey, setShowKey] = useState(false);
+
+  const handleProviderChange = (next: LLMProvider) => {
+    setProvider(next);
+    const existing = getApiKeyForProvider(next);
+    setDraft(existing ?? "");
+    setSavedKey(existing);
+  };
 
   const handleSave = () => {
     const trimmed = draft.trim();
@@ -31,7 +39,7 @@ export default function ApiKeyMenu() {
   };
 
   const handleClear = () => {
-    clearApiKey();
+    clearApiKey(provider);
     setSavedKey(null);
     setDraft("");
   };
@@ -61,11 +69,11 @@ export default function ApiKeyMenu() {
             <a href={keyUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline">
               {keyUrl.replace("https://", "")}
             </a>
-            . המפתח נשמר רק בדפדפן שלכם.
+            . כל ספק שומר את המפתח שלו בנפרד, רק בדפדפן שלכם.
           </p>
           <select
             value={provider}
-            onChange={(e) => setProvider(e.target.value as LLMProvider)}
+            onChange={(e) => handleProviderChange(e.target.value as LLMProvider)}
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             {PROVIDERS.map((p) => (
@@ -74,13 +82,23 @@ export default function ApiKeyMenu() {
               </option>
             ))}
           </select>
-          <input
-            type="password"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="API Key..."
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <div className="relative mb-3">
+            <input
+              type={showKey ? "text" : "password"}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="API Key..."
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 pl-9 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button
+              type="button"
+              onClick={() => setShowKey((v) => !v)}
+              aria-label={showKey ? "הסתרת המפתח" : "הצגת המפתח"}
+              className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
           <div className="flex gap-2">
             <button
               onClick={handleSave}

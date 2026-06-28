@@ -98,7 +98,7 @@ class GroqProvider(_OpenAICompatibleProvider):
     """Groq's free, OpenAI-compatible chat completions API."""
 
     def __init__(self, api_key: str | None = None) -> None:
-        super().__init__(api_key, "GROQ_API_KEY", "GROQ_MODEL", "llama-3.3-70b-versatile")
+        super().__init__(api_key, "GROQ_API_KEY", "GROQ_MODEL", "openai/gpt-oss-120b")
         self.url = "https://api.groq.com/openai/v1/chat/completions"
 
 
