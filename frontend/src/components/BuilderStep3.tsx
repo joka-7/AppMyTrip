@@ -10,6 +10,7 @@ export default function BuilderStep3({
   chatInput,
   onChangeChatInput,
   onSendMessage,
+  isSendingMessage,
   onContinue,
   onBack,
   isGeneratingMedia,
@@ -21,6 +22,7 @@ export default function BuilderStep3({
   chatInput: string;
   onChangeChatInput: (text: string) => void;
   onSendMessage: (e: React.FormEvent) => void;
+  isSendingMessage?: boolean;
   onContinue: () => void;
   onBack: () => void;
   isGeneratingMedia: boolean;
@@ -50,6 +52,7 @@ export default function BuilderStep3({
           chatInput={chatInput}
           onChangeChatInput={onChangeChatInput}
           onSendMessage={onSendMessage}
+          isSending={isSendingMessage}
         />
       </div>
 

@@ -1,8 +1,19 @@
 import { useRef, useState } from "react";
 import type { RefObject } from "react";
-import { Calendar, ChevronLeft, ChevronRight, Map, MessageCircle, Smartphone } from "lucide-react";
+import {
+  Calendar,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Map,
+  MessageCircle,
+  Pencil,
+  Smartphone,
+  X,
+} from "lucide-react";
 import type { Activity, TripData } from "../api";
 import { usePodcastPlayer } from "../hooks/usePodcastPlayer";
+import { hebrewWeekdayLetter, parseTripStartDate } from "../services/hebrewDate";
 import type { AgentMessage } from "./ChatPanel";
 import ChatPanel from "./ChatPanel";
 import ItineraryList from "./ItineraryList";
@@ -37,6 +48,7 @@ export default function AppFrame({
   isSendingMessage,
   chatNotice,
   onUpdateActivity,
+  onUpdateTrip,
   isLocalOnly,
   localOnlyNoticeText,
 }: {
@@ -50,11 +62,15 @@ export default function AppFrame({
   isSendingMessage?: boolean;
   chatNotice?: string | null;
   onUpdateActivity: (dayIndex: number, activityId: string, patch: Partial<Activity>) => void;
+  onUpdateTrip: (patch: Partial<Pick<TripData, "title" | "dates">>) => void;
   isLocalOnly?: boolean;
   localOnlyNoticeText?: string;
 }) {
   const [activeDay, setActiveDay] = useState(0);
   const [activeTab, setActiveTab] = useState<"itinerary" | "map" | "chat">("itinerary");
+  const [isEditingHeader, setIsEditingHeader] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [datesDraft, setDatesDraft] = useState("");
   const { playingPodcast, progress, togglePlay, stop } = usePodcastPlayer();
   const tabsRef = useRef<HTMLDivElement>(null);
 
@@ -65,6 +81,18 @@ export default function AppFrame({
   const hasTrip = days.length > 0;
   const safeDayIdx = Math.min(activeDay, Math.max(0, days.length - 1));
   const day = days[safeDayIdx];
+  const tripStartDate = parseTripStartDate(tripData.dates);
+
+  const startEditingHeader = () => {
+    setTitleDraft(tripData.title);
+    setDatesDraft(tripData.dates);
+    setIsEditingHeader(true);
+  };
+
+  const saveHeaderEdit = () => {
+    onUpdateTrip({ title: titleDraft, dates: datesDraft });
+    setIsEditingHeader(false);
+  };
 
   // The tab strip is RTL, so a forward (left-to-right in DOM order) scroll
   // direction is the opposite sign of what scrollBy expects in an LTR
@@ -82,8 +110,58 @@ export default function AppFrame({
       <div
         className={`${themeClass} text-white pt-10 pb-4 px-6 shadow-md transition-colors duration-300`}
       >
-        <h2 className="text-xl font-bold">{tripData.title || "האפליקציה שלך"}</h2>
-        <p className="text-sm opacity-80">{tripData.dates || "התצוגה המקדימה תתעדכן לפי הטקסט"}</p>
+        {isEditingHeader ? (
+          <div className="flex flex-col gap-2">
+            <input
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              className="text-xl font-bold bg-white/10 placeholder-white/60 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-white/40"
+              placeholder="שם הטיול"
+            />
+            <input
+              value={datesDraft}
+              onChange={(e) => setDatesDraft(e.target.value)}
+              className="text-sm bg-white/10 placeholder-white/60 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-white/40"
+              placeholder="טווח תאריכים"
+            />
+            <div className="flex gap-2 mt-1">
+              <button
+                onClick={saveHeaderEdit}
+                aria-label="שמירת שם וטווח תאריכים"
+                className="flex items-center gap-1 text-xs bg-white/20 hover:bg-white/30 rounded-lg px-2 py-1"
+              >
+                <Check size={12} />
+                שמירה
+              </button>
+              <button
+                onClick={() => setIsEditingHeader(false)}
+                aria-label="ביטול עריכה"
+                className="flex items-center gap-1 text-xs bg-white/10 hover:bg-white/20 rounded-lg px-2 py-1"
+              >
+                <X size={12} />
+                ביטול
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h2 className="text-xl font-bold">{tripData.title || "האפליקציה שלך"}</h2>
+              <p className="text-sm opacity-80">
+                {tripData.dates || "התצוגה המקדימה תתעדכן לפי הטקסט"}
+              </p>
+            </div>
+            {hasTrip && (
+              <button
+                onClick={startEditingHeader}
+                aria-label="עריכת שם וטווח תאריכים"
+                className="text-white/70 hover:text-white p-1"
+              >
+                <Pencil size={14} />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {isLocalOnly && hasTrip && (
@@ -116,6 +194,14 @@ export default function AppFrame({
                 }`}
               >
                 יום {d.dayNum}
+                {tripStartDate && (
+                  <span className="text-[10px] text-gray-400 mx-1">
+                    {hebrewWeekdayLetter(
+                      new Date(tripStartDate.getTime() + (d.dayNum - 1) * 86400000),
+                    )}
+                    '
+                  </span>
+                )}
               </button>
             ))}
           </div>

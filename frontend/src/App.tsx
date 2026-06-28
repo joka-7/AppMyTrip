@@ -123,6 +123,7 @@ function TripBuilder() {
   const [preferences, setPreferences] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isGeneratingMedia, setIsGeneratingMedia] = useState(false);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [chatInput, setChatInput] = useState("");
   // Set when a backend call fails and we fall back to local mock behaviour.
   const [apiNotice, setApiNotice] = useState<string | null>(null);
@@ -220,6 +221,7 @@ function TripBuilder() {
     const userText = chatInput;
     setAgentMessages((prev) => [...prev, { role: "user", text: userText }]);
     setChatInput("");
+    setIsSendingMessage(true);
 
     try {
       const res = await agentInteract(
@@ -239,6 +241,8 @@ function TripBuilder() {
           : "שרת ה-AI לא זמין — מגיב במצב דמו מקומי.",
       );
       mockAgentReply(userText);
+    } finally {
+      setIsSendingMessage(false);
     }
   };
 
@@ -254,6 +258,10 @@ function TripBuilder() {
             },
       ),
     }));
+  };
+
+  const handleUpdateTrip = (patch: Partial<Pick<TripData, "title" | "dates">>) => {
+    setTripData((prev) => ({ ...prev, ...patch }));
   };
 
   const handleContinueToDesign = async () => {
@@ -335,6 +343,7 @@ function TripBuilder() {
                 chatInput={chatInput}
                 onChangeChatInput={setChatInput}
                 onSendMessage={handleSendMessage}
+                isSendingMessage={isSendingMessage}
                 onContinue={handleContinueToDesign}
                 onBack={() => setStep(1)}
                 isGeneratingMedia={isGeneratingMedia}
@@ -373,7 +382,9 @@ function TripBuilder() {
             onChangeChatInput={setChatInput}
             onSendMessage={handleSendMessage}
             chatEndRef={chatEndRef}
+            isSendingMessage={isSendingMessage}
             onUpdateActivity={handleUpdateActivity}
+            onUpdateTrip={handleUpdateTrip}
           />
         </div>
       </div>
@@ -470,6 +481,10 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
     );
   };
 
+  const handleUpdateTrip = (patch: Partial<Pick<TripData, "title" | "dates">>) => {
+    setTrip((prev) => (prev ? { ...prev, ...patch } : prev));
+  };
+
   if (error) {
     return (
       <div
@@ -501,6 +516,7 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
       isSendingMessage={isSendingMessage}
       chatNotice={chatNotice}
       onUpdateActivity={handleUpdateActivity}
+      onUpdateTrip={handleUpdateTrip}
       onImportTrip={(importedTrip, importedTheme) => {
         setTrip(importedTrip);
         setTheme(importedTheme);
