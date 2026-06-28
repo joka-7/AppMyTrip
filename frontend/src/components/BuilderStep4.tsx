@@ -1,5 +1,14 @@
 import { useState } from "react";
-import { Check, Copy, Loader2, PencilLine, Smartphone, Palette, Settings } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  Copy,
+  Loader2,
+  PencilLine,
+  Smartphone,
+  Palette,
+  Settings,
+} from "lucide-react";
 import type { TripData } from "../api";
 import { getCurrentSession, saveTrip, shareTrip, signInWithGoogle } from "../services/tripsStore";
 import ThemeSelector, { type Theme } from "./ThemeSelector";
@@ -10,6 +19,7 @@ export default function BuilderStep4({
   tripData,
   tripId,
   onSaved,
+  onBack,
 }: {
   theme: Theme;
   onChangeTheme: (theme: Theme) => void;
@@ -18,6 +28,7 @@ export default function BuilderStep4({
   tripId: string | null;
   /** Called once a deploy succeeds, so the parent can track the (possibly new) trip id/name. */
   onSaved: (tripId: string, title: string) => void;
+  onBack: () => void;
 }) {
   const [tripName, setTripName] = useState(tripData.title || "הטיול שלי");
   const [status, setStatus] = useState<"idle" | "working" | "done" | "error">("idle");
@@ -100,8 +111,17 @@ export default function BuilderStep4({
         </div>
       </div>
 
+      <button
+        onClick={onBack}
+        disabled={status === "working"}
+        className="bg-gray-100 hover:bg-gray-200 disabled:opacity-60 text-gray-700 px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-colors mt-10"
+      >
+        <ChevronLeft size={20} />
+        חזרה
+      </button>
+
       {tripId ? (
-        <div className="flex gap-3 mt-10">
+        <div className="flex gap-3 mt-3">
           <button
             onClick={() => handleDeploy(false)}
             disabled={status === "working"}
@@ -127,7 +147,7 @@ export default function BuilderStep4({
         <button
           onClick={() => handleDeploy(true)}
           disabled={status === "working"}
-          className="bg-green-600 hover:bg-green-700 disabled:opacity-70 disabled:cursor-wait text-white px-8 py-4 rounded-xl font-bold text-lg flex items-center gap-2 w-full justify-center mt-10 transition-all hover:shadow-lg hover:-translate-y-1"
+          className="bg-green-600 hover:bg-green-700 disabled:opacity-70 disabled:cursor-wait text-white px-8 py-4 rounded-xl font-bold text-lg flex items-center gap-2 w-full justify-center mt-3 transition-all hover:shadow-lg hover:-translate-y-1"
         >
           {status === "working" ? (
             <Loader2 size={24} className="animate-spin" />

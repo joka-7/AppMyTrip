@@ -45,8 +45,11 @@ export default function AppFrame({
   const safeDayIdx = Math.min(activeDay, Math.max(0, days.length - 1));
   const day = days[safeDayIdx];
 
+  // The tab strip is RTL, so a forward (left-to-right in DOM order) scroll
+  // direction is the opposite sign of what scrollBy expects in an LTR
+  // container — flip it here rather than at each call site.
   const scrollTabs = (direction: 1 | -1) => {
-    tabsRef.current?.scrollBy({ left: direction * 140, behavior: "smooth" });
+    tabsRef.current?.scrollBy({ left: -direction * 140, behavior: "smooth" });
   };
 
   return (

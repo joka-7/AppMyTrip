@@ -299,7 +299,10 @@ function TripBuilder() {
                 onChangeChatInput={setChatInput}
                 onSendMessage={handleSendMessage}
                 onContinue={handleContinueToDesign}
+                onBack={() => setStep(1)}
                 isGeneratingMedia={isGeneratingMedia}
+                tripDates={tripData.dates}
+                onChangeTripDates={(dates) => setTripData((prev) => ({ ...prev, dates }))}
               />
             )}
 
@@ -313,6 +316,7 @@ function TripBuilder() {
                   setTripId(savedId);
                   setTripData((prev) => ({ ...prev, title }));
                 }}
+                onBack={() => setStep(3)}
               />
             )}
           </div>

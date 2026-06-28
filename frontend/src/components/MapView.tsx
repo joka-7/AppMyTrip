@@ -1,19 +1,26 @@
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import { useEffect } from "react";
 import L from "leaflet";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Utensils, Bed, MapPin } from "lucide-react";
+import { Utensils, Bed, Landmark, Plane } from "lucide-react";
 import type { Activity } from "../api";
 
 const MARKER_COLORS: Record<Activity["type"], string> = {
   food: "bg-red-500",
   lodging: "bg-indigo-500",
   attraction: "bg-blue-500",
-  transport: "bg-blue-500",
+  transport: "bg-amber-500",
+};
+
+const MARKER_ICONS: Record<Activity["type"], typeof Utensils> = {
+  food: Utensils,
+  lodging: Bed,
+  attraction: Landmark,
+  transport: Plane,
 };
 
 function markerIcon(type: Activity["type"]) {
-  const Icon = type === "food" ? Utensils : type === "lodging" ? Bed : MapPin;
+  const Icon = MARKER_ICONS[type] ?? Landmark;
   const html = renderToStaticMarkup(
     <div
       className={`p-1.5 rounded-full text-white shadow-lg ${MARKER_COLORS[type]}`}
@@ -62,6 +69,14 @@ export default function MapView({ activities }: { activities: Activity[] }) {
     coordActs[0].map_coordinates!.lng,
   ];
 
+  // Straight line connecting the day's stops in chronological order — not a
+  // real driving/walking route (no routing API involved), just a visual cue
+  // for the order activities happen in.
+  const routePoints: [number, number][] = coordActs.map((a) => [
+    a.map_coordinates!.lat,
+    a.map_coordinates!.lng,
+  ]);
+
   return (
     <div className="h-full w-full rounded-xl overflow-hidden border border-gray-200 shadow-inner">
       <MapContainer
@@ -75,6 +90,12 @@ export default function MapView({ activities }: { activities: Activity[] }) {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <FitBounds activities={coordActs} />
+        {routePoints.length > 1 && (
+          <Polyline
+            positions={routePoints}
+            pathOptions={{ color: "#2563eb", weight: 3, opacity: 0.6, dashArray: "6 8" }}
+          />
+        )}
         {coordActs.map((act) => (
           <Marker
             key={act.id}
