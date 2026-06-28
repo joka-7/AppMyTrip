@@ -41,6 +41,12 @@ class TripData(BaseModel):
     title: str
     dates: str
     days: list[TripDay] = Field(default_factory=list)
+    language: str = Field(
+        "he",
+        description="ISO 639-1 code of the dominant language of the trip's source text "
+        "(e.g. 'he' if most words/verbs are Hebrew, 'en' if mostly English). All "
+        "generated content and agent chat replies should match this language.",
+    )
 
 
 class AgentInteractRequest(BaseModel):

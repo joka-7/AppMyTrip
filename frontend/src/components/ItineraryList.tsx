@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bed, Landmark, Pause, Pencil, Play, Plane, Utensils, Volume2 } from "lucide-react";
+import { Bed, Landmark, MapPin, Pause, Pencil, Play, Plane, Utensils, Volume2 } from "lucide-react";
 import type { Activity } from "../api";
 
 const ACTIVITY_ICONS: Record<Activity["type"], typeof Utensils> = {
@@ -22,6 +22,7 @@ export default function ItineraryList({
   playingPodcast,
   onPlayPodcast,
   onUpdateActivity,
+  onShowOnMap,
   isLocalOnly,
 }: {
   activities: Activity[];
@@ -29,6 +30,7 @@ export default function ItineraryList({
   playingPodcast: Activity | null;
   onPlayPodcast: (act: Activity) => void;
   onUpdateActivity: (activityId: string, patch: Partial<Activity>) => void;
+  onShowOnMap?: (activityId: string) => void;
   isLocalOnly?: boolean;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -127,13 +129,24 @@ export default function ItineraryList({
                       <div className="text-xs text-gray-500 font-medium mb-1">{act.time}</div>
                       <h4 className="font-bold text-gray-800">{act.title}</h4>
                     </div>
-                    <button
-                      onClick={() => startEdit(act)}
-                      aria-label="עריכת פעילות"
-                      className="text-gray-400 hover:text-blue-600 p-1"
-                    >
-                      <Pencil size={14} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      {onShowOnMap && act.map_coordinates && (
+                        <button
+                          onClick={() => onShowOnMap(act.id)}
+                          aria-label="הצגת הפעילות על המפה"
+                          className="text-gray-400 hover:text-blue-600 p-1"
+                        >
+                          <MapPin size={14} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => startEdit(act)}
+                        aria-label="עריכת פעילות"
+                        className="text-gray-400 hover:text-blue-600 p-1"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    </div>
                   </div>
                   <p className="text-sm text-gray-600 mt-1">{act.desc}</p>
 

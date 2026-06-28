@@ -19,29 +19,49 @@ export function usePodcastPlayer() {
     }
     setProgress(0);
 
+    // Cleanup (e.g. React StrictMode's mount→cleanup→remount, or switching
+    // straight from one podcast to another) cancels any in-flight speech/
+    // audio. Browsers often fire that cancellation's "error"/"end" callback
+    // synchronously, so without this guard the stale callback would call
+    // setPlayingPodcast(null) right after the *next* podcast already started.
+    let stopped = false;
+
     const speakAloud = (): (() => void) => {
       if (!window.speechSynthesis) {
         setPlayingPodcast(null);
         return () => {};
       }
+      // Chrome silently drops a speak() issued in the same tick as a
+      // preceding cancel() (exactly what happens above on remount/switch),
+      // so cancel any leftover utterance and wait a tick before speaking.
+      window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(playingPodcast.desc);
       utterance.lang = "he-IL";
-      utterance.onend = () => setPlayingPodcast(null);
-      utterance.onerror = () => setPlayingPodcast(null);
+      utterance.onend = () => {
+        if (!stopped) setPlayingPodcast(null);
+      };
+      utterance.onerror = () => {
+        if (!stopped) setPlayingPodcast(null);
+      };
       const estimatedMs = Math.max(2000, playingPodcast.desc.length * 70);
       const start = Date.now();
       const interval = setInterval(() => {
         setProgress(Math.min(99, ((Date.now() - start) / estimatedMs) * 100));
       }, 200);
-      window.speechSynthesis.speak(utterance);
+      const speakTimer = setTimeout(() => window.speechSynthesis.speak(utterance), 50);
       return () => {
+        clearTimeout(speakTimer);
         clearInterval(interval);
         window.speechSynthesis.cancel();
       };
     };
 
     if (!playingPodcast.podcast_url) {
-      return speakAloud();
+      const cleanup = speakAloud();
+      return () => {
+        stopped = true;
+        cleanup();
+      };
     }
 
     const audio = new Audio(playingPodcast.podcast_url);
@@ -49,9 +69,11 @@ export function usePodcastPlayer() {
     const onTimeUpdate = () => {
       if (audio.duration) setProgress((audio.currentTime / audio.duration) * 100);
     };
-    const onEnded = () => setPlayingPodcast(null);
+    const onEnded = () => {
+      if (!stopped) setPlayingPodcast(null);
+    };
     const onError = () => {
-      fallbackCleanup = speakAloud();
+      if (!stopped) fallbackCleanup = speakAloud();
     };
     audio.addEventListener("timeupdate", onTimeUpdate);
     audio.addEventListener("ended", onEnded);
@@ -59,6 +81,7 @@ export function usePodcastPlayer() {
     audio.play().catch(onError);
 
     return () => {
+      stopped = true;
       audio.removeEventListener("timeupdate", onTimeUpdate);
       audio.removeEventListener("ended", onEnded);
       audio.removeEventListener("error", onError);

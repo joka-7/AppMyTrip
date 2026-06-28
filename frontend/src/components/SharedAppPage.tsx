@@ -6,6 +6,7 @@ import { exportTripToFile, importTripFromFile } from "../services/tripFile";
 import { getCurrentSession, saveTrip, signInWithGoogle } from "../services/tripsStore";
 import ApiKeyMenu from "./ApiKeyMenu";
 import AppFrame from "./AppFrame";
+import InstallAppButton from "./InstallAppButton";
 import type { AgentMessage } from "./ChatPanel";
 import type { Theme } from "./ThemeSelector";
 
@@ -107,6 +108,7 @@ export default function SharedAppPage({
             {saveStatus === "working" ? "שומר..." : "שמירה לחשבון שלי"}
           </button>
           <ApiKeyMenu />
+          <InstallAppButton />
         </div>
         {saveStatus === "done" && (
           <p className="text-xs text-green-700 text-center py-1 bg-green-50 border-b border-green-200">

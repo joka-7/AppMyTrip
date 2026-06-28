@@ -68,6 +68,7 @@ export default function AppFrame({
 }) {
   const [activeDay, setActiveDay] = useState(0);
   const [activeTab, setActiveTab] = useState<"itinerary" | "map" | "chat">("itinerary");
+  const [focusActivityId, setFocusActivityId] = useState<string | null>(null);
   const [isEditingHeader, setIsEditingHeader] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [datesDraft, setDatesDraft] = useState("");
@@ -103,6 +104,11 @@ export default function AppFrame({
 
   const handleUpdateActivity = (activityId: string, patch: Partial<Activity>) =>
     onUpdateActivity(safeDayIdx, activityId, patch);
+
+  const handleShowOnMap = (activityId: string) => {
+    setFocusActivityId(activityId);
+    setActiveTab("map");
+  };
 
   return (
     <div className="w-full h-full flex flex-col bg-gray-50">
@@ -186,7 +192,10 @@ export default function AppFrame({
             {days.map((d, idx) => (
               <button
                 key={idx}
-                onClick={() => setActiveDay(idx)}
+                onClick={() => {
+                  setActiveDay(idx);
+                  setFocusActivityId(null);
+                }}
                 className={`px-6 py-3 font-medium whitespace-nowrap border-b-2 transition-colors ${
                   safeDayIdx === idx
                     ? `border-blue-600 text-blue-600`
@@ -195,11 +204,12 @@ export default function AppFrame({
               >
                 יום {d.dayNum}
                 {tripStartDate && (
-                  <span className="text-[10px] text-gray-400 mx-1">
+                  <span className="text-[10px] text-gray-400">
+                    (
                     {hebrewWeekdayLetter(
                       new Date(tripStartDate.getTime() + (d.dayNum - 1) * 86400000),
                     )}
-                    '
+                    ')
                   </span>
                 )}
               </button>
@@ -235,13 +245,19 @@ export default function AppFrame({
             playingPodcast={playingPodcast}
             onPlayPodcast={togglePlay}
             onUpdateActivity={handleUpdateActivity}
+            onShowOnMap={handleShowOnMap}
             isLocalOnly={isLocalOnly}
           />
         )}
 
         {hasTrip && activeTab === "map" && (
           <div className="h-full w-full animate-fade-in">
-            <MapView activities={day.activities} onUpdateActivity={handleUpdateActivity} />
+            <MapView
+              activities={day.activities}
+              onUpdateActivity={handleUpdateActivity}
+              focusActivityId={focusActivityId}
+              onClearFocus={() => setFocusActivityId(null)}
+            />
           </div>
         )}
 
@@ -255,6 +271,7 @@ export default function AppFrame({
               onSendMessage={onSendMessage}
               isSending={isSendingMessage}
               notice={chatNotice}
+              language={tripData.language}
             />
           </div>
         )}

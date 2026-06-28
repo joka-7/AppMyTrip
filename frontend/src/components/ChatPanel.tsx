@@ -1,4 +1,5 @@
 import type { RefObject } from "react";
+import LanguageIndicator from "./LanguageIndicator";
 
 export interface AgentMessage {
   role: string;
@@ -18,6 +19,7 @@ export default function ChatPanel({
   onSendMessage,
   isSending,
   notice,
+  language,
 }: {
   agentMessages: AgentMessage[];
   chatEndRef: RefObject<HTMLDivElement>;
@@ -26,9 +28,13 @@ export default function ChatPanel({
   onSendMessage: (e: React.FormEvent) => void;
   isSending?: boolean;
   notice?: string | null;
+  language?: string | null;
 }) {
   return (
     <div className="flex flex-col h-full">
+      <div className="flex justify-end mb-2">
+        <LanguageIndicator language={language} />
+      </div>
       <div className="bg-gray-50 rounded-xl p-4 flex-1 min-h-[250px] overflow-y-auto mb-4 border border-gray-200 flex flex-col gap-4 shadow-inner">
         {agentMessages.map((msg, i) => (
           <div

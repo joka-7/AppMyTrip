@@ -247,7 +247,11 @@ class LLMService:
             f"{preferences_fragment}"
             "If the user mentions a dietary preference for restaurants, flag 'is_kosher' accordingly. "
             "Also, if a location is a historical site, set 'hasPodcast' to true. "
-            "Generate realistic latitude ('lat') and longitude ('lng') for 'map_coordinates' for each activity."
+            "Generate realistic latitude ('lat') and longitude ('lng') for 'map_coordinates' for each activity. "
+            "Detect the dominant language of the user's free text (e.g. if most of the words/verbs are "
+            "Hebrew, the dominant language is Hebrew) and set the 'language' field to its ISO 639-1 code "
+            "('he' for Hebrew, 'en' for English, etc.). Write the title, activity titles/descriptions, and "
+            "all other generated text in that same detected language."
         )
 
         schema = TripData.model_json_schema()
@@ -281,7 +285,12 @@ class LLMService:
         system_prompt = (
             "You are a helpful travel assistant AI. The user is reviewing their current trip itinerary. "
             "Your task is to listen to the user's request, update the JSON itinerary accordingly, "
-            "and provide a friendly conversational response IN HEBREW. "
+            "and provide a friendly conversational response. "
+            f"The itinerary's 'language' field (ISO 639-1 code, currently '{current_trip.language}') "
+            "indicates which language to reply in — write 'agent_reply' in that same language. If the "
+            "user's message is clearly written in a different dominant language (most of its words/verbs "
+            "are in another language), switch to that language instead and update 'updated_trip.language' "
+            "to match; otherwise keep 'updated_trip.language' unchanged. "
             f"{preferences_fragment}"
             "Always include realistic 'map_coordinates' for new locations. "
             "When the request changes the number of days or the overall structure of the trip "
