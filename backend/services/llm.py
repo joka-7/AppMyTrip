@@ -98,7 +98,7 @@ class GroqProvider(_OpenAICompatibleProvider):
     """Groq's free, OpenAI-compatible chat completions API."""
 
     def __init__(self, api_key: str | None = None) -> None:
-        super().__init__(api_key, "GROQ_API_KEY", "GROQ_MODEL", "llama-3.3-70b-versatile")
+        super().__init__(api_key, "GROQ_API_KEY", "GROQ_MODEL", "openai/gpt-oss-120b")
         self.url = "https://api.groq.com/openai/v1/chat/completions"
 
 
@@ -286,6 +286,11 @@ class LLMService:
             "You are a helpful travel assistant AI. The user is reviewing their current trip itinerary. "
             "Your task is to listen to the user's request, update the JSON itinerary accordingly, "
             "and provide a friendly conversational response. "
+            "The 'Current Itinerary' below is the full source of truth, including activities the user "
+            "added manually that may be missing fields like 'map_coordinates' or 'hasPodcast' — copy "
+            "every day and activity through to 'updated_trip' UNCHANGED unless the user's request "
+            "specifically asks you to add, remove, or modify it. Never drop an activity just because it "
+            "looks incomplete; preserve its id and other fields as-is. "
             f"The itinerary's 'language' field (ISO 639-1 code, currently '{current_trip.language}') "
             "indicates which language to reply in — write 'agent_reply' in that same language. If the "
             "user's message is clearly written in a different dominant language (most of its words/verbs "

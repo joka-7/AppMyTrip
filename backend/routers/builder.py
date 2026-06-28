@@ -11,12 +11,36 @@ def _activity_count(trip: TripData) -> int:
     return sum(len(day.activities) for day in trip.days)
 
 
-def _looks_truncated(previous: TripData, updated: TripData) -> bool:
+# Words that signal the user themselves asked to delete/remove things — if
+# present, a big drop in activity count is the expected outcome, not a
+# truncation bug, so the guard below should not fire.
+_DELETION_KEYWORDS = (
+    "מחק",
+    "מחיקה",
+    "תמחק",
+    "הסר",
+    "הסרה",
+    "תסיר",
+    "בטל",
+    "ביטול",
+    "delete",
+    "remove",
+    "cancel",
+)
+
+
+def _looks_truncated(previous: TripData, updated: TripData, user_message: str = "") -> bool:
     """Heuristic guard against a truncated/hallucinated agent response that
     silently drops most of the existing itinerary — observed in practice as a
     long multi-day trip collapsing to a single day after one chat message,
     most likely from the LLM's response hitting a token limit mid-echo
-    (each agent turn re-sends the *entire* itinerary, not just a diff)."""
+    (each agent turn re-sends the *entire* itinerary, not just a diff).
+
+    Skipped when the user's own message asks to delete/remove something —
+    a big drop is then the intended result, not a truncation bug."""
+    lowered = user_message.lower()
+    if any(keyword in lowered for keyword in _DELETION_KEYWORDS):
+        return False
     prev_count = _activity_count(previous)
     if prev_count < 4:
         return False
@@ -99,7 +123,7 @@ class TripBuilder:
             provider=self._provider,
         )
 
-        if _looks_truncated(previous_trip, agent_response.updated_trip):
+        if _looks_truncated(previous_trip, agent_response.updated_trip, user_message):
             raise HTTPException(
                 status_code=502,
                 detail="The AI's response looks incomplete — it dropped most of the "

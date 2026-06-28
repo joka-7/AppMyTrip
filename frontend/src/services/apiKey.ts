@@ -12,11 +12,30 @@ export const PROVIDERS: { value: LLMProvider; label: string; keyUrl: string }[] 
   { value: "groq", label: "Groq", keyUrl: "https://console.groq.com/keys" },
 ];
 
-const KEY_STORAGE_KEY = "tripweaver_api_key";
+// Keys are stored per-provider so switching providers doesn't overwrite a
+// previously saved key for another provider.
+const KEYS_STORAGE_KEY = "tripweaver_api_keys";
 const PROVIDER_STORAGE_KEY = "tripweaver_api_provider";
+// Pre-per-provider storage format; migrated into KEYS_STORAGE_KEY below.
+const LEGACY_KEY_STORAGE_KEY = "tripweaver_api_key";
 
-export function getApiKey(): string | null {
-  return localStorage.getItem(KEY_STORAGE_KEY);
+type KeyMap = Partial<Record<LLMProvider, string>>;
+
+function loadKeyMap(): KeyMap {
+  const legacyKey = localStorage.getItem(LEGACY_KEY_STORAGE_KEY);
+  if (legacyKey) {
+    const legacyProvider = localStorage.getItem(PROVIDER_STORAGE_KEY) as LLMProvider | null;
+    const map: KeyMap = { [legacyProvider ?? "gemini"]: legacyKey };
+    localStorage.setItem(KEYS_STORAGE_KEY, JSON.stringify(map));
+    localStorage.removeItem(LEGACY_KEY_STORAGE_KEY);
+    return map;
+  }
+  try {
+    const raw = localStorage.getItem(KEYS_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as KeyMap) : {};
+  } catch {
+    return {};
+  }
 }
 
 export function getApiProvider(): LLMProvider {
@@ -24,12 +43,23 @@ export function getApiProvider(): LLMProvider {
   return PROVIDERS.some((p) => p.value === stored) ? (stored as LLMProvider) : "gemini";
 }
 
+export function getApiKeyForProvider(provider: LLMProvider): string | null {
+  return loadKeyMap()[provider] ?? null;
+}
+
+export function getApiKey(): string | null {
+  return getApiKeyForProvider(getApiProvider());
+}
+
 export function setApiKey(key: string, provider: LLMProvider): void {
-  localStorage.setItem(KEY_STORAGE_KEY, key);
+  const map = loadKeyMap();
+  map[provider] = key;
+  localStorage.setItem(KEYS_STORAGE_KEY, JSON.stringify(map));
   localStorage.setItem(PROVIDER_STORAGE_KEY, provider);
 }
 
-export function clearApiKey(): void {
-  localStorage.removeItem(KEY_STORAGE_KEY);
-  localStorage.removeItem(PROVIDER_STORAGE_KEY);
+export function clearApiKey(provider: LLMProvider): void {
+  const map = loadKeyMap();
+  delete map[provider];
+  localStorage.setItem(KEYS_STORAGE_KEY, JSON.stringify(map));
 }
