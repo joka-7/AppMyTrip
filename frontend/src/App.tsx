@@ -98,6 +98,20 @@ const DEMO_TRIP: TripData = {
 const DEMO_AGENT_MESSAGE =
   "טענתי טיול לדוגמה כדי שתוכלו לראות איך האפליקציה עובדת. כדי לפרסר טקסט אמיתי, הגדירו מפתח Gemini API משלכם (כפתור 'הגדרת מפתח API' למעלה) — או המשיכו לערוך ידנית.";
 
+// Falls back to the wand icon until frontend/public/logo.png is committed.
+function AppLogo() {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <Wand2 className="text-blue-600" />;
+  return (
+    <img
+      src="/logo.png"
+      alt="AppMyTrip"
+      className="w-8 h-8 rounded-lg"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 // --- Main App Builder Component ---
 
 function TripBuilder() {
@@ -247,8 +261,8 @@ function TripBuilder() {
       {/* Top Navbar */}
       <nav className="bg-white shadow-sm px-6 py-4 flex justify-between items-center sticky top-0 z-30">
         <div className="flex items-center gap-2">
-          <Wand2 className="text-blue-600" />
-          <h1 className="text-xl font-bold text-gray-800">TripWeaver AI</h1>
+          <AppLogo />
+          <h1 className="text-xl font-bold text-gray-800">תכנון טיול באמצעות AI</h1>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
@@ -288,6 +302,8 @@ function TripBuilder() {
                 onChangePreferences={setPreferences}
                 onSubmit={handleProcessText}
                 isProcessing={isProcessing}
+                hasExistingTrip={tripData.days.length > 0}
+                onContinueWithoutReprocessing={() => setStep(3)}
               />
             )}
 
@@ -351,7 +367,11 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
       })
       .catch((err) => {
         console.error(err);
-        setError("טעינת הטיול המשותף נכשלה. ייתכן שהקישור שגוי או שהטיול הוסר.");
+        setError(
+          err instanceof Error && err.message.includes("expired")
+            ? "קישור השיתוף הזה פג תוקף."
+            : "טעינת הטיול המשותף נכשלה. ייתכן שהקישור שגוי או שהטיול הוסר.",
+        );
       });
   }, [tripId]);
 

@@ -123,12 +123,19 @@ export async function deleteTrip(uid: string, tripId: string): Promise<void> {
   await deleteDoc(doc(tripsCollection(uid), tripId));
 }
 
-/** Publishes a read-only copy to the public sharedTrips collection and returns its link. */
+/**
+ * Publishes a read-only copy to the public sharedTrips collection and returns its link.
+ * `expiresInDays` is optional — omit it (or pass undefined/0) for a link that lasts forever.
+ * When given, an `expiresAt` field is stored so `loadSharedTrip` can reject access once it's
+ * past, and so a Firestore TTL policy on that field (configured in the console, see README)
+ * can clean up the document automatically.
+ */
 export async function shareTrip(
   uid: string,
   tripId: string,
   trip: TripData,
   theme?: Theme,
+  expiresInDays?: number,
 ): Promise<string> {
   if (!db) throw new Error("Firestore is not configured.");
   await setDoc(doc(db, "sharedTrips", tripId), {
@@ -136,17 +143,36 @@ export async function shareTrip(
     theme: theme ?? "blue",
     ownerId: uid,
     sharedAt: serverTimestamp(),
+    ...(expiresInDays
+      ? { expiresAt: Timestamp.fromMillis(Date.now() + expiresInDays * 24 * 60 * 60 * 1000) }
+      : {}),
   });
   const url = new URL(window.location.href);
   url.searchParams.set("shared", tripId);
   return url.toString();
 }
 
-/** Loads a publicly-shared trip — no sign-in required. Used for ?shared=<id> links. */
+/**
+ * Loads a publicly-shared trip — no sign-in required. Used for ?shared=<id> links.
+ * Rejects expired links client-side even if Firestore's own TTL deletion (which can lag
+ * up to ~24h after expiresAt) hasn't run yet.
+ */
 export async function loadSharedTrip(tripId: string): Promise<{ trip: TripData; theme: Theme }> {
   if (!db) throw new Error("Firestore is not configured.");
   const snap = await getDoc(doc(db, "sharedTrips", tripId));
   if (!snap.exists()) throw new Error("Shared trip not found.");
-  const { title, dates, days, theme } = snap.data() as TripData & { theme?: Theme };
+  const { title, dates, days, theme, expiresAt } = snap.data() as TripData & {
+    theme?: Theme;
+    expiresAt?: Timestamp;
+  };
+  if (expiresAt && expiresAt.toMillis() < Date.now()) {
+    throw new Error("This shared trip link has expired.");
+  }
   return { trip: { title, dates, days }, theme: theme ?? "blue" };
+}
+
+/** Revokes a public share link by deleting its sharedTrips doc (no-op if it was never shared). */
+export async function deleteSharedTrip(tripId: string): Promise<void> {
+  if (!db) throw new Error("Firestore is not configured.");
+  await deleteDoc(doc(db, "sharedTrips", tripId));
 }

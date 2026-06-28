@@ -157,6 +157,20 @@ owner can write, and produces a `?shared=<tripId>` link; opening that link loads
 trip read-only-by-link into the builder. Firestore on the free **Spark** plan covers
 this with normal usage — no billing account required.
 
+When sharing, the user picks a link lifetime (7 / 30 / 90 days, or "forever" — the
+default). A chosen duration is stored as an `expiresAt` timestamp on the
+`sharedTrips` doc; `loadSharedTrip` rejects the link client-side once that time has
+passed, even before Firestore physically deletes the document. For actual automatic
+deletion of expired share docs (so they don't sit around forever just unreadable),
+configure a free, built-in **Firestore TTL policy** on the `sharedTrips.expiresAt`
+field — Firebase console → Firestore Database → TTL tab → add a policy for that
+field/collection (or `gcloud firestore fields ttl-policies update`). This is a
+one-time infrastructure setting, not app code; it's included on the Spark plan (no
+billing upgrade, no Cloud Functions needed), though deletion can lag up to ~24h
+after `expiresAt` — the client-side check above covers that gap. Deleting a private
+trip (the "My Trips" list's ✕ button) also deletes its `sharedTrips` copy, so the
+share link stops working immediately rather than relying on TTL cleanup.
+
 Setup (free, no billing required):
 1. Create a project at the [Firebase console](https://console.firebase.google.com/).
 2. **Build → Authentication → Sign-in method** → enable the **Google** provider.

@@ -3,6 +3,7 @@ import { Cloud, LogIn, LogOut, Save, Share2, FolderOpen, X } from "lucide-react"
 import type { TripData } from "../api";
 import {
   type CloudTripSummary,
+  deleteSharedTrip,
   deleteTrip,
   listTrips,
   loadTrip,
@@ -12,6 +13,14 @@ import {
   signInWithGoogle,
   signOutOfGoogle,
 } from "../services/tripsStore";
+
+/** Share-duration choices shown next to the share button; 0 means "forever" (no expiry field stored). */
+const SHARE_DURATIONS = [
+  { label: "7 ימים", days: 7 },
+  { label: "30 יום", days: 30 },
+  { label: "90 יום", days: 90 },
+  { label: "לתמיד", days: 0 },
+];
 import type { Theme } from "./ThemeSelector";
 
 /** Sign-in + "My Trips" + Save/Share controls backed by Firestore. */
@@ -35,6 +44,7 @@ export default function CloudMenu({
   const [isOpen, setIsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [shareDays, setShareDays] = useState(0);
 
   useEffect(() => {
     return onAuthChange((user) => {
@@ -100,7 +110,7 @@ export default function CloudMenu({
     setBusy(true);
     setNotice(null);
     try {
-      const link = await shareTrip(uid, tripId, tripData, theme);
+      const link = await shareTrip(uid, tripId, tripData, theme, shareDays || undefined);
       await navigator.clipboard.writeText(link).catch(() => {});
       setNotice("קישור השיתוף הועתק ללוח.");
     } catch (err) {
@@ -132,6 +142,8 @@ export default function CloudMenu({
     setBusy(true);
     try {
       await deleteTrip(uid, trip.id);
+      // Best-effort: also revoke any public share link so it doesn't outlive the trip.
+      await deleteSharedTrip(trip.id).catch((err) => console.error(err));
       await refreshTrips(uid);
       if (tripId === trip.id) onTripIdChange(null);
     } catch (err) {
@@ -169,7 +181,7 @@ export default function CloudMenu({
         <div className="absolute left-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 p-4 z-40 text-right">
           {notice && <p className="text-xs text-amber-700 mb-3">{notice}</p>}
 
-          <div className="flex gap-2 mb-4">
+          <div className="flex gap-2 mb-2">
             <button
               onClick={handleSave}
               disabled={busy}
@@ -187,6 +199,20 @@ export default function CloudMenu({
               שיתוף
             </button>
           </div>
+          <label className="block text-xs text-gray-500 mb-4">
+            תוקף קישור השיתוף:{" "}
+            <select
+              value={shareDays}
+              onChange={(e) => setShareDays(Number(e.target.value))}
+              className="border border-gray-200 rounded-md px-1.5 py-0.5 text-xs"
+            >
+              {SHARE_DURATIONS.map((opt) => (
+                <option key={opt.days} value={opt.days}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
 
           <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 mb-2">
             <FolderOpen size={14} />

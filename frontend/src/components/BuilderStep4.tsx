@@ -34,6 +34,7 @@ export default function BuilderStep4({
   const [status, setStatus] = useState<"idle" | "working" | "done" | "error">("idle");
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [shareDays, setShareDays] = useState(0);
 
   const handleDeploy = async (asNewCopy: boolean) => {
     setStatus("working");
@@ -45,7 +46,7 @@ export default function BuilderStep4({
         theme,
         tripId: asNewCopy ? undefined : (tripId ?? undefined),
       });
-      const url = await shareTrip(session.uid, savedId, namedTrip, theme);
+      const url = await shareTrip(session.uid, savedId, namedTrip, theme, shareDays || undefined);
       setShareUrl(url);
       setStatus("done");
       onSaved(savedId, namedTrip.title);
@@ -108,6 +109,23 @@ export default function BuilderStep4({
               </span>
             </label>
           </div>
+        </div>
+
+        <div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
+          <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <Settings size={18} className="text-blue-500" /> תוקף קישור השיתוף
+          </h3>
+          <select
+            value={shareDays}
+            onChange={(e) => setShareDays(Number(e.target.value))}
+            disabled={status === "working"}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value={7}>7 ימים</option>
+            <option value={30}>30 יום</option>
+            <option value={90}>90 יום</option>
+            <option value={0}>לתמיד</option>
+          </select>
         </div>
       </div>
 
