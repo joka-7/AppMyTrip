@@ -31,12 +31,17 @@ export default function PodcastPlayer({
       {error ? (
         <p className="text-xs text-red-400">{error}</p>
       ) : (
-        <div className="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden">
-          <div
-            className="bg-blue-500 h-full transition-all duration-300 ease-linear"
-            style={{ width: `${progress}%` }}
-          ></div>
-        </div>
+        <>
+          {activity.podcast_brief && (
+            <p className="text-xs text-gray-300 line-clamp-2">{activity.podcast_brief}</p>
+          )}
+          <div className="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden">
+            <div
+              className="bg-blue-500 h-full transition-all duration-300 ease-linear"
+              style={{ width: `${progress}%` }}
+            ></div>
+          </div>
+        </>
       )}
     </div>
   );

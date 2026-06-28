@@ -1,7 +1,10 @@
 import { useState } from "react";
 import {
   Bed,
+  DollarSign,
+  ImageIcon,
   Landmark,
+  Link as LinkIcon,
   MapPin,
   Pause,
   Pencil,
@@ -56,7 +59,16 @@ export default function ItineraryList({
 
   const startEdit = (act: Activity) => {
     setEditingId(act.id);
-    setDraft({ time: act.time, title: act.title, desc: act.desc, type: act.type });
+    setDraft({
+      time: act.time,
+      title: act.title,
+      desc: act.desc,
+      type: act.type,
+      price: act.price,
+      url: act.url,
+      photo_url: act.photo_url,
+      map_coordinates: act.map_coordinates,
+    });
   };
 
   const saveEdit = (activityId: string) => {
@@ -142,6 +154,79 @@ export default function ItineraryList({
                       </option>
                     ))}
                   </select>
+                  <div className="flex gap-2">
+                    <label className="flex-1 flex flex-col gap-1 text-[11px] text-gray-500">
+                      מחיר
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={draft.price ?? ""}
+                        onChange={(e) =>
+                          setDraft((d) => ({
+                            ...d,
+                            price: e.target.value === "" ? null : Number(e.target.value),
+                          }))
+                        }
+                        className="border border-gray-300 rounded-lg p-1.5 text-sm"
+                      />
+                    </label>
+                    <label className="flex-1 flex flex-col gap-1 text-[11px] text-gray-500">
+                      קישור לאתר
+                      <input
+                        type="url"
+                        value={draft.url ?? ""}
+                        onChange={(e) => setDraft((d) => ({ ...d, url: e.target.value }))}
+                        className="border border-gray-300 rounded-lg p-1.5 text-sm"
+                      />
+                    </label>
+                  </div>
+                  <label className="flex flex-col gap-1 text-[11px] text-gray-500">
+                    קישור לתמונה
+                    <input
+                      type="url"
+                      value={draft.photo_url ?? ""}
+                      onChange={(e) => setDraft((d) => ({ ...d, photo_url: e.target.value }))}
+                      className="border border-gray-300 rounded-lg p-1.5 text-sm"
+                    />
+                  </label>
+                  <div className="flex gap-2">
+                    <label className="flex-1 flex flex-col gap-1 text-[11px] text-gray-500">
+                      קו רוחב (lat)
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={draft.map_coordinates?.lat ?? ""}
+                        onChange={(e) =>
+                          setDraft((d) => ({
+                            ...d,
+                            map_coordinates:
+                              e.target.value === ""
+                                ? null
+                                : { lat: Number(e.target.value), lng: d.map_coordinates?.lng ?? 0 },
+                          }))
+                        }
+                        className="border border-gray-300 rounded-lg p-1.5 text-sm"
+                      />
+                    </label>
+                    <label className="flex-1 flex flex-col gap-1 text-[11px] text-gray-500">
+                      קו אורך (lng)
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={draft.map_coordinates?.lng ?? ""}
+                        onChange={(e) =>
+                          setDraft((d) => ({
+                            ...d,
+                            map_coordinates:
+                              e.target.value === ""
+                                ? null
+                                : { lat: d.map_coordinates?.lat ?? 0, lng: Number(e.target.value) },
+                          }))
+                        }
+                        className="border border-gray-300 rounded-lg p-1.5 text-sm"
+                      />
+                    </label>
+                  </div>
                   <div className="flex gap-2 items-center">
                     <button
                       onClick={() => saveEdit(act.id)}
@@ -168,9 +253,41 @@ export default function ItineraryList({
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <div className="text-xs text-gray-500 font-medium mb-1">{act.time}</div>
-                      <h4 className="font-bold text-gray-800">{act.title}</h4>
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="font-bold text-gray-800">{act.title}</h4>
+                        {act.photo_url && (
+                          <a
+                            href={act.photo_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label="תמונות של הפעילות"
+                            className="text-gray-400 hover:text-blue-600"
+                          >
+                            <ImageIcon size={14} />
+                          </a>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-1">
+                      {act.url && (
+                        <a
+                          href={act.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label="קישור לאתר הפעילות"
+                          className="text-gray-400 hover:text-blue-600 p-1"
+                        >
+                          <LinkIcon size={14} />
+                        </a>
+                      )}
+                      <button
+                        onClick={() => startEdit(act)}
+                        aria-label="עריכת מחיר"
+                        className="flex items-center gap-0.5 text-gray-400 hover:text-blue-600 p-1"
+                      >
+                        <DollarSign size={14} />
+                        {act.price != null && <span className="text-[11px]">{act.price}</span>}
+                      </button>
                       {onShowOnMap && act.map_coordinates && (
                         <button
                           onClick={() => onShowOnMap(act.id)}

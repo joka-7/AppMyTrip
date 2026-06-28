@@ -23,9 +23,17 @@ class Activity(BaseModel):
     podcast_url: str | None = Field(
         None, description="URL pointing to the generated TTS audio file"
     )
+    podcast_brief: str | None = Field(
+        None,
+        description="Short historical/contextual brief about the site, narrated in the "
+        "podcast in addition to 'desc'",
+    )
     map_coordinates: dict[str, float] | None = Field(
         None, description="Dictionary with 'lat' and 'lng' keys for map rendering"
     )
+    price: float | None = Field(None, description="Cost of this activity, in the trip's currency")
+    url: str | None = Field(None, description="Link to the activity's official site or listing")
+    photo_url: str | None = Field(None, description="Link to a photo of the activity")
 
 
 class TripDay(BaseModel):

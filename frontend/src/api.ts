@@ -17,7 +17,15 @@ export interface Activity {
   is_kosher?: boolean | null;
   hasPodcast?: boolean;
   podcast_url?: string | null;
+  /** Short historical/contextual brief about the site, narrated in the podcast in addition to `desc`. */
+  podcast_brief?: string | null;
   map_coordinates?: { lat: number; lng: number } | null;
+  /** Cost of this activity, in the trip's currency. */
+  price?: number | null;
+  /** Link to the activity's official site or listing. */
+  url?: string | null;
+  /** Link to a photo of the activity. */
+  photo_url?: string | null;
 }
 
 export interface TripDay {

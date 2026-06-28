@@ -146,7 +146,7 @@ class TripBuilder:
             for act in day.activities:
                 if act.hasPodcast and not act.podcast_url:
                     act.podcast_url = await TTSService.generate_podcast_for_activity(
-                        act.title, act.desc
+                        act.title, act.desc, act.podcast_brief
                     )
         return self
 
