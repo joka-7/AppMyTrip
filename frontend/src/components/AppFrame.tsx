@@ -48,6 +48,7 @@ export default function AppFrame({
   isSendingMessage,
   chatNotice,
   onUpdateActivity,
+  onAddActivity,
   onUpdateTrip,
   isLocalOnly,
   localOnlyNoticeText,
@@ -62,6 +63,7 @@ export default function AppFrame({
   isSendingMessage?: boolean;
   chatNotice?: string | null;
   onUpdateActivity: (dayIndex: number, activityId: string, patch: Partial<Activity>) => void;
+  onAddActivity?: (dayIndex: number, activity: Activity) => void;
   onUpdateTrip: (patch: Partial<Pick<TripData, "title" | "dates">>) => void;
   isLocalOnly?: boolean;
   localOnlyNoticeText?: string;
@@ -72,7 +74,7 @@ export default function AppFrame({
   const [isEditingHeader, setIsEditingHeader] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [datesDraft, setDatesDraft] = useState("");
-  const { playingPodcast, progress, togglePlay, stop } = usePodcastPlayer();
+  const { playingPodcast, progress, error: podcastError, togglePlay, stop } = usePodcastPlayer();
   const tabsRef = useRef<HTMLDivElement>(null);
 
   const themeClass = THEME_CLASSES[theme] ?? THEME_CLASSES.blue;
@@ -105,6 +107,8 @@ export default function AppFrame({
   const handleUpdateActivity = (activityId: string, patch: Partial<Activity>) =>
     onUpdateActivity(safeDayIdx, activityId, patch);
 
+  const handleAddActivity = (activity: Activity) => onAddActivity?.(safeDayIdx, activity);
+
   const handleShowOnMap = (activityId: string) => {
     setFocusActivityId(activityId);
     setActiveTab("map");
@@ -114,7 +118,7 @@ export default function AppFrame({
     <div className="w-full h-full flex flex-col bg-gray-50">
       {/* App Header */}
       <div
-        className={`${themeClass} text-white pt-10 pb-4 px-6 shadow-md transition-colors duration-300`}
+        className={`${themeClass} shrink-0 text-white pt-10 pb-4 px-6 shadow-md transition-colors duration-300`}
       >
         {isEditingHeader ? (
           <div className="flex flex-col gap-2">
@@ -171,14 +175,14 @@ export default function AppFrame({
       </div>
 
       {isLocalOnly && hasTrip && (
-        <p className="bg-amber-50 border-b border-amber-200 text-amber-800 text-xs text-center py-1.5 px-3">
+        <p className="shrink-0 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs text-center py-1.5 px-3">
           {localOnlyNoticeText ?? "שינויים שתבצעו כאן יישמרו רק בדפדפן הזה ולא יישלחו לשרת."}
         </p>
       )}
 
       {/* Days Tabs */}
       {hasTrip && (
-        <div className="flex items-center bg-white border-b">
+        <div className="shrink-0 flex items-center bg-white border-b">
           {days.length > SCROLL_ARROW_THRESHOLD && (
             <button
               onClick={() => scrollTabs(-1)}
@@ -245,6 +249,7 @@ export default function AppFrame({
             playingPodcast={playingPodcast}
             onPlayPodcast={togglePlay}
             onUpdateActivity={handleUpdateActivity}
+            onAddActivity={onAddActivity ? handleAddActivity : undefined}
             onShowOnMap={handleShowOnMap}
             isLocalOnly={isLocalOnly}
           />
@@ -279,11 +284,16 @@ export default function AppFrame({
 
       {/* Floating Podcast Player (Global) */}
       {playingPodcast && (
-        <PodcastPlayer activity={playingPodcast} progress={progress} onClose={stop} />
+        <PodcastPlayer
+          activity={playingPodcast}
+          progress={progress}
+          error={podcastError}
+          onClose={stop}
+        />
       )}
 
       {/* Bottom Navigation */}
-      <div className="bg-white border-t flex justify-around p-3 pb-6 z-20 relative shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+      <div className="shrink-0 bg-white border-t flex justify-around p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 relative shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
         <button
           onClick={() => setActiveTab("itinerary")}
           className={`flex flex-col items-center gap-1 ${activeTab === "itinerary" ? "text-blue-600" : "text-gray-400"}`}

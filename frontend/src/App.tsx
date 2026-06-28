@@ -261,6 +261,15 @@ function TripBuilder() {
     }));
   };
 
+  const handleAddActivity = (dayIndex: number, activity: Activity) => {
+    setTripData((prev) => ({
+      ...prev,
+      days: prev.days.map((d, idx) =>
+        idx !== dayIndex ? d : { ...d, activities: [...d.activities, activity] },
+      ),
+    }));
+  };
+
   const handleUpdateTrip = (patch: Partial<Pick<TripData, "title" | "dates">>) => {
     setTripData((prev) => ({ ...prev, ...patch }));
   };
@@ -387,6 +396,7 @@ function TripBuilder() {
             chatEndRef={chatEndRef}
             isSendingMessage={isSendingMessage}
             onUpdateActivity={handleUpdateActivity}
+            onAddActivity={handleAddActivity}
             onUpdateTrip={handleUpdateTrip}
           />
         </div>
@@ -484,6 +494,19 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
     );
   };
 
+  const handleAddActivity = (dayIndex: number, activity: Activity) => {
+    setTrip((prev) =>
+      prev
+        ? {
+            ...prev,
+            days: prev.days.map((d, idx) =>
+              idx !== dayIndex ? d : { ...d, activities: [...d.activities, activity] },
+            ),
+          }
+        : prev,
+    );
+  };
+
   const handleUpdateTrip = (patch: Partial<Pick<TripData, "title" | "dates">>) => {
     setTrip((prev) => (prev ? { ...prev, ...patch } : prev));
   };
@@ -519,6 +542,7 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
       isSendingMessage={isSendingMessage}
       chatNotice={chatNotice}
       onUpdateActivity={handleUpdateActivity}
+      onAddActivity={handleAddActivity}
       onUpdateTrip={handleUpdateTrip}
       onImportTrip={(importedTrip, importedTheme) => {
         setTrip(importedTrip);

@@ -15,6 +15,7 @@ export default function PhonePreview({
   isSendingMessage,
   chatNotice,
   onUpdateActivity,
+  onAddActivity,
   onUpdateTrip,
 }: {
   tripData: TripData;
@@ -27,6 +28,7 @@ export default function PhonePreview({
   isSendingMessage?: boolean;
   chatNotice?: string | null;
   onUpdateActivity: (dayIndex: number, activityId: string, patch: Partial<Activity>) => void;
+  onAddActivity: (dayIndex: number, activity: Activity) => void;
   onUpdateTrip: (patch: Partial<Pick<TripData, "title" | "dates">>) => void;
 }) {
   return (
@@ -42,6 +44,7 @@ export default function PhonePreview({
         isSendingMessage={isSendingMessage}
         chatNotice={chatNotice}
         onUpdateActivity={onUpdateActivity}
+        onAddActivity={onAddActivity}
         onUpdateTrip={onUpdateTrip}
       />
     </div>

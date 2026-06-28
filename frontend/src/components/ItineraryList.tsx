@@ -1,6 +1,21 @@
 import { useState } from "react";
-import { Bed, Landmark, MapPin, Pause, Pencil, Play, Plane, Utensils, Volume2 } from "lucide-react";
+import {
+  Bed,
+  Landmark,
+  MapPin,
+  Pause,
+  Pencil,
+  Plane,
+  Play,
+  Plus,
+  Utensils,
+  Volume2,
+} from "lucide-react";
 import type { Activity } from "../api";
+
+function newActivityId(): string {
+  return typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `act-${Date.now()}`;
+}
 
 const ACTIVITY_ICONS: Record<Activity["type"], typeof Utensils> = {
   food: Utensils,
@@ -22,6 +37,7 @@ export default function ItineraryList({
   playingPodcast,
   onPlayPodcast,
   onUpdateActivity,
+  onAddActivity,
   onShowOnMap,
   isLocalOnly,
 }: {
@@ -30,11 +46,13 @@ export default function ItineraryList({
   playingPodcast: Activity | null;
   onPlayPodcast: (act: Activity) => void;
   onUpdateActivity: (activityId: string, patch: Partial<Activity>) => void;
+  onAddActivity?: (activity: Activity) => void;
   onShowOnMap?: (activityId: string) => void;
   isLocalOnly?: boolean;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<Activity>>({});
+  const [isAdding, setIsAdding] = useState(false);
 
   const startEdit = (act: Activity) => {
     setEditingId(act.id);
@@ -44,6 +62,24 @@ export default function ItineraryList({
   const saveEdit = (activityId: string) => {
     onUpdateActivity(activityId, draft);
     setEditingId(null);
+    setDraft({});
+  };
+
+  const startAdd = () => {
+    setIsAdding(true);
+    setDraft({ time: "", title: "", desc: "", type: "attraction" });
+  };
+
+  const saveAdd = () => {
+    if (!draft.title?.trim()) return;
+    onAddActivity?.({
+      id: newActivityId(),
+      time: draft.time ?? "",
+      title: draft.title.trim(),
+      desc: draft.desc ?? "",
+      type: draft.type ?? "attraction",
+    });
+    setIsAdding(false);
     setDraft({});
   };
 
@@ -178,6 +214,75 @@ export default function ItineraryList({
           </div>
         );
       })}
+
+      {onAddActivity && (
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 animate-fade-in">
+          {isAdding ? (
+            <div className="flex flex-col gap-2">
+              <input
+                type="time"
+                value={draft.time ?? ""}
+                onChange={(e) => setDraft((d) => ({ ...d, time: e.target.value }))}
+                className="border border-gray-300 rounded-lg p-1.5 text-xs w-32"
+              />
+              <input
+                type="text"
+                value={draft.title ?? ""}
+                onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+                placeholder="שם הפעילות"
+                className="border border-gray-300 rounded-lg p-1.5 text-sm font-bold"
+              />
+              <textarea
+                value={draft.desc ?? ""}
+                onChange={(e) => setDraft((d) => ({ ...d, desc: e.target.value }))}
+                placeholder="תיאור קצר"
+                className="border border-gray-300 rounded-lg p-1.5 text-sm"
+                rows={2}
+              />
+              <select
+                value={draft.type ?? "attraction"}
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, type: e.target.value as Activity["type"] }))
+                }
+                className="border border-gray-300 rounded-lg p-1.5 text-sm w-32"
+              >
+                {Object.entries(ACTIVITY_TYPE_LABELS).map(([type, label]) => (
+                  <option key={type} value={type}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <div className="flex gap-2 items-center">
+                <button
+                  onClick={saveAdd}
+                  disabled={!draft.title?.trim()}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs px-3 py-1.5 rounded-lg"
+                >
+                  הוספה
+                </button>
+                <button
+                  onClick={() => {
+                    setIsAdding(false);
+                    setDraft({});
+                  }}
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-3 py-1.5 rounded-lg"
+                >
+                  ביטול
+                </button>
+                {isLocalOnly && <span className="text-[10px] text-amber-600">לא נשמר בשרת</span>}
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={startAdd}
+              className="w-full flex items-center justify-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700 py-1"
+            >
+              <Plus size={16} />
+              הוספת פעילות
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
