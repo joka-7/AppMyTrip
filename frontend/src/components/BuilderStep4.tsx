@@ -3,6 +3,7 @@ import {
   Check,
   ChevronLeft,
   Copy,
+  ExternalLink,
   Loader2,
   PencilLine,
   Smartphone,
@@ -177,11 +178,11 @@ export default function BuilderStep4({
       )}
 
       {status === "done" && shareUrl && (
-        <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-2 animate-fade-in">
+        <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4 flex flex-wrap items-center gap-2 animate-fade-in">
           <input
             readOnly
             value={shareUrl}
-            className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 truncate"
+            className="flex-1 min-w-0 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 truncate"
           />
           <button
             onClick={handleCopy}
@@ -190,6 +191,15 @@ export default function BuilderStep4({
             {copied ? <Check size={16} /> : <Copy size={16} />}
             {copied ? "הועתק!" : "העתק קישור"}
           </button>
+          <a
+            href={shareUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-white border border-green-300 hover:bg-green-100 text-green-700 px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium transition-colors"
+          >
+            <ExternalLink size={16} />
+            מעבר לקישור
+          </a>
         </div>
       )}
 

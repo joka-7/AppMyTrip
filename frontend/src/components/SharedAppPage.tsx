@@ -29,6 +29,7 @@ export default function SharedAppPage({
   isSendingMessage,
   chatNotice,
   onUpdateActivity,
+  onAddActivity,
   onUpdateTrip,
   onImportTrip,
 }: {
@@ -42,6 +43,7 @@ export default function SharedAppPage({
   isSendingMessage?: boolean;
   chatNotice?: string | null;
   onUpdateActivity: (dayIndex: number, activityId: string, patch: Partial<Activity>) => void;
+  onAddActivity: (dayIndex: number, activity: Activity) => void;
   onUpdateTrip: (patch: Partial<Pick<TripData, "title" | "dates">>) => void;
   onImportTrip: (tripData: TripData, theme: Theme) => void;
 }) {
@@ -75,8 +77,8 @@ export default function SharedAppPage({
   };
 
   return (
-    <div className="h-screen overflow-hidden bg-gray-200 flex justify-center" dir="rtl">
-      <div className="w-full max-w-md h-screen bg-gray-50 shadow-2xl flex flex-col overflow-hidden">
+    <div className="h-dvh overflow-hidden bg-gray-200 flex justify-center" dir="rtl">
+      <div className="w-full max-w-md h-dvh bg-gray-50 shadow-2xl flex flex-col overflow-hidden">
         <div className="flex flex-wrap items-center gap-2 p-2 bg-white border-b border-gray-200 text-xs">
           <button
             onClick={() => exportTripToFile(tripData, theme)}
@@ -137,6 +139,7 @@ export default function SharedAppPage({
             isSendingMessage={isSendingMessage}
             chatNotice={chatNotice}
             onUpdateActivity={onUpdateActivity}
+            onAddActivity={onAddActivity}
             onUpdateTrip={onUpdateTrip}
             isLocalOnly
             localOnlyNoticeText="שינויים שתבצעו כאן (כולל דרך הצ'אט) יישמרו רק בדפדפן הזה ולא יישלחו לשרת."

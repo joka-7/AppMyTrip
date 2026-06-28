@@ -4,10 +4,12 @@ import type { Activity } from "../api";
 export default function PodcastPlayer({
   activity,
   progress,
+  error,
   onClose,
 }: {
   activity: Activity;
   progress: number;
+  error?: string | null;
   onClose: () => void;
 }) {
   return (
@@ -26,12 +28,16 @@ export default function PodcastPlayer({
           <X size={18} />
         </button>
       </div>
-      <div className="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden">
-        <div
-          className="bg-blue-500 h-full transition-all duration-300 ease-linear"
-          style={{ width: `${progress}%` }}
-        ></div>
-      </div>
+      {error ? (
+        <p className="text-xs text-red-400">{error}</p>
+      ) : (
+        <div className="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden">
+          <div
+            className="bg-blue-500 h-full transition-all duration-300 ease-linear"
+            style={{ width: `${progress}%` }}
+          ></div>
+        </div>
+      )}
     </div>
   );
 }
