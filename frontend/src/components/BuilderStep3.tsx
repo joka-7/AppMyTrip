@@ -1,10 +1,8 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { RefObject } from "react";
+import ChatPanel, { type AgentMessage } from "./ChatPanel";
 
-export interface AgentMessage {
-  role: string;
-  text: string;
-}
+export type { AgentMessage };
 
 export default function BuilderStep3({
   agentMessages,
@@ -45,41 +43,15 @@ export default function BuilderStep3({
         className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none mb-4 shadow-sm text-sm"
       />
 
-      <div className="bg-gray-50 rounded-xl p-4 flex-1 min-h-[250px] overflow-y-auto mb-4 border border-gray-200 flex flex-col gap-4 shadow-inner">
-        {agentMessages.map((msg, i) => (
-          <div
-            key={i}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} animate-fade-in`}
-          >
-            <div
-              className={`max-w-[80%] p-3 text-sm ${
-                msg.role === "user"
-                  ? "bg-blue-600 text-white rounded-2xl rounded-tr-sm shadow-md"
-                  : "bg-white border border-gray-200 text-gray-800 rounded-2xl rounded-tl-sm shadow-sm"
-              }`}
-            >
-              {msg.text}
-            </div>
-          </div>
-        ))}
-        <div ref={chatEndRef} />
-      </div>
-
-      <form onSubmit={onSendMessage} className="flex gap-2 mb-4">
-        <input
-          type="text"
-          value={chatInput}
-          onChange={(e) => onChangeChatInput(e.target.value)}
-          placeholder="ענה לסוכן (למשל: 'כן, תוסיף')"
-          className="flex-1 border border-gray-300 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+      <div className="flex-1 mb-4 min-h-[250px]">
+        <ChatPanel
+          agentMessages={agentMessages}
+          chatEndRef={chatEndRef}
+          chatInput={chatInput}
+          onChangeChatInput={onChangeChatInput}
+          onSendMessage={onSendMessage}
         />
-        <button
-          type="submit"
-          className="bg-gray-800 hover:bg-gray-900 text-white px-6 rounded-xl font-medium transition-colors shadow-sm"
-        >
-          שלח
-        </button>
-      </form>
+      </div>
 
       <div className="flex gap-3 mt-auto">
         <button

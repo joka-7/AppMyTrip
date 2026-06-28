@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Wand2 } from "lucide-react";
 import { parseTrip, agentInteract, generateMedia } from "./api";
-import type { TripData } from "./api";
+import type { Activity, TripData } from "./api";
 import ApiKeyMenu from "./components/ApiKeyMenu";
 import ApiNotice from "./components/ApiNotice";
 import BuilderStep1 from "./components/BuilderStep1";
@@ -242,6 +242,20 @@ function TripBuilder() {
     }
   };
 
+  const handleUpdateActivity = (dayIndex: number, activityId: string, patch: Partial<Activity>) => {
+    setTripData((prev) => ({
+      ...prev,
+      days: prev.days.map((d, idx) =>
+        idx !== dayIndex
+          ? d
+          : {
+              ...d,
+              activities: d.activities.map((a) => (a.id === activityId ? { ...a, ...patch } : a)),
+            },
+      ),
+    }));
+  };
+
   const handleContinueToDesign = async () => {
     setIsGeneratingMedia(true);
     try {
@@ -279,6 +293,13 @@ function TripBuilder() {
               setTripId(loadedTripId);
               setTheme(loadedTheme);
               setAgentMessages([{ role: "agent", text: "הטיול נטען. אפשר להמשיך לערוך." }]);
+              setStep(3);
+            }}
+            onImportTrip={(trip, importedTheme) => {
+              setTripData(trip);
+              setTripId(null);
+              setTheme(importedTheme);
+              setAgentMessages([{ role: "agent", text: "הטיול יובא מקובץ. אפשר להמשיך לערוך." }]);
               setStep(3);
             }}
           />
@@ -344,7 +365,16 @@ function TripBuilder() {
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
             Live Preview
           </div>
-          <PhonePreview tripData={tripData} theme={theme} />
+          <PhonePreview
+            tripData={tripData}
+            theme={theme}
+            agentMessages={agentMessages}
+            chatInput={chatInput}
+            onChangeChatInput={setChatInput}
+            onSendMessage={handleSendMessage}
+            chatEndRef={chatEndRef}
+            onUpdateActivity={handleUpdateActivity}
+          />
         </div>
       </div>
     </div>
@@ -359,11 +389,26 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
   const [theme, setTheme] = useState<Theme>("blue");
   const [error, setError] = useState<string | null>(null);
 
+  // Strictly local-only state: a separate instance from TripBuilder's, never
+  // backed by Firestore. handleSendMessage/handleUpdateActivity below only
+  // ever call setTrip — nothing here imports saveTrip/shareTrip.
+  const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [chatNotice, setChatNotice] = useState<string | null>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     loadSharedTrip(tripId)
       .then((result) => {
         setTrip(result.trip);
         setTheme(result.theme);
+        setAgentMessages([
+          {
+            role: "agent",
+            text: 'שלחו הודעה כדי לשנות את הלו"ז — שינויים כאן נשארים רק בדפדפן שלכם.',
+          },
+        ]);
       })
       .catch((err) => {
         console.error(err);
@@ -374,6 +419,56 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
         );
       });
   }, [tripId]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [agentMessages]);
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim() || !trip) return;
+
+    const userText = chatInput;
+    setAgentMessages((prev) => [...prev, { role: "user", text: userText }]);
+    setChatInput("");
+    setIsSendingMessage(true);
+    setChatNotice(null);
+
+    try {
+      const res = await agentInteract(trip, userText);
+      setTrip(res.trip_data);
+      setAgentMessages((prev) => [...prev, { role: "agent", text: res.agent_reply }]);
+    } catch (err) {
+      console.error(err);
+      setChatNotice(
+        isRateLimited(err)
+          ? "ספק ה-AI מגביל קצב בקשות כרגע — נסו שוב בעוד דקה."
+          : "צ'אט ה-AI לא זמין כרגע. נסו שוב מאוחר יותר.",
+      );
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
+
+  const handleUpdateActivity = (dayIndex: number, activityId: string, patch: Partial<Activity>) => {
+    setTrip((prev) =>
+      prev
+        ? {
+            ...prev,
+            days: prev.days.map((d, idx) =>
+              idx !== dayIndex
+                ? d
+                : {
+                    ...d,
+                    activities: d.activities.map((a) =>
+                      a.id === activityId ? { ...a, ...patch } : a,
+                    ),
+                  },
+            ),
+          }
+        : prev,
+    );
+  };
 
   if (error) {
     return (
@@ -394,7 +489,24 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
     );
   }
 
-  return <SharedAppPage tripData={trip} theme={theme} />;
+  return (
+    <SharedAppPage
+      tripData={trip}
+      theme={theme}
+      agentMessages={agentMessages}
+      chatInput={chatInput}
+      onChangeChatInput={setChatInput}
+      onSendMessage={handleSendMessage}
+      chatEndRef={chatEndRef}
+      isSendingMessage={isSendingMessage}
+      chatNotice={chatNotice}
+      onUpdateActivity={handleUpdateActivity}
+      onImportTrip={(importedTrip, importedTheme) => {
+        setTrip(importedTrip);
+        setTheme(importedTheme);
+      }}
+    />
+  );
 }
 
 export default function App() {

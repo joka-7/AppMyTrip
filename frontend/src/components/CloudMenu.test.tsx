@@ -32,6 +32,7 @@ describe("CloudMenu", () => {
         tripId={null}
         onTripIdChange={vi.fn()}
         onLoadTrip={vi.fn()}
+        onImportTrip={vi.fn()}
       />,
     );
     expect(screen.getByRole("button", { name: /התחברות עם Google/ })).toBeInTheDocument();
@@ -56,6 +57,7 @@ describe("CloudMenu", () => {
         tripId={null}
         onTripIdChange={vi.fn()}
         onLoadTrip={onLoadTrip}
+        onImportTrip={vi.fn()}
       />,
     );
 

@@ -16,6 +16,7 @@ describe("ItineraryList", () => {
         themeClass="bg-blue-600"
         playingPodcast={null}
         onPlayPodcast={vi.fn()}
+        onUpdateActivity={vi.fn()}
       />,
     );
 
@@ -32,6 +33,7 @@ describe("ItineraryList", () => {
         themeClass="bg-blue-600"
         playingPodcast={null}
         onPlayPodcast={onPlayPodcast}
+        onUpdateActivity={vi.fn()}
       />,
     );
 
@@ -46,6 +48,7 @@ describe("ItineraryList", () => {
         themeClass="bg-blue-600"
         playingPodcast={activities[0]}
         onPlayPodcast={vi.fn()}
+        onUpdateActivity={vi.fn()}
       />,
     );
 
