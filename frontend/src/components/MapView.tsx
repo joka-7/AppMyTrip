@@ -2,8 +2,16 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-
 import { useEffect } from "react";
 import L from "leaflet";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ExternalLink, Utensils, Bed, Landmark, Plane } from "lucide-react";
+import { ArrowRight, ExternalLink, Utensils, Bed, Landmark, Plane } from "lucide-react";
 import type { Activity } from "../api";
+
+/** Builds a Google Maps URL centered on a single place (no routing). */
+function googleMapsPlaceUrl(act: Activity): string {
+  const url = new URL("https://www.google.com/maps/search/");
+  url.searchParams.set("api", "1");
+  url.searchParams.set("query", `${act.map_coordinates!.lat},${act.map_coordinates!.lng}`);
+  return url.toString();
+}
 
 /**
  * Builds a Google Maps directions URL for the day's stops in order. Opening the real
@@ -75,11 +83,20 @@ function FitBounds({ activities }: { activities: Activity[] }) {
 export default function MapView({
   activities,
   onUpdateActivity,
+  focusActivityId,
+  onClearFocus,
 }: {
   activities: Activity[];
   onUpdateActivity?: (activityId: string, patch: Partial<Activity>) => void;
+  /** When set, show only this single activity's pin instead of the whole day. */
+  focusActivityId?: string | null;
+  onClearFocus?: () => void;
 }) {
-  const coordActs = activities.filter((a) => a.map_coordinates);
+  const allCoordActs = activities.filter((a) => a.map_coordinates);
+  const focusedAct = focusActivityId
+    ? allCoordActs.find((a) => a.id === focusActivityId)
+    : undefined;
+  const coordActs = focusedAct ? [focusedAct] : allCoordActs;
 
   if (coordActs.length === 0) {
     return (
@@ -104,17 +121,40 @@ export default function MapView({
 
   return (
     <div className="h-full w-full flex flex-col gap-2">
-      {coordActs.length > 1 && (
-        <a
-          href={googleMapsDirectionsUrl(coordActs)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="self-start flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
-        >
-          <ExternalLink size={14} />
-          פתיחת מסלול והוראות הגעה ב-Google Maps
-        </a>
-      )}
+      <div className="flex flex-wrap items-center gap-2">
+        {focusedAct && onClearFocus && (
+          <button
+            onClick={onClearFocus}
+            className="self-start flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            <ArrowRight size={14} />
+            חזרה למפת היום המלאה
+          </button>
+        )}
+        {focusedAct ? (
+          <a
+            href={googleMapsPlaceUrl(focusedAct)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="self-start flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            <ExternalLink size={14} />
+            פתיחה ב-Google Maps
+          </a>
+        ) : (
+          coordActs.length > 1 && (
+            <a
+              href={googleMapsDirectionsUrl(coordActs)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="self-start flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <ExternalLink size={14} />
+              פתיחת מסלול והוראות הגעה ב-Google Maps
+            </a>
+          )
+        )}
+      </div>
       <div className="flex-1 rounded-xl overflow-hidden border border-gray-200 shadow-inner">
         <MapContainer
           center={center}

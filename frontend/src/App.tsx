@@ -8,6 +8,7 @@ import BuilderStep1 from "./components/BuilderStep1";
 import BuilderStep3, { type AgentMessage } from "./components/BuilderStep3";
 import BuilderStep4 from "./components/BuilderStep4";
 import CloudMenu from "./components/CloudMenu";
+import InstallAppButton from "./components/InstallAppButton";
 import PhonePreview from "./components/PhonePreview";
 import ProgressBar from "./components/ProgressBar";
 import SharedAppPage from "./components/SharedAppPage";
@@ -281,15 +282,16 @@ function TripBuilder() {
   return (
     <div className="min-h-screen bg-gray-100 font-sans text-right" dir="rtl">
       {/* Top Navbar */}
-      <nav className="bg-white shadow-sm px-6 py-4 flex justify-between items-center sticky top-0 z-30">
+      <nav className="bg-white shadow-sm px-4 sm:px-6 py-4 flex flex-wrap justify-between items-center gap-3 sticky top-0 z-30">
         <div className="flex items-center gap-2">
           <AppLogo />
-          <h1 className="text-xl font-bold text-gray-800">תכנון טיול באמצעות AI</h1>
+          <h1 className="text-lg sm:text-xl font-bold text-gray-800">תכנון טיול באמצעות AI</h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
             שלב {step} מתוך 4
           </div>
+          <InstallAppButton />
           <ApiKeyMenu />
           <CloudMenu
             tripData={tripData}
@@ -349,6 +351,7 @@ function TripBuilder() {
                 isGeneratingMedia={isGeneratingMedia}
                 tripDates={tripData.dates}
                 onChangeTripDates={(dates) => setTripData((prev) => ({ ...prev, dates }))}
+                language={tripData.language}
               />
             )}
 

@@ -29,6 +29,8 @@ export interface TripData {
   title: string;
   dates: string;
   days: TripDay[];
+  /** ISO 639-1 code of the trip's dominant language (e.g. "he", "en"); the agent replies in this language. */
+  language?: string;
 }
 
 export interface ParseResponse {

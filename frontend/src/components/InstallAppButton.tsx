@@ -1,0 +1,61 @@
+import { useState } from "react";
+import { Download, Share, SquarePlus, X } from "lucide-react";
+import { useInstallPrompt } from "../hooks/useInstallPrompt";
+
+/**
+ * Surfaces installability everywhere it's relevant: a one-click native
+ * install prompt on Chrome/Edge (desktop + Android), and step-by-step
+ * "Add to Home Screen" instructions on iOS Safari, which never exposes a
+ * programmatic install API. Renders nothing once the app is already
+ * installed or on browsers that support neither path.
+ */
+export default function InstallAppButton() {
+  const { canInstall, isIos, installed, promptInstall } = useInstallPrompt();
+  const [showIosHelp, setShowIosHelp] = useState(false);
+
+  if (installed || (!canInstall && !isIos)) return null;
+
+  return (
+    <>
+      <button
+        onClick={() => (canInstall ? promptInstall() : setShowIosHelp(true))}
+        className="flex items-center gap-1 text-gray-600 hover:text-blue-600 bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded-lg text-xs"
+      >
+        <Download size={14} />
+        התקנת האפליקציה
+      </button>
+
+      {showIosHelp && (
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowIosHelp(false)}
+        >
+          <div
+            className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-gray-800">התקנה כאפליקציה ב-iPhone/iPad</h3>
+              <button
+                onClick={() => setShowIosHelp(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <ol className="text-sm text-gray-600 flex flex-col gap-3">
+              <li className="flex items-center gap-2">
+                <Share size={16} className="text-blue-600 flex-shrink-0" />
+                לחצו על כפתור השיתוף בסרגל הכלים של Safari
+              </li>
+              <li className="flex items-center gap-2">
+                <SquarePlus size={16} className="text-blue-600 flex-shrink-0" />
+                בחרו &quot;הוספה למסך הבית&quot; (Add to Home Screen)
+              </li>
+            </ol>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

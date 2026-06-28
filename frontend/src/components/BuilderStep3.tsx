@@ -16,6 +16,7 @@ export default function BuilderStep3({
   isGeneratingMedia,
   tripDates,
   onChangeTripDates,
+  language,
 }: {
   agentMessages: AgentMessage[];
   chatEndRef: RefObject<HTMLDivElement>;
@@ -28,6 +29,7 @@ export default function BuilderStep3({
   isGeneratingMedia: boolean;
   tripDates: string;
   onChangeTripDates: (dates: string) => void;
+  language?: string | null;
 }) {
   return (
     <div className="animate-fade-in flex flex-col h-full">
@@ -53,6 +55,7 @@ export default function BuilderStep3({
           onChangeChatInput={onChangeChatInput}
           onSendMessage={onSendMessage}
           isSending={isSendingMessage}
+          language={language}
         />
       </div>
 
