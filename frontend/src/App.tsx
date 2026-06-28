@@ -435,7 +435,7 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
     setChatNotice(null);
 
     try {
-      const res = await agentInteract(trip, userText);
+      const res = await agentInteract(trip, userText, null, getApiKey(), getApiProvider());
       setTrip(res.trip_data);
       setAgentMessages((prev) => [...prev, { role: "agent", text: res.agent_reply }]);
     } catch (err) {
