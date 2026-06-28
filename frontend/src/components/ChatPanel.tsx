@@ -46,6 +46,15 @@ export default function ChatPanel({
             </div>
           </div>
         ))}
+        {isSending && (
+          <div className="flex justify-start animate-fade-in">
+            <div className="max-w-[80%] p-3 bg-white border border-gray-200 text-gray-800 rounded-2xl rounded-tl-sm shadow-sm flex items-center gap-1">
+              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
+              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
+              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" />
+            </div>
+          </div>
+        )}
         <div ref={chatEndRef} />
       </div>
 

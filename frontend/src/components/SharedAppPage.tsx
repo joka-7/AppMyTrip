@@ -28,6 +28,7 @@ export default function SharedAppPage({
   isSendingMessage,
   chatNotice,
   onUpdateActivity,
+  onUpdateTrip,
   onImportTrip,
 }: {
   tripData: TripData;
@@ -40,6 +41,7 @@ export default function SharedAppPage({
   isSendingMessage?: boolean;
   chatNotice?: string | null;
   onUpdateActivity: (dayIndex: number, activityId: string, patch: Partial<Activity>) => void;
+  onUpdateTrip: (patch: Partial<Pick<TripData, "title" | "dates">>) => void;
   onImportTrip: (tripData: TripData, theme: Theme) => void;
 }) {
   const [saveStatus, setSaveStatus] = useState<"idle" | "working" | "done" | "error">("idle");
@@ -72,8 +74,8 @@ export default function SharedAppPage({
   };
 
   return (
-    <div className="min-h-screen bg-gray-200 flex justify-center" dir="rtl">
-      <div className="w-full max-w-md min-h-screen bg-gray-50 shadow-2xl flex flex-col">
+    <div className="h-screen overflow-hidden bg-gray-200 flex justify-center" dir="rtl">
+      <div className="w-full max-w-md h-screen bg-gray-50 shadow-2xl flex flex-col overflow-hidden">
         <div className="flex flex-wrap items-center gap-2 p-2 bg-white border-b border-gray-200 text-xs">
           <button
             onClick={() => exportTripToFile(tripData, theme)}
@@ -121,20 +123,23 @@ export default function SharedAppPage({
             {importError}
           </p>
         )}
-        <AppFrame
-          tripData={tripData}
-          theme={theme}
-          agentMessages={agentMessages}
-          chatInput={chatInput}
-          onChangeChatInput={onChangeChatInput}
-          onSendMessage={onSendMessage}
-          chatEndRef={chatEndRef}
-          isSendingMessage={isSendingMessage}
-          chatNotice={chatNotice}
-          onUpdateActivity={onUpdateActivity}
-          isLocalOnly
-          localOnlyNoticeText="שינויים שתבצעו כאן (כולל דרך הצ'אט) יישמרו רק בדפדפן הזה ולא יישלחו לשרת."
-        />
+        <div className="flex-1 min-h-0">
+          <AppFrame
+            tripData={tripData}
+            theme={theme}
+            agentMessages={agentMessages}
+            chatInput={chatInput}
+            onChangeChatInput={onChangeChatInput}
+            onSendMessage={onSendMessage}
+            chatEndRef={chatEndRef}
+            isSendingMessage={isSendingMessage}
+            chatNotice={chatNotice}
+            onUpdateActivity={onUpdateActivity}
+            onUpdateTrip={onUpdateTrip}
+            isLocalOnly
+            localOnlyNoticeText="שינויים שתבצעו כאן (כולל דרך הצ'אט) יישמרו רק בדפדפן הזה ולא יישלחו לשרת."
+          />
+        </div>
       </div>
     </div>
   );
