@@ -309,6 +309,26 @@ def _multi_day_trip(num_days: int) -> TripData:
     )
 
 
+def test_agent_endpoint_rejects_legitimate_bulk_delete_request(monkeypatch):
+    # The user explicitly asks to delete most of their trip (not a hallucinated
+    # truncation) — today the guard can't tell the two apart and blocks this
+    # with a 502, even though the AI did exactly what was asked.
+    kept_only_day1 = _multi_day_trip(1)
+    monkeypatch.setattr(
+        LLMService,
+        "agent_interaction",
+        AsyncMock(return_value=AgentResponse(updated_trip=kept_only_day1, agent_reply="מחקתי")),
+    )
+    resp = client.post(
+        "/api/trip/agent",
+        json={
+            "trip_data": _multi_day_trip(9).model_dump(),
+            "user_message": "מחק את כל הימים חוץ מהיום הראשון",
+        },
+    )
+    assert resp.status_code == 200
+
+
 def test_agent_endpoint_rejects_response_that_drops_most_of_the_trip(monkeypatch):
     # Simulates a truncated/hallucinated LLM response that echoes back only the
     # last day of a long itinerary instead of the whole thing.
