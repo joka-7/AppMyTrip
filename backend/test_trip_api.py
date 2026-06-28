@@ -6,6 +6,7 @@ the frontend, so there's no DB/auth to test here.
 """
 
 import asyncio
+import json
 import os
 from unittest.mock import AsyncMock
 
@@ -436,3 +437,153 @@ def test_parse_endpoint_requires_api_key_when_none_configured(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     resp = client.post("/api/trip/parse", json={"raw_text": "Rome"})
     assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Realistic raw AI JSON payloads, fed through the real LLMService.agent_interaction
+# validation path (not just router-level mocks) via a fake provider, to check
+# our code's reaction to the kinds of responses an LLM can actually return.
+# ---------------------------------------------------------------------------
+
+
+class _FakeProvider:
+    """Stands in for a real LLM provider, returning a canned JSON dict."""
+
+    def __init__(self, json_data: dict) -> None:
+        self._json_data = json_data
+
+    async def complete_json(self, system_prompt: str, user_content: str) -> dict:
+        return self._json_data
+
+
+def _agent_interaction_with(monkeypatch, json_data: dict):
+    monkeypatch.setattr(
+        LLMService,
+        "_get_provider",
+        staticmethod(lambda api_key=None, provider=None: _FakeProvider(json_data)),
+    )
+    return asyncio.run(LLMService.agent_interaction(_sample_trip(), "add a coffee stop"))
+
+
+def test_agent_interaction_accepts_manually_added_activity_echoed_back(monkeypatch):
+    # A manually-added activity (no map_coordinates/podcast info) that the AI
+    # correctly echoes back untouched, alongside one it added itself.
+    manual_activity = {
+        "id": "manual-1",
+        "time": "16:00",
+        "title": "Gelato break",
+        "desc": "Self-added stop",
+        "type": "food",
+    }
+    new_trip = _sample_trip().model_dump()
+    new_trip["days"][0]["activities"].append(manual_activity)
+    new_trip["days"][0]["activities"].append(
+        {
+            "id": "ai-1",
+            "time": "17:00",
+            "title": "Coffee stop",
+            "desc": "Added by the AI",
+            "type": "food",
+            "map_coordinates": {"lat": 41.9, "lng": 12.49},
+        }
+    )
+    result = _agent_interaction_with(
+        monkeypatch, {"updated_trip": new_trip, "agent_reply": "Added a coffee stop"}
+    )
+    ids = {a.id for d in result.updated_trip.days for a in d.activities}
+    assert {"manual-1", "ai-1", "a1"} <= ids
+    # The manually-added activity's missing fields stay None, not crash/coerce.
+    manual = next(a for d in result.updated_trip.days for a in d.activities if a.id == "manual-1")
+    assert manual.map_coordinates is None
+
+
+def test_agent_endpoint_silently_drops_a_single_unrelated_activity(monkeypatch):
+    # Known gap: the truncation guard only fires when MORE THAN HALF the
+    # activities vanish. A single manually-added activity dropped alongside
+    # an otherwise-legitimate edit currently slips through undetected — this
+    # documents that residual risk rather than asserting desired behavior.
+    trip = _trip_with_food()  # 2 activities: "a1" and "f1"
+    dropped_one = TripData(
+        title=trip.title,
+        dates=trip.dates,
+        days=[TripDay(dayNum=1, activities=[trip.days[0].activities[0]])],  # only "a1" survives
+    )
+    monkeypatch.setattr(
+        LLMService,
+        "agent_interaction",
+        AsyncMock(return_value=AgentResponse(updated_trip=dropped_one, agent_reply="עדכנתי")),
+    )
+    resp = client.post(
+        "/api/trip/agent",
+        json={"trip_data": trip.model_dump(), "user_message": "rename the landmark"},
+    )
+    assert resp.status_code == 200  # guard does NOT catch this — see comment above
+    ids = {a["id"] for d in resp.json()["trip_data"]["days"] for a in d["activities"]}
+    assert "f1" not in ids
+
+
+def test_agent_interaction_rejects_missing_required_field(monkeypatch):
+    # A malformed/truncated AI response missing a required Activity field.
+    new_trip = _sample_trip().model_dump()
+    new_trip["days"][0]["activities"][0].pop("title")
+    with pytest.raises(HTTPException) as exc_info:
+        _agent_interaction_with(monkeypatch, {"updated_trip": new_trip, "agent_reply": "עדכנתי"})
+    assert exc_info.value.status_code == 422
+
+
+def test_agent_interaction_tolerates_unexpected_extra_fields(monkeypatch):
+    # LLMs sometimes add fields we didn't ask for (e.g. a stray "notes" key);
+    # pydantic should ignore them rather than fail the whole response.
+    new_trip = _sample_trip().model_dump()
+    new_trip["days"][0]["activities"][0]["notes"] = "unexpected extra field"
+    new_trip["weather_summary"] = "sunny"
+    result = _agent_interaction_with(
+        monkeypatch, {"updated_trip": new_trip, "agent_reply": "עדכנתי"}
+    )
+    assert result.updated_trip.days[0].activities[0].title == "Spanish Steps"
+
+
+def test_agent_interaction_handles_reordered_and_renumbered_days(monkeypatch):
+    # Moving an activity to a new day and renumbering days should round-trip cleanly.
+    new_trip = {
+        "title": "Trip to Rome",
+        "dates": "Thu - Sun",
+        "days": [
+            {"dayNum": 1, "activities": []},
+            {
+                "dayNum": 2,
+                "activities": [
+                    {
+                        "id": "a1",
+                        "time": "10:00",
+                        "title": "Spanish Steps",
+                        "desc": "A historic landmark.",
+                        "type": "attraction",
+                        "hasPodcast": True,
+                        "map_coordinates": {"lat": 41.9059, "lng": 12.4827},
+                    }
+                ],
+            },
+        ],
+    }
+    result = _agent_interaction_with(
+        monkeypatch, {"updated_trip": new_trip, "agent_reply": "הזזתי את הפעילות ליום 2"}
+    )
+    assert result.updated_trip.days[0].activities == []
+    assert result.updated_trip.days[1].activities[0].id == "a1"
+
+
+def test_agent_interaction_raises_502_on_non_json_provider_response(monkeypatch):
+    # Provider fails to return parseable JSON at all (a real HTTP/decode failure).
+    class BrokenProvider:
+        async def complete_json(self, system_prompt, user_content):
+            raise json.JSONDecodeError("bad json", "doc", 0)
+
+    monkeypatch.setattr(
+        LLMService,
+        "_get_provider",
+        staticmethod(lambda api_key=None, provider=None: BrokenProvider()),
+    )
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(LLMService._execute_with_retry("sys", "user", max_retries=1))
+    assert exc_info.value.status_code == 502
