@@ -4,6 +4,7 @@ import { Download, Upload, UserPlus } from "lucide-react";
 import type { Activity, TripData } from "../api";
 import { exportTripToFile, importTripFromFile } from "../services/tripFile";
 import { getCurrentSession, saveTrip, signInWithGoogle } from "../services/tripsStore";
+import ApiKeyMenu from "./ApiKeyMenu";
 import AppFrame from "./AppFrame";
 import type { AgentMessage } from "./ChatPanel";
 import type { Theme } from "./ThemeSelector";
@@ -103,6 +104,7 @@ export default function SharedAppPage({
             <UserPlus size={14} />
             {saveStatus === "working" ? "שומר..." : "שמירה לחשבון שלי"}
           </button>
+          <ApiKeyMenu />
         </div>
         {saveStatus === "done" && (
           <p className="text-xs text-green-700 text-center py-1 bg-green-50 border-b border-green-200">
