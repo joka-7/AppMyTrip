@@ -146,6 +146,26 @@ function TripBuilder() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [agentMessages]);
 
+  // Pressing the device/browser back button has no router to act on by default,
+  // so it exits the app outright instead of stepping back within the wizard.
+  // Push a history entry per step and consume popstate ourselves so back/forward
+  // move between steps in-app; only once the user is back at step 1 does a
+  // further back press fall through to actually leaving the page.
+  useEffect(() => {
+    window.history.replaceState({ appStep: 1 }, "");
+    const onPopState = (e: PopStateEvent) => {
+      const state = e.state as { appStep?: number } | null;
+      setStep(state?.appStep ?? 1);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  const goToStep = (next: number) => {
+    setStep(next);
+    window.history.pushState({ appStep: next }, "");
+  };
+
   // Local fallback used when the backend is unreachable, so the prototype
   // remains demoable without a running API / Gemini key.
   const mockAgentReply = (userText: string) => {
@@ -201,7 +221,7 @@ function TripBuilder() {
           ? [{ role: "agent", text: res.initial_agent_message }]
           : [{ role: "agent", text: 'זיהיתי את הטיול! עברו על הלו"ז ותקנו מה שצריך.' }],
       );
-      setStep(2);
+      goToStep(2);
     } catch (err) {
       console.error(err);
       setApiNotice(
@@ -211,7 +231,7 @@ function TripBuilder() {
       );
       setTripData(DEMO_TRIP);
       setAgentMessages([{ role: "agent", text: DEMO_AGENT_MESSAGE }]);
-      setStep(2);
+      goToStep(2);
     } finally {
       setIsProcessing(false);
     }
@@ -227,7 +247,7 @@ function TripBuilder() {
       setApiNotice('הוספת הפרטים הנוספים נכשלה — ממשיכים עם הלו"ז הנוכחי.');
     } finally {
       setIsEnhancing(false);
-      setStep(3);
+      goToStep(3);
     }
   };
 
@@ -302,7 +322,7 @@ function TripBuilder() {
       setApiNotice("יצירת המדיה בשרת נכשלה — ממשיכים ללא קבצי אודיו.");
     } finally {
       setIsGeneratingMedia(false);
-      setStep(4);
+      goToStep(4);
     }
   };
 
@@ -330,14 +350,14 @@ function TripBuilder() {
               setTripId(loadedTripId);
               setTheme(loadedTheme);
               setAgentMessages([{ role: "agent", text: "הטיול נטען. אפשר להמשיך לערוך." }]);
-              setStep(3);
+              goToStep(3);
             }}
             onImportTrip={(trip, importedTheme) => {
               setTripData(trip);
               setTripId(null);
               setTheme(importedTheme);
               setAgentMessages([{ role: "agent", text: "הטיול יובא מקובץ. אפשר להמשיך לערוך." }]);
-              setStep(3);
+              goToStep(3);
             }}
           />
         </div>
@@ -361,15 +381,15 @@ function TripBuilder() {
                 onSubmit={handleProcessText}
                 isProcessing={isProcessing}
                 hasExistingTrip={tripData.days.length > 0}
-                onContinueWithoutReprocessing={() => setStep(3)}
+                onContinueWithoutReprocessing={() => goToStep(3)}
               />
             )}
 
             {step === 2 && (
               <BuilderStep2
                 onSubmit={handleEnhance}
-                onSkip={() => setStep(3)}
-                onBack={() => setStep(1)}
+                onSkip={() => goToStep(3)}
+                onBack={() => goToStep(1)}
                 isEnhancing={isEnhancing}
               />
             )}
@@ -383,7 +403,7 @@ function TripBuilder() {
                 onSendMessage={handleSendMessage}
                 isSendingMessage={isSendingMessage}
                 onContinue={handleContinueToDesign}
-                onBack={() => setStep(2)}
+                onBack={() => goToStep(2)}
                 isGeneratingMedia={isGeneratingMedia}
                 tripDates={tripData.dates}
                 onChangeTripDates={(dates) => setTripData((prev) => ({ ...prev, dates }))}
@@ -401,7 +421,7 @@ function TripBuilder() {
                   setTripId(savedId);
                   setTripData((prev) => ({ ...prev, title }));
                 }}
-                onBack={() => setStep(3)}
+                onBack={() => goToStep(3)}
               />
             )}
           </div>
