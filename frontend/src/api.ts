@@ -24,8 +24,10 @@ export interface Activity {
   price?: number | null;
   /** Link to the activity's official site or listing. */
   url?: string | null;
-  /** Link to a photo of the activity. */
-  photo_url?: string | null;
+  /** Driving directions/notes to reach this activity from the previous stop. */
+  directions_car?: string | null;
+  /** Public-transit directions/notes to reach this activity from the previous stop. */
+  directions_transit?: string | null;
 }
 
 export interface TripDay {
@@ -39,6 +41,17 @@ export interface TripData {
   days: TripDay[];
   /** ISO 639-1 code of the trip's dominant language (e.g. "he", "en"); the agent replies in this language. */
   language?: string;
+  /** Link to a shared photo album for the whole trip. */
+  photo_album_url?: string | null;
+}
+
+/** Which optional, LLM-generated extras Step 2 should fill in. */
+export interface EnhanceOptions {
+  directions_car?: boolean;
+  directions_transit?: boolean;
+  prices?: boolean;
+  podcast?: boolean;
+  links?: boolean;
 }
 
 export interface ParseResponse {
@@ -106,5 +119,24 @@ export function generateMedia(tripData: TripData): Promise<GenerateMediaResponse
   return postJSON<GenerateMediaResponse>("/api/trip/generate-media", {
     trip_data: tripData,
     user_message: "",
+  });
+}
+
+export interface EnhanceResponse {
+  trip_data: TripData;
+}
+
+/** Stage 2: fills in the optional extras (directions, prices, podcast briefs, links) the user opted into. */
+export function enhanceTrip(
+  tripData: TripData,
+  options: EnhanceOptions,
+  apiKey?: string | null,
+  provider?: string | null,
+): Promise<EnhanceResponse> {
+  return postJSON<EnhanceResponse>("/api/trip/enhance", {
+    trip_data: tripData,
+    options,
+    api_key: apiKey ?? null,
+    provider: provider ?? null,
   });
 }

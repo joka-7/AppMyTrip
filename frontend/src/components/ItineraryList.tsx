@@ -2,7 +2,6 @@ import { useState } from "react";
 import {
   Bed,
   DollarSign,
-  ImageIcon,
   Landmark,
   Link as LinkIcon,
   MapPin,
@@ -66,7 +65,6 @@ export default function ItineraryList({
       type: act.type,
       price: act.price,
       url: act.url,
-      photo_url: act.photo_url,
       map_coordinates: act.map_coordinates,
     });
   };
@@ -120,9 +118,9 @@ export default function ItineraryList({
                 <div className="w-0.5 h-full bg-gray-200 mt-2"></div>
               )}
             </div>
-            <div className="flex-1 pb-4">
+            <div className="flex-1 min-w-0 pb-4">
               {isEditing ? (
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2 min-w-0">
                   <input
                     type="time"
                     value={draft.time ?? ""}
@@ -133,12 +131,12 @@ export default function ItineraryList({
                     type="text"
                     value={draft.title ?? ""}
                     onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
-                    className="border border-gray-300 rounded-lg p-1.5 text-sm font-bold"
+                    className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm font-bold"
                   />
                   <textarea
                     value={draft.desc ?? ""}
                     onChange={(e) => setDraft((d) => ({ ...d, desc: e.target.value }))}
-                    className="border border-gray-300 rounded-lg p-1.5 text-sm"
+                    className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
                     rows={2}
                   />
                   <select
@@ -154,8 +152,8 @@ export default function ItineraryList({
                       </option>
                     ))}
                   </select>
-                  <div className="flex gap-2">
-                    <label className="flex-1 flex flex-col gap-1 text-[11px] text-gray-500">
+                  <div className="flex gap-2 min-w-0">
+                    <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-gray-500">
                       מחיר
                       <input
                         type="number"
@@ -167,30 +165,21 @@ export default function ItineraryList({
                             price: e.target.value === "" ? null : Number(e.target.value),
                           }))
                         }
-                        className="border border-gray-300 rounded-lg p-1.5 text-sm"
+                        className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
                       />
                     </label>
-                    <label className="flex-1 flex flex-col gap-1 text-[11px] text-gray-500">
+                    <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-gray-500">
                       קישור לאתר
                       <input
                         type="url"
                         value={draft.url ?? ""}
                         onChange={(e) => setDraft((d) => ({ ...d, url: e.target.value }))}
-                        className="border border-gray-300 rounded-lg p-1.5 text-sm"
+                        className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
                       />
                     </label>
                   </div>
-                  <label className="flex flex-col gap-1 text-[11px] text-gray-500">
-                    קישור לתמונה
-                    <input
-                      type="url"
-                      value={draft.photo_url ?? ""}
-                      onChange={(e) => setDraft((d) => ({ ...d, photo_url: e.target.value }))}
-                      className="border border-gray-300 rounded-lg p-1.5 text-sm"
-                    />
-                  </label>
-                  <div className="flex gap-2">
-                    <label className="flex-1 flex flex-col gap-1 text-[11px] text-gray-500">
+                  <div className="flex gap-2 min-w-0">
+                    <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-gray-500">
                       קו רוחב (lat)
                       <input
                         type="number"
@@ -205,10 +194,10 @@ export default function ItineraryList({
                                 : { lat: Number(e.target.value), lng: d.map_coordinates?.lng ?? 0 },
                           }))
                         }
-                        className="border border-gray-300 rounded-lg p-1.5 text-sm"
+                        className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
                       />
                     </label>
-                    <label className="flex-1 flex flex-col gap-1 text-[11px] text-gray-500">
+                    <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-gray-500">
                       קו אורך (lng)
                       <input
                         type="number"
@@ -223,7 +212,7 @@ export default function ItineraryList({
                                 : { lat: d.map_coordinates?.lat ?? 0, lng: Number(e.target.value) },
                           }))
                         }
-                        className="border border-gray-300 rounded-lg p-1.5 text-sm"
+                        className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
                       />
                     </label>
                   </div>
@@ -255,17 +244,6 @@ export default function ItineraryList({
                       <div className="text-xs text-gray-500 font-medium mb-1">{act.time}</div>
                       <div className="flex items-center gap-1.5">
                         <h4 className="font-bold text-gray-800">{act.title}</h4>
-                        {act.photo_url && (
-                          <a
-                            href={act.photo_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            aria-label="תמונות של הפעילות"
-                            className="text-gray-400 hover:text-blue-600"
-                          >
-                            <ImageIcon size={14} />
-                          </a>
-                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
@@ -352,13 +330,13 @@ export default function ItineraryList({
                 value={draft.title ?? ""}
                 onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
                 placeholder="שם הפעילות"
-                className="border border-gray-300 rounded-lg p-1.5 text-sm font-bold"
+                className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm font-bold"
               />
               <textarea
                 value={draft.desc ?? ""}
                 onChange={(e) => setDraft((d) => ({ ...d, desc: e.target.value }))}
                 placeholder="תיאור קצר"
-                className="border border-gray-300 rounded-lg p-1.5 text-sm"
+                className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
                 rows={2}
               />
               <select

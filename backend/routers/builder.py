@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from models import AgentInteractRequest, ParseRequest, TripData
+from models import AgentInteractRequest, EnhanceOptions, EnhanceRequest, ParseRequest, TripData
 from services.llm import LLMService
 from services.tts import TTSService
 
@@ -137,6 +137,15 @@ class TripBuilder:
         # Return the conversational reply
         return agent_response.agent_reply
 
+    async def enhance(self, options: EnhanceOptions) -> "TripBuilder":
+        """Fills in the optional extras the user opted into in Step 2."""
+        if not self._trip:
+            raise ValueError("Trip has not been initialized.")
+        self._trip = await LLMService.enhance_trip(
+            self._trip, options, api_key=self._api_key, provider=self._provider
+        )
+        return self
+
     async def generate_media(self) -> "TripBuilder":
         """Generates TTS podcasts for flagged activities."""
         if not self._trip:
@@ -198,6 +207,21 @@ async def agent_interaction(request: AgentInteractRequest) -> dict:
     reply_text = await builder.process_agent_update(request.user_message)
 
     return {"trip_data": builder.get_trip().model_dump(), "agent_reply": reply_text}
+
+
+@router.post("/enhance", response_model=dict)
+async def enhance_trip_endpoint(request: EnhanceRequest) -> dict:
+    """
+    Endpoint for the optional Stage 2 enhancements (directions, prices, podcast
+    briefs, links) — opt-in per checkbox so the default parse/chat turns stay fast.
+    """
+    builder = TripBuilder().load_existing_trip(request.trip_data)
+    builder.set_api_key(request.api_key)
+    builder.set_provider(request.provider)
+
+    await builder.enhance(request.options)
+
+    return {"trip_data": builder.get_trip().model_dump()}
 
 
 @router.post("/generate-media", response_model=dict)

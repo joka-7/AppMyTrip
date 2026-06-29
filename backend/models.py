@@ -33,7 +33,13 @@ class Activity(BaseModel):
     )
     price: float | None = Field(None, description="Cost of this activity, in the trip's currency")
     url: str | None = Field(None, description="Link to the activity's official site or listing")
-    photo_url: str | None = Field(None, description="Link to a photo of the activity")
+    directions_car: str | None = Field(
+        None, description="Driving directions/notes to reach this activity from the previous stop"
+    )
+    directions_transit: str | None = Field(
+        None,
+        description="Public-transit directions/notes to reach this activity from the previous stop",
+    )
 
 
 class TripDay(BaseModel):
@@ -54,6 +60,9 @@ class TripData(BaseModel):
         description="ISO 639-1 code of the dominant language of the trip's source text "
         "(e.g. 'he' if most words/verbs are Hebrew, 'en' if mostly English). All "
         "generated content and agent chat replies should match this language.",
+    )
+    photo_album_url: str | None = Field(
+        None, description="Link to a shared photo album for the whole trip"
     )
 
 
@@ -85,6 +94,36 @@ class ParseRequest(BaseModel):
     preferences: str | None = Field(
         None, description="Free-text dietary/other preference (e.g. 'Kosher', 'Vegan')"
     )
+    api_key: str | None = Field(
+        None,
+        description="Caller's own LLM provider API key. Falls back to the server's "
+        "GEMINI_API_KEY/OPENAI_API_KEY/ANTHROPIC_API_KEY/GROQ_API_KEY env var if omitted.",
+    )
+    provider: str | None = Field(
+        None,
+        description="Which LLM provider `api_key` belongs to: 'gemini', 'openai', "
+        "'anthropic', or 'groq'. Falls back to the server's LLM_PROVIDER env var "
+        "(default 'gemini') if omitted.",
+    )
+
+
+class EnhanceOptions(BaseModel):
+    """Which optional, LLM-generated extras Stage 2 should fill in. Each one is
+    opt-in so a plain parse/chat turn stays fast — these are the slower,
+    token-heavy additions the user explicitly checked in the builder."""
+
+    directions_car: bool = False
+    directions_transit: bool = False
+    prices: bool = False
+    podcast: bool = False
+    links: bool = False
+
+
+class EnhanceRequest(BaseModel):
+    """Payload for the optional Stage 2 enhancement step."""
+
+    trip_data: TripData
+    options: EnhanceOptions
     api_key: str | None = Field(
         None,
         description="Caller's own LLM provider API key. Falls back to the server's "
