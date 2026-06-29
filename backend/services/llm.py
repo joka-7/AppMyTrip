@@ -329,6 +329,79 @@ class LLMService:
                 status_code=422, detail=f"LLM returned invalid schema: {str(e)}"
             ) from e
 
+    # Maps each opt-in flag to the instruction for its own focused LLM call,
+    # plus the Activity field(s) that call is allowed to change. Firing one
+    # small call per checked option (run concurrently) instead of one combined
+    # call keeps each request fast even when every box is checked, and lets a
+    # truncated/malformed result from one option be merged in without
+    # corrupting the others.
+    _ENHANCE_OPTION_SPECS: list[tuple[str, str, tuple[str, ...]]] = [
+        (
+            "directions_car",
+            "For each activity (except the first of its day), fill 'directions_car' with "
+            "short driving directions/notes from the previous activity. Leave every other "
+            "field exactly as given.",
+            ("directions_car",),
+        ),
+        (
+            "directions_transit",
+            "For each activity (except the first of its day), fill 'directions_transit' with "
+            "short public-transit directions/notes from the previous activity. Leave every "
+            "other field exactly as given.",
+            ("directions_transit",),
+        ),
+        (
+            "prices",
+            "Fill 'price' with the typical cost of each activity (entry ticket, average meal "
+            "cost, nightly rate, etc.) in the trip's local currency, when you can reasonably "
+            "estimate it. Leave every other field exactly as given.",
+            ("price",),
+        ),
+        (
+            "podcast",
+            "For historical/cultural sites, set 'hasPodcast' to true and write a short "
+            "'podcast_brief' (2-4 sentences of real historical/cultural context about the "
+            "site, beyond what 'desc' already says). Leave every other field exactly as given.",
+            ("hasPodcast", "podcast_brief"),
+        ),
+        (
+            "links",
+            "Fill 'url' with each activity's real official website or listing page, if you "
+            "know one. Leave every other field exactly as given.",
+            ("url",),
+        ),
+    ]
+
+    @classmethod
+    async def _enhance_one(
+        cls,
+        current_trip: TripData,
+        instruction: str,
+        api_key: str | None,
+        provider: str | None,
+    ) -> TripData:
+        system_prompt = (
+            "You are an expert travel planner AI enriching an existing trip itinerary with one "
+            "extra detail the user explicitly opted into. The 'Current Itinerary' is the full "
+            "source of truth — copy every day and activity through to 'updated_trip' UNCHANGED, "
+            "including id, time, title, desc, type and any already-set fields; only fill in the "
+            "specific new field(s) requested below. " + instruction
+        )
+        schema = TripData.model_json_schema()
+        user_content = (
+            f"Current Itinerary: {current_trip.model_dump_json()}\n\n"
+            f"Output strict JSON matching this schema: {json.dumps(schema)}"
+        )
+        json_data = await cls._execute_with_retry(
+            system_prompt, user_content, api_key=api_key, provider=provider
+        )
+        try:
+            return TripData(**json_data)
+        except ValidationError as e:
+            raise HTTPException(
+                status_code=422, detail=f"LLM returned invalid schema: {str(e)}"
+            ) from e
+
     @classmethod
     async def enhance_trip(
         cls,
@@ -338,62 +411,32 @@ class LLMService:
         provider: str | None = None,
     ) -> TripData:
         """Fills in only the optional extras the user opted into in Step 2 (directions,
-        prices, podcast briefs, links). Each flag adds one focused instruction to the
-        prompt instead of asking for every extra on every parse/chat turn, which is
-        what made those turns slow."""
-        instructions = []
-        if options.directions_car:
-            instructions.append(
-                "For each activity (except the first of its day), fill 'directions_car' with "
-                "short driving directions/notes from the previous activity."
-            )
-        if options.directions_transit:
-            instructions.append(
-                "For each activity (except the first of its day), fill 'directions_transit' with "
-                "short public-transit directions/notes from the previous activity."
-            )
-        if options.prices:
-            instructions.append(
-                "Fill 'price' with the typical cost of each activity (entry ticket, average meal "
-                "cost, nightly rate, etc.) in the trip's local currency, when you can reasonably "
-                "estimate it."
-            )
-        if options.podcast:
-            instructions.append(
-                "For historical/cultural sites, set 'hasPodcast' to true and write a short "
-                "'podcast_brief' (2-4 sentences of real historical/cultural context about the "
-                "site, beyond what 'desc' already says)."
-            )
-        if options.links:
-            instructions.append(
-                "Fill 'url' with each activity's real official website or listing page, if you "
-                "know one."
-            )
-
-        if not instructions:
+        prices, podcast briefs, links). Each checked option fires its own small, focused
+        LLM call (run concurrently) instead of one combined call, so picking every option
+        stays about as fast as picking one."""
+        selected = [
+            (fields, instruction)
+            for flag_name, instruction, fields in cls._ENHANCE_OPTION_SPECS
+            if getattr(options, flag_name)
+        ]
+        if not selected:
             return current_trip
 
-        system_prompt = (
-            "You are an expert travel planner AI enriching an existing trip itinerary with extra "
-            "details the user explicitly opted into. The 'Current Itinerary' is the full source "
-            "of truth — copy every day and activity through to 'updated_trip' UNCHANGED, including "
-            "id, time, title, desc, type and any already-set fields; only fill in the specific new "
-            "fields requested below. " + " ".join(instructions)
+        results = await asyncio.gather(
+            *(
+                cls._enhance_one(current_trip, instruction, api_key, provider)
+                for _fields, instruction in selected
+            )
         )
 
-        schema = TripData.model_json_schema()
-        user_content = (
-            f"Current Itinerary: {current_trip.model_dump_json()}\n\n"
-            f"Output strict JSON matching this schema: {json.dumps(schema)}"
-        )
-
-        json_data = await cls._execute_with_retry(
-            system_prompt, user_content, api_key=api_key, provider=provider
-        )
-
-        try:
-            return TripData(**json_data)
-        except ValidationError as e:
-            raise HTTPException(
-                status_code=422, detail=f"LLM returned invalid schema: {str(e)}"
-            ) from e
+        merged = current_trip.model_copy(deep=True)
+        activities_by_id = {act.id: act for day in merged.days for act in day.activities}
+        for (fields, _instruction), result in zip(selected, results, strict=True):
+            for day in result.days:
+                for act in day.activities:
+                    target = activities_by_id.get(act.id)
+                    if target is None:
+                        continue
+                    for field in fields:
+                        setattr(target, field, getattr(act, field))
+        return merged

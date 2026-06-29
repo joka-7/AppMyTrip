@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 import services.tts as tts_module
-from models import Activity, AgentResponse, TripData, TripDay
+from models import Activity, AgentResponse, EnhanceOptions, TripData, TripDay
 from routers.builder import TripBuilder
 from services.llm import AnthropicProvider, GeminiProvider, GroqProvider, LLMService, OpenAIProvider
 from services.tts import MockTTSProvider, PiperTTSProvider, TTSService
@@ -607,3 +607,72 @@ def test_agent_interaction_raises_502_on_non_json_provider_response(monkeypatch)
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(LLMService._execute_with_retry("sys", "user", max_retries=1))
     assert exc_info.value.status_code == 502
+
+
+# ---------------------------------------------------------------------------
+# Enhance (Stage 2 opt-in extras)
+# ---------------------------------------------------------------------------
+
+
+def test_enhance_trip_returns_unchanged_when_no_options_selected():
+    trip = _trip_with_food()
+    result = asyncio.run(LLMService.enhance_trip(trip, EnhanceOptions()))
+    assert result == trip
+
+
+def test_enhance_trip_fires_one_concurrent_call_per_option_and_merges_only_that_field(
+    monkeypatch,
+):
+    # Regression test: previously all checked options were folded into a single
+    # combined prompt, which got slow (and could time out/fail) the more boxes
+    # the user checked. Each option should now fire its own small call, and the
+    # merge must only ever take the specific field(s) that call was responsible
+    # for — even if a call's response carries noise in unrelated fields (e.g. a
+    # truncated/hallucinated title), that noise must not leak into the result.
+    trip = _trip_with_food()
+
+    def _response_with(**field_overrides) -> dict:
+        data = trip.model_dump()
+        for day in data["days"]:
+            for act in day["activities"]:
+                act.update(field_overrides)
+                act["title"] = "SHOULD NOT BE USED"
+        return data
+
+    responses = [
+        _response_with(price=42),
+        _response_with(hasPodcast=True, podcast_brief="Some history."),
+        _response_with(url="https://example.com"),
+    ]
+    mock_execute = AsyncMock(side_effect=responses)
+    monkeypatch.setattr(LLMService, "_execute_with_retry", mock_execute)
+
+    options = EnhanceOptions(prices=True, podcast=True, links=True)
+    result = asyncio.run(LLMService.enhance_trip(trip, options))
+
+    assert mock_execute.await_count == 3
+    original_titles = {act.id: act.title for day in trip.days for act in day.activities}
+    for day in result.days:
+        for act in day.activities:
+            assert act.price == 42
+            assert act.hasPodcast is True
+            assert act.podcast_brief == "Some history."
+            assert act.url == "https://example.com"
+            # Fields not targeted by any selected option (or noise from another
+            # option's response) must be untouched.
+            assert act.title == original_titles[act.id]
+
+
+def test_enhance_endpoint(monkeypatch):
+    trip = _trip_with_food()
+    enhanced = trip.model_copy(deep=True)
+    enhanced.days[0].activities[0].price = 10
+    monkeypatch.setattr(LLMService, "enhance_trip", AsyncMock(return_value=enhanced))
+
+    resp = client.post(
+        "/api/trip/enhance",
+        json={"trip_data": trip.model_dump(), "options": {"prices": True}},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["trip_data"]["days"][0]["activities"][0]["price"] == 10
