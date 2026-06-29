@@ -676,3 +676,44 @@ def test_enhance_endpoint(monkeypatch):
     assert resp.status_code == 200
     body = resp.json()
     assert body["trip_data"]["days"][0]["activities"][0]["price"] == 10
+
+
+def test_enhance_trip_applies_succeeding_options_when_another_option_fails(monkeypatch):
+    # Regression test: 5 checked options now fire 5 concurrent calls instead of
+    # one, which makes hitting a rate limit (or any other single-call failure)
+    # more likely. One failing option must not discard the others that succeeded.
+    trip = _trip_with_food()
+
+    def _response_with(**field_overrides) -> dict:
+        data = trip.model_dump()
+        for day in data["days"]:
+            for act in day["activities"]:
+                act.update(field_overrides)
+        return data
+
+    async def _flaky_execute(system_prompt, user_content, **kwargs):
+        if "price" in system_prompt:
+            raise HTTPException(status_code=429, detail="rate limited")
+        return _response_with(url="https://example.com")
+
+    monkeypatch.setattr(LLMService, "_execute_with_retry", _flaky_execute)
+
+    options = EnhanceOptions(prices=True, links=True)
+    result = asyncio.run(LLMService.enhance_trip(trip, options))
+
+    for day in result.days:
+        for act in day.activities:
+            assert act.url == "https://example.com"
+            assert act.price is None  # the failed option left this field untouched
+
+
+def test_enhance_trip_raises_when_every_selected_option_fails(monkeypatch):
+    async def _always_fails(system_prompt, user_content, **kwargs):
+        raise HTTPException(status_code=429, detail="rate limited")
+
+    monkeypatch.setattr(LLMService, "_execute_with_retry", _always_fails)
+
+    trip = _trip_with_food()
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(LLMService.enhance_trip(trip, EnhanceOptions(prices=True, links=True)))
+    assert exc_info.value.status_code == 429
