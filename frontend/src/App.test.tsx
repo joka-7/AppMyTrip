@@ -88,6 +88,66 @@ describe("App builder flow", () => {
     expect(screen.getByText("טיול לדוגמה ✨")).toBeInTheDocument();
   });
 
+  it("selects every enhancement option with the 'select all' checkbox", async () => {
+    vi.mocked(api.parseTrip).mockResolvedValue({
+      trip_data: sampleTrip,
+      initial_agent_message: "Welcome!",
+    });
+    vi.mocked(api.enhanceTrip).mockResolvedValue({ trip_data: sampleTrip });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /צור מבנה אפליקציה ראשוני/ }));
+    await waitFor(() => {
+      expect(screen.getByText("שיפורים נוספים (אופציונלי)")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("בחר את כל האפשרויות"));
+    fireEvent.click(screen.getByRole("button", { name: /הוסף את הפרטים שנבחרו/ }));
+
+    await waitFor(() => {
+      expect(api.enhanceTrip).toHaveBeenCalledWith(
+        sampleTrip,
+        {
+          directions_car: true,
+          directions_transit: true,
+          prices: true,
+          podcast: true,
+          links: true,
+        },
+        null,
+        "gemini",
+      );
+    });
+  });
+
+  it("returns to the enhancement options, not straight to step 3, after 'continue without reprocessing'", async () => {
+    vi.mocked(api.parseTrip).mockResolvedValue({
+      trip_data: sampleTrip,
+      initial_agent_message: "Welcome!",
+    });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /צור מבנה אפליקציה ראשוני/ }));
+    await waitFor(() => {
+      expect(screen.getByText("שיפורים נוספים (אופציונלי)")).toBeInTheDocument();
+    });
+
+    // back to step 1 — a trip already exists, so "continue without reprocessing" appears
+    fireEvent.click(screen.getByRole("button", { name: "חזרה" }));
+    await waitFor(() => {
+      expect(screen.getByText("בוא נתחיל לבנות. ספרו לי על הטיול")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /המשך לעריכה \(ללא ניתוח מחדש\)/ }));
+
+    // must land back on the enhancement options (step 2), not skip straight to step 3
+    await waitFor(() => {
+      expect(screen.getByText("שיפורים נוספים (אופציונלי)")).toBeInTheDocument();
+    });
+  });
+
   it("steps back in-app instead of exiting when the browser back button is pressed", async () => {
     vi.mocked(api.parseTrip).mockResolvedValue({
       trip_data: sampleTrip,

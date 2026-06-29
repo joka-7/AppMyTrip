@@ -381,7 +381,7 @@ function TripBuilder() {
                 onSubmit={handleProcessText}
                 isProcessing={isProcessing}
                 hasExistingTrip={tripData.days.length > 0}
-                onContinueWithoutReprocessing={() => goToStep(3)}
+                onContinueWithoutReprocessing={() => goToStep(2)}
               />
             )}
 
