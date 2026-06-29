@@ -87,4 +87,31 @@ describe("App builder flow", () => {
     });
     expect(screen.getByText("טיול לדוגמה ✨")).toBeInTheDocument();
   });
+
+  it("steps back in-app instead of exiting when the browser back button is pressed", async () => {
+    vi.mocked(api.parseTrip).mockResolvedValue({
+      trip_data: sampleTrip,
+      initial_agent_message: "Welcome!",
+    });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /צור מבנה אפליקציה ראשוני/ }));
+    await waitFor(() => {
+      expect(screen.getByText("שיפורים נוספים (אופציונלי)")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /דלג, המשך לסוכן/ }));
+    await waitFor(() => {
+      expect(screen.getByText("סוכן השלמות AI")).toBeInTheDocument();
+    });
+
+    // Simulate the device/browser back button: this should pop the history
+    // entry pushed for step 3 and bring the in-app wizard back to step 2,
+    // not leave the page entirely.
+    window.history.back();
+    await waitFor(() => {
+      expect(screen.getByText("שיפורים נוספים (אופציונלי)")).toBeInTheDocument();
+    });
+  });
 });
