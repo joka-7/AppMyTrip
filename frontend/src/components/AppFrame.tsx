@@ -5,6 +5,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  DollarSign,
   Map,
   MessageCircle,
   Pencil,
@@ -19,6 +20,7 @@ import ChatPanel from "./ChatPanel";
 import ItineraryList from "./ItineraryList";
 import MapView from "./MapView";
 import PodcastPlayer from "./PodcastPlayer";
+import PriceSummary from "./PriceSummary";
 import type { Theme } from "./ThemeSelector";
 
 const THEME_CLASSES: Record<Theme, string> = {
@@ -69,7 +71,7 @@ export default function AppFrame({
   localOnlyNoticeText?: string;
 }) {
   const [activeDay, setActiveDay] = useState(0);
-  const [activeTab, setActiveTab] = useState<"itinerary" | "map" | "chat">("itinerary");
+  const [activeTab, setActiveTab] = useState<"itinerary" | "map" | "price" | "chat">("itinerary");
   const [focusActivityId, setFocusActivityId] = useState<string | null>(null);
   const [isEditingHeader, setIsEditingHeader] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
@@ -266,6 +268,12 @@ export default function AppFrame({
           </div>
         )}
 
+        {hasTrip && activeTab === "price" && (
+          <div className="h-full animate-fade-in">
+            <PriceSummary tripData={tripData} />
+          </div>
+        )}
+
         {hasTrip && activeTab === "chat" && (
           <div className="h-full animate-fade-in">
             <ChatPanel
@@ -307,6 +315,13 @@ export default function AppFrame({
         >
           <Map size={20} />
           <span className="text-[10px]">מפה</span>
+        </button>
+        <button
+          onClick={() => setActiveTab("price")}
+          className={`flex flex-col items-center gap-1 ${activeTab === "price" ? "text-blue-600" : "text-gray-400"}`}
+        >
+          <DollarSign size={20} />
+          <span className="text-[10px]">תמחור</span>
         </button>
         <button
           onClick={() => setActiveTab("chat")}

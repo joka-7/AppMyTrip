@@ -87,8 +87,16 @@ class TTSService:
         return provider_cls()
 
     @classmethod
-    async def generate_podcast_for_activity(cls, activity_title: str, activity_desc: str) -> str:
-        """Synthesizes narration for an activity and returns a playable URL."""
+    async def generate_podcast_for_activity(
+        cls, activity_title: str, activity_desc: str, activity_brief: str | None = None
+    ) -> str:
+        """Synthesizes narration for an activity and returns a playable URL.
+
+        `activity_brief` is an optional short historical/contextual brief about
+        the site; when present it's narrated after `activity_desc` so the
+        podcast covers the place itself, not just the raw schedule text.
+        """
         slug = _slugify(activity_title)
         provider = cls._get_provider()
-        return await provider.synthesize(activity_desc, slug)
+        narration = f"{activity_desc} {activity_brief}" if activity_brief else activity_desc
+        return await provider.synthesize(narration, slug)

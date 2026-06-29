@@ -59,7 +59,10 @@ export function usePodcastPlayer() {
       // preceding cancel() (exactly what happens above on remount/switch),
       // so cancel any leftover utterance and wait a tick before speaking.
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(playingPodcast.desc);
+      const narration = playingPodcast.podcast_brief
+        ? `${playingPodcast.desc} ${playingPodcast.podcast_brief}`
+        : playingPodcast.desc;
+      const utterance = new SpeechSynthesisUtterance(narration);
       // Forcing an unsupported lang (e.g. "he-IL" with no matching voice
       // installed) makes speak() fail almost immediately on some browsers.
       // Only set lang to a voice that's actually available; otherwise leave
@@ -77,7 +80,7 @@ export function usePodcastPlayer() {
         };
         window.speechSynthesis.speak(utterance);
       });
-      const estimatedMs = Math.max(2000, playingPodcast.desc.length * 70);
+      const estimatedMs = Math.max(2000, narration.length * 70);
       const start = Date.now();
       const interval = setInterval(() => {
         setProgress(Math.min(99, ((Date.now() - start) / estimatedMs) * 100));
