@@ -121,6 +121,66 @@ describe("App builder flow", () => {
     });
   });
 
+  it("re-applies the chosen Step 2 enhancements to activities the chat agent adds later", async () => {
+    vi.mocked(api.parseTrip).mockResolvedValue({
+      trip_data: sampleTrip,
+      initial_agent_message: "Welcome!",
+    });
+
+    const newActivity = {
+      id: "a2",
+      time: "13:00",
+      title: "Restaurant",
+      desc: "lunch",
+      type: "food" as const,
+      hasPodcast: false,
+    };
+    const tripWithNewActivity: TripData = {
+      ...sampleTrip,
+      days: [{ dayNum: 1, activities: [...sampleTrip.days[0].activities, newActivity] }],
+    };
+    vi.mocked(api.agentInteract).mockResolvedValue({
+      trip_data: tripWithNewActivity,
+      agent_reply: "Added it!",
+    });
+    vi.mocked(api.enhanceTrip).mockResolvedValueOnce({ trip_data: sampleTrip });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /צור מבנה אפליקציה ראשוני/ }));
+    await waitFor(() => {
+      expect(screen.getByText("שיפורים נוספים (אופציונלי)")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("בחר את כל האפשרויות"));
+    fireEvent.click(screen.getByRole("button", { name: /הוסף את הפרטים שנבחרו/ }));
+    await waitFor(() => {
+      expect(screen.getByText("סוכן השלמות AI")).toBeInTheDocument();
+    });
+    vi.mocked(api.enhanceTrip).mockClear();
+    vi.mocked(api.enhanceTrip).mockResolvedValueOnce({
+      trip_data: {
+        ...tripWithNewActivity,
+        days: [{ dayNum: 1, activities: [{ ...newActivity, price: 20 }] }],
+      },
+    });
+
+    fireEvent.change(screen.getByPlaceholderText(/ענה לסוכן/), {
+      target: { value: "תוסיף מסעדה" },
+    });
+    fireEvent.submit(screen.getByPlaceholderText(/ענה לסוכן/).closest("form")!);
+
+    await waitFor(() => {
+      expect(screen.getByText("Restaurant")).toBeInTheDocument();
+    });
+
+    // the new activity should have been sent through enhanceTrip and merged back in
+    expect(api.enhanceTrip).toHaveBeenCalledTimes(1);
+    const [tripArg] = vi.mocked(api.enhanceTrip).mock.calls[0];
+    expect(tripArg.days[0].activities.map((a) => a.id)).toEqual(["a2"]);
+    expect(screen.getByText("20")).toBeInTheDocument();
+  });
+
   it("returns to the enhancement options, not straight to step 3, after 'continue without reprocessing'", async () => {
     vi.mocked(api.parseTrip).mockResolvedValue({
       trip_data: sampleTrip,
