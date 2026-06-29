@@ -172,9 +172,9 @@ function TripBuilder() {
     const wantsAdd =
       userText.includes("כן") ||
       userText.includes("תוסיף") ||
-      userText.includes("מסעד") ||
+      userText.includes("מסעדה") ||
       userText.includes("אוכל") ||
-      userText.includes("כשר");
+      userText.includes("חלבי");
     if (wantsAdd) {
       setTripData((prev) => {
         if (prev.days.length === 0) return prev;
