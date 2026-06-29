@@ -255,7 +255,8 @@ function TripBuilder() {
     }
   };
 
-  // Re-runs the remembered Step 2 enhancements on activities the chat agent just added.
+  // Re-runs the remembered Step 2 enhancements on activities just added, whether by the
+  // chat agent or manually via the "+" button in the live preview.
   const enhanceNewActivities = async (before: TripData, after: TripData): Promise<TripData> => {
     if (!Object.values(enhanceOptions).some(Boolean)) return after;
 
@@ -339,13 +340,16 @@ function TripBuilder() {
     }));
   };
 
-  const handleAddActivity = (dayIndex: number, activity: Activity) => {
-    setTripData((prev) => ({
-      ...prev,
-      days: prev.days.map((d, idx) =>
+  const handleAddActivity = async (dayIndex: number, activity: Activity) => {
+    const before = tripData;
+    const after: TripData = {
+      ...tripData,
+      days: tripData.days.map((d, idx) =>
         idx !== dayIndex ? d : { ...d, activities: [...d.activities, activity] },
       ),
-    }));
+    };
+    setTripData(after);
+    setTripData(await enhanceNewActivities(before, after));
   };
 
   const handleUpdateTrip = (

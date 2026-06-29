@@ -181,6 +181,54 @@ describe("App builder flow", () => {
     expect(screen.getByText("20")).toBeInTheDocument();
   });
 
+  it("re-applies the chosen Step 2 enhancements to an activity added manually via the '+' button", async () => {
+    vi.mocked(api.parseTrip).mockResolvedValue({
+      trip_data: sampleTrip,
+      initial_agent_message: "Welcome!",
+    });
+    vi.mocked(api.enhanceTrip).mockResolvedValueOnce({ trip_data: sampleTrip });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /צור מבנה אפליקציה ראשוני/ }));
+    await waitFor(() => {
+      expect(screen.getByText("שיפורים נוספים (אופציונלי)")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("בחר את כל האפשרויות"));
+    fireEvent.click(screen.getByRole("button", { name: /הוסף את הפרטים שנבחרו/ }));
+    await waitFor(() => {
+      expect(screen.getByText("סוכן השלמות AI")).toBeInTheDocument();
+    });
+    vi.mocked(api.enhanceTrip).mockClear();
+    vi.mocked(api.enhanceTrip).mockImplementation(async (trip) => ({
+      trip_data: {
+        ...trip,
+        days: trip.days.map((d) => ({
+          ...d,
+          activities: d.activities.map((a) => ({ ...a, price: 15 })),
+        })),
+      },
+    }));
+
+    fireEvent.click(screen.getByRole("button", { name: "הוספת פעילות" }));
+    fireEvent.change(screen.getByPlaceholderText("שם הפעילות"), {
+      target: { value: "Manually Added Spot" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "הוספה" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Manually Added Spot")).toBeInTheDocument();
+    });
+
+    expect(api.enhanceTrip).toHaveBeenCalledTimes(1);
+    const [tripArg] = vi.mocked(api.enhanceTrip).mock.calls[0];
+    expect(tripArg.days[0].activities.map((a) => a.title)).toEqual(["Manually Added Spot"]);
+    await waitFor(() => {
+      expect(screen.getByText("15")).toBeInTheDocument();
+    });
+  });
+
   it("returns to the enhancement options, not straight to step 3, after 'continue without reprocessing'", async () => {
     vi.mocked(api.parseTrip).mockResolvedValue({
       trip_data: sampleTrip,
