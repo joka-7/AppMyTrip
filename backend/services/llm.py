@@ -245,7 +245,6 @@ class LLMService:
             "You are an expert travel planner AI. Your task is to parse the user's free text "
             "into a structured JSON trip schedule. "
             f"{preferences_fragment}"
-            "If the user mentions a dietary preference for restaurants, flag 'is_kosher' accordingly. "
             "Generate realistic latitude ('lat') and longitude ('lng') for 'map_coordinates' for each activity. "
             "Leave 'price', 'url', 'hasPodcast', 'podcast_brief', 'directions_car' and "
             "'directions_transit' null/false for now — those are filled in later by an optional, "

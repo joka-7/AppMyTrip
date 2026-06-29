@@ -13,9 +13,6 @@ class Activity(BaseModel):
     title: str = Field(..., description="Title of the activity")
     desc: str = Field(..., description="Detailed description of the activity")
     type: Literal["attraction", "food", "lodging", "transport"]
-    is_kosher: bool | None = Field(
-        None, description="True if the restaurant is Kosher. Mandatory to flag if type is 'food'"
-    )
     hasPodcast: bool = Field(
         False,
         description="Flag indicating if a historical podcast should be generated for this site",
@@ -72,7 +69,7 @@ class AgentInteractRequest(BaseModel):
     trip_data: TripData
     user_message: str
     preferences: str | None = Field(
-        None, description="Free-text dietary/other preference (e.g. 'Kosher', 'Vegan')"
+        None, description="Free-text dietary/other preference (e.g. 'Vegan', 'gluten-free')"
     )
     api_key: str | None = Field(
         None,
@@ -92,7 +89,7 @@ class ParseRequest(BaseModel):
 
     raw_text: str
     preferences: str | None = Field(
-        None, description="Free-text dietary/other preference (e.g. 'Kosher', 'Vegan')"
+        None, description="Free-text dietary/other preference (e.g. 'Vegan', 'gluten-free')"
     )
     api_key: str | None = Field(
         None,

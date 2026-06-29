@@ -92,23 +92,6 @@ class TripBuilder:
         self._trip = trip_data
         return self
 
-    def analyze_missing_requirements(self) -> str | None:
-        """
-        Analyzes the schedule for deficiencies based on the user's preferences.
-        Returns a proactive AI agent message if needed. Anonymous users (no
-        preferences set) get no proactive dietary nudge.
-        """
-        if not self._trip:
-            raise ValueError("Trip has not been parsed yet.")
-
-        if not self._preferences or "kosher" not in self._preferences.lower():
-            return None
-
-        has_food = any(act.type == "food" for day in self._trip.days for act in day.activities)
-        if not has_food:
-            return "שמתי לב שאתם שומרים כשרות, אבל לא מצאתי מסעדות בלוז שתכננו. תרצו שאחפש ואוסיף המלצות למסעדות כשרות באזורי הטיול?"
-        return None
-
     async def process_agent_update(self, user_message: str) -> str:
         """Passes the current state and user message to the LLM agent to get the new state."""
         if not self._trip:
@@ -186,10 +169,7 @@ async def parse_initial_trip(request: ParseRequest) -> dict:
     builder.load_initial_text(request.raw_text)
     await builder.extract_with_llm()
 
-    # Proactive Agent logic
-    agent_msg = builder.analyze_missing_requirements()
-
-    return {"trip_data": builder.get_trip().model_dump(), "initial_agent_message": agent_msg}
+    return {"trip_data": builder.get_trip().model_dump(), "initial_agent_message": None}
 
 
 @router.post("/agent", response_model=dict)
