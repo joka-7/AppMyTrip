@@ -39,6 +39,13 @@ export default function BuilderStep2({
     setOptions((prev) => ({ ...prev, [key]: !prev[key] }));
 
   const hasSelection = Object.values(options).some(Boolean);
+  const allSelected = OPTIONS.every(({ key }) => options[key]);
+  const toggleAll = () =>
+    setOptions(
+      allSelected
+        ? {}
+        : OPTIONS.reduce((acc, { key }) => ({ ...acc, [key]: true }), {} as EnhanceOptions),
+    );
 
   return (
     <div className="animate-fade-in">
@@ -47,6 +54,16 @@ export default function BuilderStep2({
         כל פירוט נוסף דורש פנייה נוספת לבינה המלאכותית, כך שהזמן שיקח תלוי בכמה תבחרו. אפשר גם לדלג
         ולהוסיף את אלה ידנית מאוחר יותר מתוך הלו"ז.
       </p>
+
+      <label className="flex items-center gap-3 p-3 mb-3 bg-blue-50 rounded-xl border border-blue-100 cursor-pointer group">
+        <input
+          type="checkbox"
+          checked={allSelected}
+          onChange={toggleAll}
+          className="w-5 h-5 accent-blue-600 rounded"
+        />
+        <span className="text-sm font-semibold text-blue-700">בחר את כל האפשרויות</span>
+      </label>
 
       <div className="space-y-3 mb-6">
         {OPTIONS.map(({ key, label, Icon }) => (
