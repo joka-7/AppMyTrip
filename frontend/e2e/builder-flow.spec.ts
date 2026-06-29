@@ -56,7 +56,7 @@ test.describe("trip builder flow", () => {
     await expect(page.getByText("Spanish Steps")).toBeVisible();
 
     const chatInput = page.getByPlaceholder("ענה לסוכן (למשל: 'כן, תוסיף')");
-    await chatInput.fill("הוסיפו מסעדה כשרה");
+    await chatInput.fill("הוסיפו מסעדה");
     await chatInput.press("Enter");
     await expect(page.getByText("הוספתי מסעדה")).toBeVisible();
 

@@ -172,9 +172,9 @@ function TripBuilder() {
     const wantsAdd =
       userText.includes("כן") ||
       userText.includes("תוסיף") ||
-      userText.includes("מסעד") ||
+      userText.includes("מסעדה") ||
       userText.includes("אוכל") ||
-      userText.includes("כשר");
+      userText.includes("חלבי");
     if (wantsAdd) {
       setTripData((prev) => {
         if (prev.days.length === 0) return prev;
@@ -237,7 +237,11 @@ function TripBuilder() {
     }
   };
 
+  // Remembered so activities added later via chat can get the same Step 2 extras.
+  const [enhanceOptions, setEnhanceOptions] = useState<EnhanceOptions>({});
+
   const handleEnhance = async (options: EnhanceOptions) => {
+    setEnhanceOptions(options);
     setIsEnhancing(true);
     try {
       const res = await enhanceTrip(tripData, options, getApiKey(), getApiProvider());
@@ -248,6 +252,45 @@ function TripBuilder() {
     } finally {
       setIsEnhancing(false);
       goToStep(3);
+    }
+  };
+
+  // Re-runs the remembered Step 2 enhancements on activities just added, whether by the
+  // chat agent or manually via the "+" button in the live preview.
+  const enhanceNewActivities = async (before: TripData, after: TripData): Promise<TripData> => {
+    if (!Object.values(enhanceOptions).some(Boolean)) return after;
+
+    const priorIds = new Set(before.days.flatMap((d) => d.activities.map((a) => a.id)));
+    const newActivities = after.days
+      .flatMap((d) => d.activities)
+      .filter((a) => !priorIds.has(a.id));
+    if (newActivities.length === 0) return after;
+
+    try {
+      const res = await enhanceTrip(
+        {
+          title: after.title,
+          dates: after.dates,
+          language: after.language,
+          days: [{ dayNum: 1, activities: newActivities }],
+        },
+        enhanceOptions,
+        getApiKey(),
+        getApiProvider(),
+      );
+      const enhancedById = new Map(
+        res.trip_data.days.flatMap((d) => d.activities).map((a) => [a.id, a]),
+      );
+      return {
+        ...after,
+        days: after.days.map((day) => ({
+          ...day,
+          activities: day.activities.map((a) => enhancedById.get(a.id) ?? a),
+        })),
+      };
+    } catch (err) {
+      console.error("Failed to enhance newly added activities:", err);
+      return after;
     }
   };
 
@@ -268,7 +311,7 @@ function TripBuilder() {
         getApiKey(),
         getApiProvider(),
       );
-      setTripData(res.trip_data);
+      setTripData(await enhanceNewActivities(tripData, res.trip_data));
       setAgentMessages((prev) => [...prev, { role: "agent", text: res.agent_reply }]);
     } catch (err) {
       console.error(err);
@@ -297,13 +340,16 @@ function TripBuilder() {
     }));
   };
 
-  const handleAddActivity = (dayIndex: number, activity: Activity) => {
-    setTripData((prev) => ({
-      ...prev,
-      days: prev.days.map((d, idx) =>
+  const handleAddActivity = async (dayIndex: number, activity: Activity) => {
+    const before = tripData;
+    const after: TripData = {
+      ...tripData,
+      days: tripData.days.map((d, idx) =>
         idx !== dayIndex ? d : { ...d, activities: [...d.activities, activity] },
       ),
-    }));
+    };
+    setTripData(after);
+    setTripData(await enhanceNewActivities(before, after));
   };
 
   const handleUpdateTrip = (

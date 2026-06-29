@@ -33,14 +33,14 @@ export default function BuilderStep1({
         placeholder="למשל: ביום ראשון טסים ללונדון..."
       />
       <label className="block text-sm font-medium text-gray-600 mb-2">
-        העדפות (אופציונלי) — למשל כשרות, טבעוני, נגישות
+        העדפות (אופציונלי) — למשל חלבי, טבעוני, נגישות
       </label>
       <input
         type="text"
         value={preferences}
         onChange={(e) => onChangePreferences(e.target.value)}
         className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none mb-6 shadow-sm"
-        placeholder="למשל: שומרים כשרות"
+        placeholder="למשל: רוצים אוכל חלבי"
       />
       <div className="flex gap-3">
         {hasExistingTrip && (
