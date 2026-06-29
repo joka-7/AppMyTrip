@@ -422,16 +422,28 @@ class LLMService:
         if not selected:
             return current_trip
 
+        # return_exceptions=True: each option is an independent LLM call, so one
+        # rate-limited or malformed response (more likely now that checking every
+        # box fires several calls at once) must not sink the others — apply
+        # whichever options succeeded and only raise if every single one failed.
         results = await asyncio.gather(
             *(
                 cls._enhance_one(current_trip, instruction, api_key, provider)
                 for _fields, instruction in selected
-            )
+            ),
+            return_exceptions=True,
         )
 
         merged = current_trip.model_copy(deep=True)
         activities_by_id = {act.id: act for day in merged.days for act in day.activities}
+        first_error: BaseException | None = None
+        any_succeeded = False
         for (fields, _instruction), result in zip(selected, results, strict=True):
+            if isinstance(result, BaseException):
+                if first_error is None:
+                    first_error = result
+                continue
+            any_succeeded = True
             for day in result.days:
                 for act in day.activities:
                     target = activities_by_id.get(act.id)
@@ -439,4 +451,7 @@ class LLMService:
                         continue
                     for field in fields:
                         setattr(target, field, getattr(act, field))
+
+        if not any_succeeded and first_error is not None:
+            raise first_error
         return merged
