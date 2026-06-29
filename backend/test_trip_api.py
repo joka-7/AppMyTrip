@@ -61,10 +61,9 @@ def _trip_with_food() -> TripData:
         Activity(
             id="f1",
             time="13:00",
-            title="Kosher Lunch",
+            title="Trattoria Lunch",
             desc="BaGhetto.",
             type="food",
-            is_kosher=True,
             map_coordinates={"lat": 41.8925, "lng": 12.4772},
         )
     )
@@ -100,28 +99,6 @@ def test_invalid_activity_type_rejected():
 # ---------------------------------------------------------------------------
 # Pure builder logic (no network)
 # ---------------------------------------------------------------------------
-
-
-def test_analyze_missing_requirements_flags_missing_food():
-    builder = TripBuilder().load_existing_trip(_sample_trip()).set_preferences("Kosher")
-    msg = builder.analyze_missing_requirements()
-    assert msg is not None  # Hebrew prompt about missing kosher restaurants
-
-
-def test_analyze_missing_requirements_ok_when_food_present():
-    builder = TripBuilder().load_existing_trip(_trip_with_food()).set_preferences("Kosher")
-    assert builder.analyze_missing_requirements() is None
-
-
-def test_analyze_missing_requirements_anonymous_gets_no_nudge():
-    # No preferences set (anonymous request) -> no dietary assumption at all.
-    builder = TripBuilder().load_existing_trip(_sample_trip())
-    assert builder.analyze_missing_requirements() is None
-
-
-def test_analyze_missing_requirements_raises_without_trip():
-    with pytest.raises(ValueError):
-        TripBuilder().analyze_missing_requirements()
 
 
 def test_get_trip_raises_when_empty():
@@ -262,7 +239,6 @@ def test_parse_endpoint(monkeypatch):
     assert resp.status_code == 200
     body = resp.json()
     assert body["trip_data"]["title"] == "Trip to Rome"
-    # no preferences supplied -> no dietary assumption, so no proactive nudge
     assert body["initial_agent_message"] is None
 
 
@@ -275,7 +251,7 @@ def test_agent_endpoint(monkeypatch):
     )
     resp = client.post(
         "/api/trip/agent",
-        json={"trip_data": _sample_trip().model_dump(), "user_message": "add kosher food"},
+        json={"trip_data": _sample_trip().model_dump(), "user_message": "add a restaurant"},
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -360,7 +336,7 @@ def test_agent_endpoint_allows_a_legitimate_partial_change(monkeypatch):
     )
     resp = client.post(
         "/api/trip/agent",
-        json={"trip_data": _sample_trip().model_dump(), "user_message": "add kosher food"},
+        json={"trip_data": _sample_trip().model_dump(), "user_message": "add a restaurant"},
     )
     assert resp.status_code == 200
 

@@ -14,7 +14,6 @@ export interface Activity {
   title: string;
   desc: string;
   type: "attraction" | "food" | "lodging" | "transport";
-  is_kosher?: boolean | null;
   hasPodcast?: boolean;
   podcast_url?: string | null;
   /** Short historical/contextual brief about the site, narrated in the podcast in addition to `desc`. */

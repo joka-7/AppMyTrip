@@ -73,7 +73,7 @@ The backend is fully stateless — no database, no auth, no server-side persiste
   `provider`) → updated itinerary (LLM)
 - `POST /api/trip/generate-media` — fill TTS podcast URLs for flagged sites
 
-`preferences` (e.g. "Kosher", "Vegan") is a plain free-text field the frontend sends
+`preferences` (e.g. "Vegan", "gluten-free") is a plain free-text field the frontend sends
 with each request — there's no hardcoded global assumption and no per-account storage
 on the backend. Saving/loading/sharing trips, and remembering a preferences string
 between sessions, is handled entirely client-side via Firestore (see "Frontend" →
