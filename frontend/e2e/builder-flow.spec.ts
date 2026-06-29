@@ -49,6 +49,9 @@ test.describe("trip builder flow", () => {
 
     await page.getByRole("button", { name: "צור מבנה אפליקציה ראשוני" }).click();
 
+    await expect(page.getByText("שלב 2 מתוך 4")).toBeVisible();
+    await page.getByRole("button", { name: "דלג, המשך לסוכן" }).click();
+
     await expect(page.getByText("שלב 3 מתוך 4")).toBeVisible();
     await expect(page.getByText("Spanish Steps")).toBeVisible();
 
@@ -70,7 +73,10 @@ test.describe("trip builder flow", () => {
     await page.goto("/");
     await page.getByRole("button", { name: "צור מבנה אפליקציה ראשוני" }).click();
 
-    await expect(page.getByText("שלב 3 מתוך 4")).toBeVisible();
+    await expect(page.getByText("שלב 2 מתוך 4")).toBeVisible();
     await expect(page.getByText(/לא הצלחנו להתחבר/)).toBeVisible();
+    await page.getByRole("button", { name: "דלג, המשך לסוכן" }).click();
+
+    await expect(page.getByText("שלב 3 מתוך 4")).toBeVisible();
   });
 });

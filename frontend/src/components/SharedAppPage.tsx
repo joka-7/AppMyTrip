@@ -44,7 +44,7 @@ export default function SharedAppPage({
   chatNotice?: string | null;
   onUpdateActivity: (dayIndex: number, activityId: string, patch: Partial<Activity>) => void;
   onAddActivity: (dayIndex: number, activity: Activity) => void;
-  onUpdateTrip: (patch: Partial<Pick<TripData, "title" | "dates">>) => void;
+  onUpdateTrip: (patch: Partial<Pick<TripData, "title" | "dates" | "photo_album_url">>) => void;
   onImportTrip: (tripData: TripData, theme: Theme) => void;
 }) {
   const [saveStatus, setSaveStatus] = useState<"idle" | "working" | "done" | "error">("idle");
