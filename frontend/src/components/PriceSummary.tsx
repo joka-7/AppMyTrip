@@ -30,9 +30,7 @@ export default function PriceSummary({ tripData }: { tripData: TripData }) {
           >
             <div className="flex items-center justify-between mb-2">
               <h4 className="font-bold text-gray-800">יום {day.dayNum}</h4>
-              <span className="text-sm font-semibold text-gray-700">
-                {formatPrice(dayTotal)} ₪
-              </span>
+              <span className="text-sm font-semibold text-gray-700">{formatPrice(dayTotal)} ₪</span>
             </div>
             <div className="divide-y divide-gray-100">
               {day.activities.map((act) => (

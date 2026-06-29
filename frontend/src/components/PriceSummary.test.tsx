@@ -39,7 +39,10 @@ describe("PriceSummary", () => {
       title: "Trip",
       dates: "",
       days: [
-        { dayNum: 1, activities: [{ id: "a1", time: "10:00", title: "Museum", desc: "", type: "attraction" }] },
+        {
+          dayNum: 1,
+          activities: [{ id: "a1", time: "10:00", title: "Museum", desc: "", type: "attraction" }],
+        },
       ],
     };
     render(<PriceSummary tripData={empty} />);
