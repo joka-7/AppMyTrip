@@ -94,26 +94,6 @@ export default function BuilderStep4({
 
         <div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
           <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <Settings size={18} className="text-blue-500" /> תכונות פעילות באפליקציה
-          </h3>
-          <div className="space-y-3">
-            <label className="flex items-center gap-3 p-2 cursor-pointer group">
-              <input type="checkbox" defaultChecked className="w-5 h-5 accent-blue-600 rounded" />
-              <span className="text-sm font-medium text-gray-700 group-hover:text-blue-600 transition-colors">
-                יצירת פודקאסט היסטורי (TTS)
-              </span>
-            </label>
-            <label className="flex items-center gap-3 p-2 cursor-pointer group">
-              <input type="checkbox" defaultChecked className="w-5 h-5 accent-blue-600 rounded" />
-              <span className="text-sm font-medium text-gray-700 group-hover:text-blue-600 transition-colors">
-                מפת התמצאות עם נעצים
-              </span>
-            </label>
-          </div>
-        </div>
-
-        <div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
-          <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
             <Settings size={18} className="text-blue-500" /> תוקף קישור השיתוף
           </h3>
           <select

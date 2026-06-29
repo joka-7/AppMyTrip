@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Wand2 } from "lucide-react";
-import { parseTrip, agentInteract, generateMedia } from "./api";
-import type { Activity, TripData } from "./api";
+import { parseTrip, agentInteract, generateMedia, enhanceTrip } from "./api";
+import type { Activity, EnhanceOptions, TripData } from "./api";
 import ApiKeyMenu from "./components/ApiKeyMenu";
 import ApiNotice from "./components/ApiNotice";
 import BuilderStep1 from "./components/BuilderStep1";
+import BuilderStep2 from "./components/BuilderStep2";
 import BuilderStep3, { type AgentMessage } from "./components/BuilderStep3";
 import BuilderStep4 from "./components/BuilderStep4";
 import CloudMenu from "./components/CloudMenu";
@@ -123,6 +124,7 @@ function TripBuilder() {
   const [theme, setTheme] = useState<Theme>("blue");
   const [preferences, setPreferences] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isEnhancing, setIsEnhancing] = useState(false);
   const [isGeneratingMedia, setIsGeneratingMedia] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [chatInput, setChatInput] = useState("");
@@ -199,7 +201,7 @@ function TripBuilder() {
           ? [{ role: "agent", text: res.initial_agent_message }]
           : [{ role: "agent", text: 'זיהיתי את הטיול! עברו על הלו"ז ותקנו מה שצריך.' }],
       );
-      setStep(3);
+      setStep(2);
     } catch (err) {
       console.error(err);
       setApiNotice(
@@ -209,9 +211,23 @@ function TripBuilder() {
       );
       setTripData(DEMO_TRIP);
       setAgentMessages([{ role: "agent", text: DEMO_AGENT_MESSAGE }]);
-      setStep(3);
+      setStep(2);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleEnhance = async (options: EnhanceOptions) => {
+    setIsEnhancing(true);
+    try {
+      const res = await enhanceTrip(tripData, options, getApiKey(), getApiProvider());
+      setTripData(res.trip_data);
+    } catch (err) {
+      console.error(err);
+      setApiNotice('הוספת הפרטים הנוספים נכשלה — ממשיכים עם הלו"ז הנוכחי.');
+    } finally {
+      setIsEnhancing(false);
+      setStep(3);
     }
   };
 
@@ -270,7 +286,9 @@ function TripBuilder() {
     }));
   };
 
-  const handleUpdateTrip = (patch: Partial<Pick<TripData, "title" | "dates">>) => {
+  const handleUpdateTrip = (
+    patch: Partial<Pick<TripData, "title" | "dates" | "photo_album_url">>,
+  ) => {
     setTripData((prev) => ({ ...prev, ...patch }));
   };
 
@@ -347,6 +365,15 @@ function TripBuilder() {
               />
             )}
 
+            {step === 2 && (
+              <BuilderStep2
+                onSubmit={handleEnhance}
+                onSkip={() => setStep(3)}
+                onBack={() => setStep(1)}
+                isEnhancing={isEnhancing}
+              />
+            )}
+
             {step === 3 && (
               <BuilderStep3
                 agentMessages={agentMessages}
@@ -356,7 +383,7 @@ function TripBuilder() {
                 onSendMessage={handleSendMessage}
                 isSendingMessage={isSendingMessage}
                 onContinue={handleContinueToDesign}
-                onBack={() => setStep(1)}
+                onBack={() => setStep(2)}
                 isGeneratingMedia={isGeneratingMedia}
                 tripDates={tripData.dates}
                 onChangeTripDates={(dates) => setTripData((prev) => ({ ...prev, dates }))}
@@ -507,7 +534,9 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
     );
   };
 
-  const handleUpdateTrip = (patch: Partial<Pick<TripData, "title" | "dates">>) => {
+  const handleUpdateTrip = (
+    patch: Partial<Pick<TripData, "title" | "dates" | "photo_album_url">>,
+  ) => {
     setTrip((prev) => (prev ? { ...prev, ...patch } : prev));
   };
 

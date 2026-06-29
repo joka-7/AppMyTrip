@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   DollarSign,
+  ImageIcon,
   Map,
   MessageCircle,
   Pencil,
@@ -66,7 +67,7 @@ export default function AppFrame({
   chatNotice?: string | null;
   onUpdateActivity: (dayIndex: number, activityId: string, patch: Partial<Activity>) => void;
   onAddActivity?: (dayIndex: number, activity: Activity) => void;
-  onUpdateTrip: (patch: Partial<Pick<TripData, "title" | "dates">>) => void;
+  onUpdateTrip: (patch: Partial<Pick<TripData, "title" | "dates" | "photo_album_url">>) => void;
   isLocalOnly?: boolean;
   localOnlyNoticeText?: string;
 }) {
@@ -76,6 +77,7 @@ export default function AppFrame({
   const [isEditingHeader, setIsEditingHeader] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [datesDraft, setDatesDraft] = useState("");
+  const [albumUrlDraft, setAlbumUrlDraft] = useState("");
   const { playingPodcast, progress, error: podcastError, togglePlay, stop } = usePodcastPlayer();
   const tabsRef = useRef<HTMLDivElement>(null);
 
@@ -91,11 +93,16 @@ export default function AppFrame({
   const startEditingHeader = () => {
     setTitleDraft(tripData.title);
     setDatesDraft(tripData.dates);
+    setAlbumUrlDraft(tripData.photo_album_url ?? "");
     setIsEditingHeader(true);
   };
 
   const saveHeaderEdit = () => {
-    onUpdateTrip({ title: titleDraft, dates: datesDraft });
+    onUpdateTrip({
+      title: titleDraft,
+      dates: datesDraft,
+      photo_album_url: albumUrlDraft.trim() || null,
+    });
     setIsEditingHeader(false);
   };
 
@@ -136,6 +143,13 @@ export default function AppFrame({
               className="text-sm bg-white/10 placeholder-white/60 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-white/40"
               placeholder="טווח תאריכים"
             />
+            <input
+              type="url"
+              value={albumUrlDraft}
+              onChange={(e) => setAlbumUrlDraft(e.target.value)}
+              className="text-sm bg-white/10 placeholder-white/60 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-white/40"
+              placeholder="קישור לאלבום תמונות (אופציונלי)"
+            />
             <div className="flex gap-2 mt-1">
               <button
                 onClick={saveHeaderEdit}
@@ -158,7 +172,20 @@ export default function AppFrame({
         ) : (
           <div className="flex items-start justify-between gap-2">
             <div>
-              <h2 className="text-xl font-bold">{tripData.title || "האפליקציה שלך"}</h2>
+              <div className="flex items-center gap-1.5">
+                <h2 className="text-xl font-bold">{tripData.title || "האפליקציה שלך"}</h2>
+                {tripData.photo_album_url && (
+                  <a
+                    href={tripData.photo_album_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="אלבום תמונות הטיול"
+                    className="text-white/70 hover:text-white"
+                  >
+                    <ImageIcon size={16} />
+                  </a>
+                )}
+              </div>
               <p className="text-sm opacity-80">
                 {tripData.dates || "התצוגה המקדימה תתעדכן לפי הטקסט"}
               </p>

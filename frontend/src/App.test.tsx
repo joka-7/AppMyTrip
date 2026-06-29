@@ -42,7 +42,7 @@ describe("App builder flow", () => {
     vi.resetAllMocks();
   });
 
-  it("advances to step 3 and renders the parsed itinerary on success", async () => {
+  it("advances to step 2 and on to step 3 after skipping enhancements", async () => {
     vi.mocked(api.parseTrip).mockResolvedValue({
       trip_data: sampleTrip,
       initial_agent_message: "Welcome!",
@@ -51,6 +51,12 @@ describe("App builder flow", () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: /צור מבנה אפליקציה ראשוני/ }));
+
+    await waitFor(() => {
+      expect(screen.getByText("שיפורים נוספים (אופציונלי)")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /דלג, המשך לסוכן/ }));
 
     await waitFor(() => {
       expect(screen.getByText("סוכן השלמות AI")).toBeInTheDocument();
@@ -73,7 +79,12 @@ describe("App builder flow", () => {
       expect(screen.getByText(/לא הצלחנו להתחבר לשרת ה-AI/)).toBeInTheDocument();
     });
 
-    expect(screen.getByText("סוכן השלמות AI")).toBeInTheDocument();
+    expect(screen.getByText("שיפורים נוספים (אופציונלי)")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /דלג, המשך לסוכן/ }));
+
+    await waitFor(() => {
+      expect(screen.getByText("סוכן השלמות AI")).toBeInTheDocument();
+    });
     expect(screen.getByText("טיול לדוגמה ✨")).toBeInTheDocument();
   });
 });
