@@ -61,12 +61,12 @@ export default function ApiKeyMenu() {
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 p-4 z-40 text-right">
-          <h3 className="text-sm font-bold text-gray-800 mb-1">מפתח API משלכם</h3>
-          <p className="text-xs text-gray-500 mb-3">
+        <div className="absolute left-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-outline/20 p-4 z-40 text-right">
+          <h3 className="text-sm font-bold text-ink mb-1">מפתח API משלכם</h3>
+          <p className="text-xs text-ink-muted mb-3">
             כדי שכל משתמש ישלם על השימוש שלו (ולא ישתמש במכסה של מפתח אחר), בחרו ספק והדביקו כאן
             מפתח API משלכם — חינמי ב-
-            <a href={keyUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+            <a href={keyUrl} target="_blank" rel="noreferrer" className="text-primary underline">
               {keyUrl.replace("https://", "")}
             </a>
             . כל ספק שומר את המפתח שלו בנפרד, רק בדפדפן שלכם.
@@ -74,7 +74,7 @@ export default function ApiKeyMenu() {
           <select
             value={provider}
             onChange={(e) => handleProviderChange(e.target.value as LLMProvider)}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-outline/40 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
           >
             {PROVIDERS.map((p) => (
               <option key={p.value} value={p.value}>
@@ -88,13 +88,13 @@ export default function ApiKeyMenu() {
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder="API Key..."
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 pl-9 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-outline/40 rounded-lg px-3 py-2 pl-9 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
             <button
               type="button"
               onClick={() => setShowKey((v) => !v)}
               aria-label={showKey ? "הסתרת המפתח" : "הצגת המפתח"}
-              className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute left-2 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink"
             >
               {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
@@ -103,7 +103,7 @@ export default function ApiKeyMenu() {
             <button
               onClick={handleSave}
               disabled={!draft.trim()}
-              className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm px-3 py-2 rounded-lg"
+              className="flex-1 flex items-center justify-center gap-1.5 bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-sm px-3 py-2 rounded-lg"
             >
               <Check size={14} />
               שמירה
@@ -111,7 +111,7 @@ export default function ApiKeyMenu() {
             {savedKey && (
               <button
                 onClick={handleClear}
-                className="flex-1 flex items-center justify-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-3 py-2 rounded-lg"
+                className="flex-1 flex items-center justify-center gap-1.5 bg-surface-container hover:bg-surface-container-high text-ink-muted text-sm px-3 py-2 rounded-lg"
               >
                 <Trash2 size={14} />
                 הסרה

@@ -50,7 +50,7 @@ export default function BuilderStep2({
   return (
     <div className="animate-fade-in">
       <h2 className="text-2xl font-bold mb-2">שיפורים נוספים (אופציונלי)</h2>
-      <p className="text-gray-600 mb-6">
+      <p className="text-ink-muted mb-6">
         כל פירוט נוסף דורש פנייה נוספת לבינה המלאכותית, כך שהזמן שיקח תלוי בכמה תבחרו. אפשר גם לדלג
         ולהוסיף את אלה ידנית מאוחר יותר מתוך הלו"ז.
       </p>
@@ -69,16 +69,16 @@ export default function BuilderStep2({
         {OPTIONS.map(({ key, label, Icon }) => (
           <label
             key={key}
-            className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100 cursor-pointer group"
+            className="flex items-center gap-3 p-3 bg-surface-container rounded-xl border border-outline/20 cursor-pointer group"
           >
             <input
               type="checkbox"
               checked={!!options[key]}
               onChange={() => toggle(key)}
-              className="w-5 h-5 accent-blue-600 rounded"
+              className="w-5 h-5 accent-primary rounded"
             />
-            <Icon size={18} className="text-blue-500 shrink-0" />
-            <span className="text-sm font-medium text-gray-700 group-hover:text-blue-600 transition-colors">
+            <Icon size={18} className="text-primary shrink-0" />
+            <span className="text-sm font-medium text-ink group-hover:text-primary transition-colors">
               {label}
             </span>
           </label>
@@ -89,7 +89,7 @@ export default function BuilderStep2({
         <button
           onClick={onBack}
           disabled={isEnhancing}
-          className="bg-gray-100 hover:bg-gray-200 disabled:opacity-60 text-gray-700 px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-colors"
+          className="bg-surface-container hover:bg-surface-container-high disabled:opacity-60 text-ink-muted px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-colors"
         >
           <ChevronLeft size={20} />
           חזרה
@@ -98,7 +98,7 @@ export default function BuilderStep2({
           <button
             onClick={onSkip}
             disabled={isEnhancing}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white px-8 py-3 rounded-xl font-medium flex items-center gap-2 flex-1 justify-center transition-colors shadow-md"
+            className="bg-primary hover:bg-primary-dark disabled:opacity-60 text-white px-8 py-3 rounded-xl font-medium flex items-center gap-2 flex-1 justify-center transition-colors shadow-md"
           >
             דלג, המשך לסוכן
             <ChevronRight size={20} />
@@ -107,7 +107,7 @@ export default function BuilderStep2({
           <button
             onClick={() => onSubmit(options)}
             disabled={isEnhancing}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white px-8 py-3 rounded-xl font-medium flex items-center gap-2 flex-1 justify-center transition-colors shadow-md"
+            className="bg-primary hover:bg-primary-dark disabled:opacity-60 text-white px-8 py-3 rounded-xl font-medium flex items-center gap-2 flex-1 justify-center transition-colors shadow-md"
           >
             {isEnhancing ? "מוסיף את הפרטים..." : "הוסף את הפרטים שנבחרו"}
             {!isEnhancing && <ChevronRight size={20} />}

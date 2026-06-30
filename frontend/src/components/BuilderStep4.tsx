@@ -67,40 +67,40 @@ export default function BuilderStep4({
   return (
     <div className="animate-fade-in">
       <h2 className="text-2xl font-bold mb-2">שלב אחרון: עיצוב האפליקציה שלך</h2>
-      <p className="text-gray-600 mb-6">
+      <p className="text-ink-muted mb-6">
         בחרו צבעים, פונטים ותצורה לפני שיתוף האפליקציה למשתתפי הטיול.
       </p>
 
       <div className="space-y-6">
-        <div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
-          <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <PencilLine size={18} className="text-blue-500" /> שם הטיול
+        <div className="bg-surface-container p-5 rounded-xl border border-outline/20">
+          <h3 className="text-sm font-bold text-ink mb-4 flex items-center gap-2">
+            <PencilLine size={18} className="text-primary" /> שם הטיול
           </h3>
           <input
             type="text"
             value={tripName}
             onChange={(e) => setTripName(e.target.value)}
             placeholder="לדוגמה: טיול לרומא עם המשפחה"
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-outline/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
         </div>
 
-        <div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
-          <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <Palette size={18} className="text-blue-500" /> בחירת צבע נושא
+        <div className="bg-surface-container p-5 rounded-xl border border-outline/20">
+          <h3 className="text-sm font-bold text-ink mb-4 flex items-center gap-2">
+            <Palette size={18} className="text-primary" /> בחירת צבע נושא
           </h3>
           <ThemeSelector theme={theme} onChange={onChangeTheme} />
         </div>
 
-        <div className="bg-gray-50 p-5 rounded-xl border border-gray-100">
-          <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <Settings size={18} className="text-blue-500" /> תוקף קישור השיתוף
+        <div className="bg-surface-container p-5 rounded-xl border border-outline/20">
+          <h3 className="text-sm font-bold text-ink mb-4 flex items-center gap-2">
+            <Settings size={18} className="text-primary" /> תוקף קישור השיתוף
           </h3>
           <select
             value={shareDays}
             onChange={(e) => setShareDays(Number(e.target.value))}
             disabled={status === "working"}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-outline/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
           >
             <option value={7}>7 ימים</option>
             <option value={30}>30 יום</option>
@@ -113,7 +113,7 @@ export default function BuilderStep4({
       <button
         onClick={onBack}
         disabled={status === "working"}
-        className="bg-gray-100 hover:bg-gray-200 disabled:opacity-60 text-gray-700 px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-colors mt-10"
+        className="bg-surface-container hover:bg-surface-container-high disabled:opacity-60 text-ink-muted px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-colors mt-10"
       >
         <ChevronLeft size={20} />
         חזרה
@@ -124,7 +124,7 @@ export default function BuilderStep4({
           <button
             onClick={() => handleDeploy(false)}
             disabled={status === "working"}
-            className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-70 disabled:cursor-wait text-white px-6 py-4 rounded-xl font-bold flex items-center gap-2 justify-center transition-all hover:shadow-lg hover:-translate-y-1"
+            className="flex-1 bg-secondary hover:bg-secondary-dark disabled:opacity-70 disabled:cursor-wait text-white px-6 py-4 rounded-xl font-bold flex items-center gap-2 justify-center transition-all hover:shadow-lg hover:-translate-y-1"
           >
             {status === "working" ? (
               <Loader2 size={22} className="animate-spin" />
@@ -136,7 +136,7 @@ export default function BuilderStep4({
           <button
             onClick={() => handleDeploy(true)}
             disabled={status === "working"}
-            className="flex-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-70 disabled:cursor-wait text-gray-700 px-6 py-4 rounded-xl font-bold flex items-center gap-2 justify-center transition-all"
+            className="flex-1 bg-surface-container hover:bg-surface-container-high disabled:opacity-70 disabled:cursor-wait text-ink-muted px-6 py-4 rounded-xl font-bold flex items-center gap-2 justify-center transition-all"
           >
             <Copy size={20} />
             שמירה כעותק חדש
@@ -146,7 +146,7 @@ export default function BuilderStep4({
         <button
           onClick={() => handleDeploy(true)}
           disabled={status === "working"}
-          className="bg-green-600 hover:bg-green-700 disabled:opacity-70 disabled:cursor-wait text-white px-8 py-4 rounded-xl font-bold text-lg flex items-center gap-2 w-full justify-center mt-3 transition-all hover:shadow-lg hover:-translate-y-1"
+          className="bg-secondary hover:bg-secondary-dark disabled:opacity-70 disabled:cursor-wait text-white px-8 py-4 rounded-xl font-bold text-lg flex items-center gap-2 w-full justify-center mt-3 transition-all hover:shadow-lg hover:-translate-y-1"
         >
           {status === "working" ? (
             <Loader2 size={24} className="animate-spin" />
@@ -158,15 +158,15 @@ export default function BuilderStep4({
       )}
 
       {status === "done" && shareUrl && (
-        <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4 flex flex-wrap items-center gap-2 animate-fade-in">
+        <div className="mt-4 bg-primary/5 border border-primary/20 rounded-xl p-4 flex flex-wrap items-center gap-2 animate-fade-in">
           <input
             readOnly
             value={shareUrl}
-            className="flex-1 min-w-0 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 truncate"
+            className="flex-1 min-w-0 bg-white border border-outline/40 rounded-lg px-3 py-2 text-sm text-ink truncate"
           />
           <button
             onClick={handleCopy}
-            className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium transition-colors"
+            className="bg-primary hover:bg-primary-dark text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium transition-colors"
           >
             {copied ? <Check size={16} /> : <Copy size={16} />}
             {copied ? "הועתק!" : "העתק קישור"}
@@ -175,7 +175,7 @@ export default function BuilderStep4({
             href={shareUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-white border border-green-300 hover:bg-green-100 text-green-700 px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium transition-colors"
+            className="bg-white border border-outline/40 hover:bg-surface-container text-primary px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium transition-colors"
           >
             <ExternalLink size={16} />
             מעבר לקישור
@@ -189,7 +189,7 @@ export default function BuilderStep4({
         </p>
       )}
 
-      <p className="text-xs text-gray-400 text-center mt-2">
+      <p className="text-xs text-ink-muted text-center mt-2">
         השיגור שומר את הטיול בחשבון Google שלכם (תתבצע התחברות אם צריך) ומפיק קישור שניתן לשתף עם
         משתתפי הטיול.
       </p>
