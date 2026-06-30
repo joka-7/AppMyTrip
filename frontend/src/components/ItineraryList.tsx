@@ -82,16 +82,19 @@ export default function ItineraryList({
 
   const saveAdd = () => {
     if (!draft.title?.trim()) return;
-    // Leave map_coordinates null — the backend always looks up a real location for
-    // activities missing one (see enhanceNewActivities in App.tsx), so the pin lands
-    // in the right place instead of reusing another activity's spot as a placeholder.
+    // If the user left price/link/location blank, the backend always looks up a
+    // real location (and any other enabled extras) for activities missing them
+    // (see enhanceNewActivities in App.tsx), so leaving map_coordinates null here
+    // is safe — it gets filled in instead of reusing another activity's spot.
     onAddActivity?.({
       id: newActivityId(),
       time: draft.time ?? "",
       title: draft.title.trim(),
       desc: draft.desc ?? "",
       type: draft.type ?? "attraction",
-      map_coordinates: null,
+      price: draft.price ?? null,
+      url: draft.url ?? null,
+      map_coordinates: draft.map_coordinates ?? null,
     });
     setIsAdding(false);
     setDraft({});
@@ -351,6 +354,71 @@ export default function ItineraryList({
                   </option>
                 ))}
               </select>
+              <div className="flex gap-2 min-w-0">
+                <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-gray-500">
+                  מחיר
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={draft.price ?? ""}
+                    onChange={(e) =>
+                      setDraft((d) => ({
+                        ...d,
+                        price: e.target.value === "" ? null : Number(e.target.value),
+                      }))
+                    }
+                    className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
+                  />
+                </label>
+                <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-gray-500">
+                  קישור לאתר
+                  <input
+                    type="url"
+                    value={draft.url ?? ""}
+                    onChange={(e) => setDraft((d) => ({ ...d, url: e.target.value }))}
+                    className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
+                  />
+                </label>
+              </div>
+              <div className="flex gap-2 min-w-0">
+                <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-gray-500">
+                  קו רוחב (lat)
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={draft.map_coordinates?.lat ?? ""}
+                    onChange={(e) =>
+                      setDraft((d) => ({
+                        ...d,
+                        map_coordinates:
+                          e.target.value === ""
+                            ? null
+                            : { lat: Number(e.target.value), lng: d.map_coordinates?.lng ?? 0 },
+                      }))
+                    }
+                    className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
+                  />
+                </label>
+                <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-gray-500">
+                  קו אורך (lng)
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={draft.map_coordinates?.lng ?? ""}
+                    onChange={(e) =>
+                      setDraft((d) => ({
+                        ...d,
+                        map_coordinates:
+                          e.target.value === ""
+                            ? null
+                            : { lat: d.map_coordinates?.lat ?? 0, lng: Number(e.target.value) },
+                      }))
+                    }
+                    className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
+                  />
+                </label>
+              </div>
+              <p className="text-[11px] text-gray-400">ניתן להשאיר ריק — המיקום יאותר אוטומטית</p>
               <div className="flex gap-2 items-center">
                 <button
                   onClick={saveAdd}
