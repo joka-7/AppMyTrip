@@ -1,7 +1,6 @@
 import { useState } from "react";
 import {
   Bed,
-  DollarSign,
   Landmark,
   Link as LinkIcon,
   MapPin,
@@ -31,6 +30,15 @@ const ACTIVITY_TYPE_LABELS: Record<Activity["type"], string> = {
   food: "אוכל",
   lodging: "לינה",
   transport: "תחבורה",
+};
+
+// Per-category accent used for the card's leading border and the price chip,
+// matching the Stitch design system's "status border" pattern.
+const ACTIVITY_ACCENT: Record<Activity["type"], { border: string; chip: string }> = {
+  attraction: { border: "border-s-emerald-500", chip: "bg-emerald-100 text-emerald-700" },
+  food: { border: "border-s-secondary", chip: "bg-secondary/10 text-secondary-dark" },
+  lodging: { border: "border-s-indigo-500", chip: "bg-indigo-100 text-indigo-700" },
+  transport: { border: "border-s-sky-500", chip: "bg-sky-100 text-sky-700" },
 };
 
 export default function ItineraryList({
@@ -102,25 +110,16 @@ export default function ItineraryList({
 
   return (
     <div className="space-y-4">
-      {activities.map((act, idx) => {
+      {activities.map((act) => {
         const Icon = ACTIVITY_ICONS[act.type] ?? Landmark;
+        const accent = ACTIVITY_ACCENT[act.type] ?? ACTIVITY_ACCENT.attraction;
         const isEditing = editingId === act.id;
         return (
           <div
             key={act.id}
-            className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex gap-4 animate-fade-in"
+            className={`bg-white p-4 rounded-xl shadow-card border border-outline/20 border-s-4 ${accent.border} animate-fade-in`}
           >
-            <div className="flex flex-col items-center">
-              <div
-                className={`p-2 rounded-full ${themeClass} text-white bg-opacity-10 text-opacity-90`}
-              >
-                <Icon size={18} />
-              </div>
-              {idx !== activities.length - 1 && (
-                <div className="w-0.5 h-full bg-gray-200 mt-2"></div>
-              )}
-            </div>
-            <div className="flex-1 min-w-0 pb-4">
+            <div className="flex-1 min-w-0">
               {isEditing ? (
                 <div className="flex flex-col gap-2 min-w-0">
                   <input
@@ -221,7 +220,7 @@ export default function ItineraryList({
                   <div className="flex gap-2 items-center">
                     <button
                       onClick={() => saveEdit(act.id)}
-                      className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-lg"
+                      className="bg-primary hover:bg-primary-dark text-white text-xs px-3 py-1.5 rounded-lg"
                     >
                       שמירה
                     </button>
@@ -242,11 +241,9 @@ export default function ItineraryList({
               ) : (
                 <>
                   <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="text-xs text-gray-500 font-medium mb-1">{act.time}</div>
-                      <div className="flex items-center gap-1.5">
-                        <h4 className="font-bold text-gray-800">{act.title}</h4>
-                      </div>
+                    <div className="flex items-center gap-1.5 text-secondary-dark font-bold text-xs">
+                      <Icon size={14} />
+                      <span>{act.time}</span>
                     </div>
                     <div className="flex items-center gap-1">
                       {act.url && (
@@ -255,24 +252,16 @@ export default function ItineraryList({
                           target="_blank"
                           rel="noopener noreferrer"
                           aria-label="קישור לאתר הפעילות"
-                          className="text-gray-400 hover:text-blue-600 p-1"
+                          className="text-ink-muted hover:text-primary p-1"
                         >
                           <LinkIcon size={14} />
                         </a>
                       )}
-                      <button
-                        onClick={() => startEdit(act)}
-                        aria-label="עריכת מחיר"
-                        className="flex items-center gap-0.5 text-gray-400 hover:text-blue-600 p-1"
-                      >
-                        <DollarSign size={14} />
-                        {act.price != null && <span className="text-[11px]">{act.price}</span>}
-                      </button>
                       {onShowOnMap && act.map_coordinates && (
                         <button
                           onClick={() => onShowOnMap(act.id)}
                           aria-label="הצגת הפעילות על המפה"
-                          className="text-gray-400 hover:text-blue-600 p-1"
+                          className="text-ink-muted hover:text-primary p-1"
                         >
                           <MapPin size={14} />
                         </button>
@@ -280,36 +269,45 @@ export default function ItineraryList({
                       <button
                         onClick={() => startEdit(act)}
                         aria-label="עריכת פעילות"
-                        className="text-gray-400 hover:text-blue-600 p-1"
+                        className="text-ink-muted hover:text-primary p-1"
                       >
                         <Pencil size={14} />
                       </button>
                     </div>
                   </div>
-                  <p className="text-sm text-gray-600 mt-1">{act.desc}</p>
+                  <h4 className="font-bold text-ink mt-1">{act.title}</h4>
+                  <p className="text-sm text-ink-muted mt-1">{act.desc}</p>
 
-                  {act.hasPodcast && (
-                    <div
-                      onClick={() => onPlayPodcast(act)}
-                      className={`mt-3 flex items-center gap-2 p-2 rounded-lg text-sm cursor-pointer transition-colors ${
-                        playingPodcast?.id === act.id
-                          ? "bg-blue-600 text-white"
-                          : "bg-blue-50 text-blue-700 hover:bg-blue-100"
-                      }`}
+                  <div className="flex items-center gap-2 mt-3 flex-wrap">
+                    <button
+                      onClick={() => startEdit(act)}
+                      aria-label="עריכת מחיר"
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${accent.chip}`}
                     >
-                      {playingPodcast?.id === act.id ? (
-                        <Pause size={16} fill="currentColor" />
-                      ) : (
-                        <Play size={16} fill="currentColor" />
-                      )}
-                      <span className="font-medium">
-                        {playingPodcast?.id === act.id ? "מתנגן כעת..." : "האזן לפודקאסט היסטורי"}
-                      </span>
-                      {playingPodcast?.id === act.id && (
-                        <Volume2 size={16} className="ml-auto animate-pulse" />
-                      )}
-                    </div>
-                  )}
+                      {act.price != null ? `₪${act.price}` : "הוספת מחיר"}
+                    </button>
+
+                    {act.hasPodcast && (
+                      <button
+                        onClick={() => onPlayPodcast(act)}
+                        className={`flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
+                          playingPodcast?.id === act.id
+                            ? `${themeClass} text-white`
+                            : "bg-surface-container text-primary hover:bg-surface-container-high"
+                        }`}
+                      >
+                        {playingPodcast?.id === act.id ? (
+                          <Pause size={13} fill="currentColor" />
+                        ) : (
+                          <Play size={13} fill="currentColor" />
+                        )}
+                        {playingPodcast?.id === act.id ? "מתנגן כעת..." : "פודקאסט היסטורי"}
+                        {playingPodcast?.id === act.id && (
+                          <Volume2 size={13} className="animate-pulse" />
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </>
               )}
             </div>
@@ -318,7 +316,13 @@ export default function ItineraryList({
       })}
 
       {onAddActivity && (
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 animate-fade-in">
+        <div
+          className={`p-4 rounded-xl animate-fade-in ${
+            isAdding
+              ? "bg-white shadow-card border border-outline/20"
+              : "border-2 border-dashed border-outline bg-transparent"
+          }`}
+        >
           {isAdding ? (
             <div className="flex flex-col gap-2">
               <input
@@ -423,7 +427,7 @@ export default function ItineraryList({
                 <button
                   onClick={saveAdd}
                   disabled={!draft.title?.trim()}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs px-3 py-1.5 rounded-lg"
+                  className="bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-xs px-3 py-1.5 rounded-lg"
                 >
                   הוספה
                 </button>
@@ -442,10 +446,10 @@ export default function ItineraryList({
           ) : (
             <button
               onClick={startAdd}
-              className="w-full flex items-center justify-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700 py-1"
+              className="w-full flex items-center justify-center gap-2 text-sm font-semibold text-primary hover:text-primary-dark py-1"
             >
               <Plus size={16} />
-              הוספת פעילות
+              הוספת פעילות ליום זה
             </button>
           )}
         </div>
