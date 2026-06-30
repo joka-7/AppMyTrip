@@ -54,4 +54,45 @@ describe("ItineraryList", () => {
 
     expect(screen.getByText("מתנגן כעת...")).toBeInTheDocument();
   });
+
+  it("lets the user fill in price, link, and location directly when manually adding an activity", () => {
+    const onAddActivity = vi.fn();
+    render(
+      <ItineraryList
+        activities={activities}
+        themeClass="bg-blue-600"
+        playingPodcast={null}
+        onPlayPodcast={vi.fn()}
+        onUpdateActivity={vi.fn()}
+        onAddActivity={onAddActivity}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "הוספת פעילות" }));
+    fireEvent.change(screen.getByPlaceholderText("שם הפעילות"), {
+      target: { value: "New Spot" },
+    });
+    fireEvent.change(screen.getByText("מחיר").closest("label")!.querySelector("input")!, {
+      target: { value: "42" },
+    });
+    fireEvent.change(screen.getByText("קישור לאתר").closest("label")!.querySelector("input")!, {
+      target: { value: "https://example.com" },
+    });
+    fireEvent.change(screen.getByText("קו רוחב (lat)").closest("label")!.querySelector("input")!, {
+      target: { value: "1.5" },
+    });
+    fireEvent.change(screen.getByText("קו אורך (lng)").closest("label")!.querySelector("input")!, {
+      target: { value: "2.5" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "הוספה" }));
+
+    expect(onAddActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "New Spot",
+        price: 42,
+        url: "https://example.com",
+        map_coordinates: { lat: 1.5, lng: 2.5 },
+      }),
+    );
+  });
 });
