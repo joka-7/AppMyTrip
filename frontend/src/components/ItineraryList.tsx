@@ -82,17 +82,16 @@ export default function ItineraryList({
 
   const saveAdd = () => {
     if (!draft.title?.trim()) return;
-    // Default the new pin to an existing activity's spot (e.g. the day's first
-    // stop) so it's visible on the map right away instead of being silently
-    // dropped from it; the user can drag it to the right place afterwards.
-    const nearbyCoords = activities.find((a) => a.map_coordinates)?.map_coordinates ?? null;
+    // Leave map_coordinates null — the backend always looks up a real location for
+    // activities missing one (see enhanceNewActivities in App.tsx), so the pin lands
+    // in the right place instead of reusing another activity's spot as a placeholder.
     onAddActivity?.({
       id: newActivityId(),
       time: draft.time ?? "",
       title: draft.title.trim(),
       desc: draft.desc ?? "",
       type: draft.type ?? "attraction",
-      map_coordinates: nearbyCoords,
+      map_coordinates: null,
     });
     setIsAdding(false);
     setDraft({});
