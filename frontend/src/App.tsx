@@ -32,6 +32,16 @@ const EMPTY_TRIP: TripData = { title: "", dates: "", days: [] };
 const isRateLimited = (err: unknown): boolean =>
   err instanceof Error && err.message.includes("(429)");
 
+// Fallback used to enrich activities added after Step 2 (via chat or the "+" button)
+// when the user skipped Step 2 entirely and so never chose any extras to remember.
+const ALL_ENHANCE_OPTIONS: EnhanceOptions = {
+  directions_car: true,
+  directions_transit: true,
+  prices: true,
+  podcast: true,
+  links: true,
+};
+
 // Generic sample trip used as an offline demo / fallback when the backend is
 // unreachable (e.g. no GEMINI_API_KEY). Intentionally not tied to a specific
 // real destination; coordinates are clustered so the auto-fit map looks sensible.
@@ -255,16 +265,20 @@ function TripBuilder() {
     }
   };
 
-  // Re-runs the remembered Step 2 enhancements on activities just added, whether by the
-  // chat agent or manually via the "+" button in the live preview.
+  // Re-runs the remembered Step 2 enhancements (or, if the user skipped Step 2 and so
+  // never chose any, every extra) on activities just added, whether by the chat agent
+  // or manually via the "+" button in the live preview — manual adds also have no real
+  // location yet, which the backend always fills in regardless of which options apply.
   const enhanceNewActivities = async (before: TripData, after: TripData): Promise<TripData> => {
-    if (!Object.values(enhanceOptions).some(Boolean)) return after;
-
     const priorIds = new Set(before.days.flatMap((d) => d.activities.map((a) => a.id)));
     const newActivities = after.days
       .flatMap((d) => d.activities)
       .filter((a) => !priorIds.has(a.id));
     if (newActivities.length === 0) return after;
+
+    const options = Object.values(enhanceOptions).some(Boolean)
+      ? enhanceOptions
+      : ALL_ENHANCE_OPTIONS;
 
     try {
       const res = await enhanceTrip(
@@ -274,7 +288,7 @@ function TripBuilder() {
           language: after.language,
           days: [{ dayNum: 1, activities: newActivities }],
         },
-        enhanceOptions,
+        options,
         getApiKey(),
         getApiProvider(),
       );

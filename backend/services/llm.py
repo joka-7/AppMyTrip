@@ -401,6 +401,14 @@ class LLMService:
                 status_code=422, detail=f"LLM returned invalid schema: {str(e)}"
             ) from e
 
+    _MISSING_COORDINATES_INSTRUCTION = (
+        "Some activities have 'map_coordinates' set to null (e.g. ones added manually "
+        "by the user without a real location). Fill in 'map_coordinates' with realistic "
+        "latitude ('lat') and longitude ('lng') for those activities based on their title "
+        "and description. Leave every other field, and any activity that already has "
+        "'map_coordinates' set, exactly as given."
+    )
+
     @classmethod
     async def enhance_trip(
         cls,
@@ -409,22 +417,29 @@ class LLMService:
         api_key: str | None = None,
         provider: str | None = None,
     ) -> TripData:
-        """Fills in only the optional extras the user opted into in Step 2 (directions,
-        prices, podcast briefs, links). Each checked option fires its own small, focused
-        LLM call (run concurrently) instead of one combined call, so picking every option
-        stays about as fast as picking one."""
+        """Fills in the optional extras the user opted into in Step 2 (directions, prices,
+        podcast briefs, links), plus — always, regardless of `options` — real map
+        coordinates for any activity that's missing them (e.g. added manually via the
+        live preview's "+" button, which has no way to look up a real location itself).
+        Each piece fires its own small, focused LLM call (run concurrently) instead of one
+        combined call, so picking every option stays about as fast as picking one."""
         selected = [
             (fields, instruction)
             for flag_name, instruction, fields in cls._ENHANCE_OPTION_SPECS
             if getattr(options, flag_name)
         ]
+        needs_coordinates = any(
+            act.map_coordinates is None for day in current_trip.days for act in day.activities
+        )
+        if needs_coordinates:
+            selected = [*selected, (("map_coordinates",), cls._MISSING_COORDINATES_INSTRUCTION)]
         if not selected:
             return current_trip
 
-        # return_exceptions=True: each option is an independent LLM call, so one
+        # return_exceptions=True: each piece is an independent LLM call, so one
         # rate-limited or malformed response (more likely now that checking every
         # box fires several calls at once) must not sink the others — apply
-        # whichever options succeeded and only raise if every single one failed.
+        # whichever pieces succeeded and only raise if every single one failed.
         results = await asyncio.gather(
             *(
                 cls._enhance_one(current_trip, instruction, api_key, provider)

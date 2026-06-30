@@ -683,6 +683,44 @@ def test_enhance_trip_applies_succeeding_options_when_another_option_fails(monke
             assert act.price is None  # the failed option left this field untouched
 
 
+def test_enhance_trip_fills_missing_coordinates_even_with_no_options_selected(monkeypatch):
+    # An activity added manually via the live preview's "+" button has no real
+    # location yet (map_coordinates is None) — enhance_trip must always look one
+    # up for it, regardless of which (if any) Step 2 options were checked.
+    trip = _sample_trip()
+    trip.days[0].activities.append(
+        Activity(
+            id="new",
+            time="15:00",
+            title="Manually Added Spot",
+            desc="",
+            type="attraction",
+        )
+    )
+    assert trip.days[0].activities[1].map_coordinates is None
+
+    def _response_with_coordinates(system_prompt, user_content, **kwargs):
+        data = trip.model_dump()
+        for day in data["days"]:
+            for act in day["activities"]:
+                act["map_coordinates"] = {"lat": 1.0, "lng": 2.0}
+                act["title"] = "SHOULD NOT BE USED"
+        return data
+
+    mock_execute = AsyncMock(side_effect=_response_with_coordinates)
+    monkeypatch.setattr(LLMService, "_execute_with_retry", mock_execute)
+
+    result = asyncio.run(LLMService.enhance_trip(trip, EnhanceOptions()))
+
+    assert mock_execute.await_count == 1
+    new_act = next(a for day in result.days for a in day.activities if a.id == "new")
+    assert new_act.map_coordinates == {"lat": 1.0, "lng": 2.0}
+    # The merge must scope strictly to map_coordinates, ignoring noise in other fields.
+    assert new_act.title == "Manually Added Spot"
+    existing_act = next(a for day in result.days for a in day.activities if a.id == "a1")
+    assert existing_act.title == "Spanish Steps"
+
+
 def test_enhance_trip_raises_when_every_selected_option_fails(monkeypatch):
     async def _always_fails(system_prompt, user_content, **kwargs):
         raise HTTPException(status_code=429, detail="rate limited")
