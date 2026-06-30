@@ -422,7 +422,7 @@ export default function ItineraryList({
                   />
                 </label>
               </div>
-              <p className="text-[11px] text-gray-400">ניתן להשאיר ריק — המיקום יאותר אוטומטית</p>
+              <p className="text-[11px] text-ink-muted">ניתן להשאיר ריק — המיקום יאותר אוטומטית</p>
               <div className="flex gap-2 items-center">
                 <button
                   onClick={saveAdd}

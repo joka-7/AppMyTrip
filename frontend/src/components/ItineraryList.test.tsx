@@ -68,7 +68,7 @@ describe("ItineraryList", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "הוספת פעילות" }));
+    fireEvent.click(screen.getByRole("button", { name: "הוספת פעילות ליום זה" }));
     fireEvent.change(screen.getByPlaceholderText("שם הפעילות"), {
       target: { value: "New Spot" },
     });
