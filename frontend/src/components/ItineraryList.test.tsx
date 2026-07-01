@@ -22,7 +22,7 @@ describe("ItineraryList", () => {
 
     expect(screen.getByText("Museum")).toBeInTheDocument();
     expect(screen.getByText("Lunch")).toBeInTheDocument();
-    expect(screen.getByText("האזן לפודקאסט היסטורי")).toBeInTheDocument();
+    expect(screen.getByText("פודקאסט היסטורי")).toBeInTheDocument();
   });
 
   it("calls onPlayPodcast with the clicked activity", () => {
@@ -37,7 +37,7 @@ describe("ItineraryList", () => {
       />,
     );
 
-    fireEvent.click(screen.getByText("האזן לפודקאסט היסטורי"));
+    fireEvent.click(screen.getByText("פודקאסט היסטורי"));
     expect(onPlayPodcast).toHaveBeenCalledWith(activities[0]);
   });
 
@@ -68,7 +68,7 @@ describe("ItineraryList", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "הוספת פעילות" }));
+    fireEvent.click(screen.getByRole("button", { name: "הוספת פעילות ליום זה" }));
     fireEvent.change(screen.getByPlaceholderText("שם הפעילות"), {
       target: { value: "New Spot" },
     });

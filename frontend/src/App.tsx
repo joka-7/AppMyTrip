@@ -113,12 +113,12 @@ const DEMO_AGENT_MESSAGE =
 // Falls back to the wand icon until frontend/public/logo.png is committed.
 function AppLogo() {
   const [failed, setFailed] = useState(false);
-  if (failed) return <Wand2 className="text-blue-600" />;
+  if (failed) return <Wand2 className="text-primary" />;
   return (
     <img
       src="/logo.png"
       alt="AppMyTrip"
-      className="w-8 h-8 rounded-lg"
+      className="w-12 h-12 rounded-xl"
       onError={() => setFailed(true)}
     />
   );
@@ -387,15 +387,15 @@ function TripBuilder() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 font-sans text-right" dir="rtl">
+    <div className="min-h-screen bg-surface font-sans text-right" dir="rtl">
       {/* Top Navbar */}
-      <nav className="bg-white shadow-sm px-4 sm:px-6 py-4 flex flex-wrap justify-between items-center gap-3 sticky top-0 z-30">
+      <nav className="bg-white shadow-card border-b border-outline/20 px-4 sm:px-6 py-4 flex flex-wrap justify-between items-center gap-3 sticky top-0 z-30">
         <div className="flex items-center gap-2">
           <AppLogo />
-          <h1 className="text-lg sm:text-xl font-bold text-gray-800">תכנון טיול באמצעות AI</h1>
+          <h1 className="text-lg sm:text-xl font-bold text-ink">תכנון טיול באמצעות AI</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <div className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+          <div className="text-sm font-medium text-ink-muted bg-surface-container px-3 py-1 rounded-full">
             שלב {step} מתוך 4
           </div>
           <InstallAppButton />
@@ -427,7 +427,7 @@ function TripBuilder() {
 
       <div className="max-w-7xl mx-auto p-6 flex flex-col lg:flex-row gap-8">
         {/* Left Side: Builder Interface */}
-        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-200 p-8 flex flex-col">
+        <div className="flex-1 bg-white rounded-2xl shadow-card border border-outline/20 p-8 flex flex-col">
           <ProgressBar step={step} />
 
           {/* Dynamic Content based on Step */}
@@ -488,8 +488,8 @@ function TripBuilder() {
         </div>
 
         {/* Right Side: App Live Preview */}
-        <div className="flex-1 flex justify-center items-center bg-gray-200/50 rounded-2xl border border-gray-200 py-10 relative overflow-hidden">
-          <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-4 py-1.5 rounded-full text-xs font-bold text-gray-600 uppercase tracking-wider shadow-sm z-10 flex items-center gap-2 border border-gray-100">
+        <div className="flex-1 flex justify-center items-center bg-surface-container rounded-2xl border border-outline/20 py-10 relative overflow-hidden">
+          <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-4 py-1.5 rounded-full text-xs font-bold text-ink-muted uppercase tracking-wider shadow-sm z-10 flex items-center gap-2 border border-outline/20">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
             Live Preview
           </div>
@@ -623,7 +623,7 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
   if (error) {
     return (
       <div
-        className="min-h-screen flex items-center justify-center text-center text-gray-500 p-6"
+        className="min-h-screen flex items-center justify-center text-center text-ink-muted p-6"
         dir="rtl"
       >
         {error}
@@ -633,7 +633,7 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
 
   if (!trip) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-gray-400" dir="rtl">
+      <div className="min-h-screen flex items-center justify-center text-ink-muted" dir="rtl">
         טוען את הטיול...
       </div>
     );

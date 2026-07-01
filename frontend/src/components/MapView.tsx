@@ -33,10 +33,10 @@ function googleMapsDirectionsUrl(coordActs: Activity[]): string {
 }
 
 const MARKER_COLORS: Record<Activity["type"], string> = {
-  food: "bg-red-500",
+  food: "bg-secondary",
   lodging: "bg-indigo-500",
-  attraction: "bg-blue-500",
-  transport: "bg-amber-500",
+  attraction: "bg-emerald-500",
+  transport: "bg-sky-500",
 };
 
 const MARKER_ICONS: Record<Activity["type"], typeof Utensils> = {
@@ -100,7 +100,7 @@ export default function MapView({
 
   if (coordActs.length === 0) {
     return (
-      <div className="h-full w-full flex items-center justify-center text-center text-gray-400 text-sm rounded-xl border border-gray-200 bg-gray-50">
+      <div className="h-full w-full flex items-center justify-center text-center text-ink-muted text-sm rounded-xl border border-outline/40 bg-surface-container-low">
         אין קואורדינטות להצגה על המפה ביום זה.
       </div>
     );
@@ -125,7 +125,7 @@ export default function MapView({
         {focusedAct && onClearFocus && (
           <button
             onClick={onClearFocus}
-            className="self-start flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors"
+            className="self-start flex items-center gap-1.5 text-xs font-medium text-ink-muted hover:text-ink bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-lg transition-colors"
           >
             <ArrowRight size={14} />
             חזרה למפת היום המלאה
@@ -136,7 +136,7 @@ export default function MapView({
             href={googleMapsPlaceUrl(focusedAct)}
             target="_blank"
             rel="noopener noreferrer"
-            className="self-start flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+            className="self-start flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary-dark bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors"
           >
             <ExternalLink size={14} />
             פתיחה ב-Google Maps
@@ -147,7 +147,7 @@ export default function MapView({
               href={googleMapsDirectionsUrl(coordActs)}
               target="_blank"
               rel="noopener noreferrer"
-              className="self-start flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+              className="self-start flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary-dark bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors"
             >
               <ExternalLink size={14} />
               פתיחת מסלול והוראות הגעה ב-Google Maps
@@ -155,7 +155,7 @@ export default function MapView({
           )
         )}
       </div>
-      <div className="flex-1 rounded-xl overflow-hidden border border-gray-200 shadow-inner">
+      <div className="flex-1 rounded-xl overflow-hidden border border-outline/40 shadow-inner">
         <MapContainer
           center={center}
           zoom={13}
@@ -172,7 +172,7 @@ export default function MapView({
           {routePoints.length > 1 && (
             <Polyline
               positions={routePoints}
-              pathOptions={{ color: "#2563eb", weight: 3, opacity: 0.6, dashArray: "6 8" }}
+              pathOptions={{ color: "#1a5276", weight: 3, opacity: 0.6, dashArray: "6 8" }}
             />
           )}
           {coordActs.map((act) => (

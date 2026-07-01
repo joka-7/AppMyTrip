@@ -25,9 +25,9 @@ import PriceSummary from "./PriceSummary";
 import type { Theme } from "./ThemeSelector";
 
 const THEME_CLASSES: Record<Theme, string> = {
-  blue: "bg-blue-600",
-  green: "bg-emerald-600",
-  dark: "bg-slate-800",
+  blue: "bg-primary",
+  green: "bg-emerald-700",
+  dark: "bg-[#12344d]",
 };
 
 // Above this many days, the tab strip can overflow its visible width, so we
@@ -124,7 +124,7 @@ export default function AppFrame({
   };
 
   return (
-    <div className="w-full h-full flex flex-col bg-gray-50">
+    <div className="w-full h-full flex flex-col bg-surface">
       {/* App Header */}
       <div
         className={`${themeClass} shrink-0 text-white pt-10 pb-4 px-6 shadow-md transition-colors duration-300`}
@@ -211,17 +211,17 @@ export default function AppFrame({
 
       {/* Days Tabs */}
       {hasTrip && (
-        <div className="shrink-0 flex items-center bg-white border-b">
+        <div className="shrink-0 flex items-center gap-2 bg-white border-b border-outline/40 px-3 py-2.5">
           {days.length > SCROLL_ARROW_THRESHOLD && (
             <button
               onClick={() => scrollTabs(-1)}
               aria-label="גלילה לימים קודמים"
-              className="flex-shrink-0 px-2 py-3 text-gray-400 hover:text-blue-600"
+              className="flex-shrink-0 p-1 text-ink-muted hover:text-primary"
             >
               <ChevronRight size={18} />
             </button>
           )}
-          <div ref={tabsRef} className="flex overflow-x-auto hide-scrollbar">
+          <div ref={tabsRef} className="flex gap-2 overflow-x-auto hide-scrollbar">
             {days.map((d, idx) => (
               <button
                 key={idx}
@@ -229,15 +229,16 @@ export default function AppFrame({
                   setActiveDay(idx);
                   setFocusActivityId(null);
                 }}
-                className={`px-6 py-3 font-medium whitespace-nowrap border-b-2 transition-colors ${
+                className={`px-4 py-1.5 rounded-full font-semibold text-sm whitespace-nowrap transition-colors ${
                   safeDayIdx === idx
-                    ? `border-blue-600 text-blue-600`
-                    : "border-transparent text-gray-500"
+                    ? "bg-primary-dark text-white"
+                    : "bg-surface-container text-ink-muted hover:bg-surface-container-high"
                 }`}
               >
                 יום {d.dayNum}
                 {tripStartDate && (
-                  <span className="text-[10px] text-gray-400">
+                  <span className="text-[10px] opacity-70">
+                    {" "}
                     (
                     {hebrewWeekdayLetter(
                       new Date(tripStartDate.getTime() + (d.dayNum - 1) * 86400000),
@@ -252,7 +253,7 @@ export default function AppFrame({
             <button
               onClick={() => scrollTabs(1)}
               aria-label="גלילה לימים נוספים"
-              className="flex-shrink-0 px-2 py-3 text-gray-400 hover:text-blue-600"
+              className="flex-shrink-0 p-1 text-ink-muted hover:text-primary"
             >
               <ChevronLeft size={18} />
             </button>
@@ -261,9 +262,9 @@ export default function AppFrame({
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto p-4 bg-gray-50 pb-24">
+      <div className="flex-1 overflow-y-auto p-4 bg-surface pb-24">
         {!hasTrip && (
-          <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 gap-3 px-6">
+          <div className="h-full flex flex-col items-center justify-center text-center text-ink-muted gap-3 px-6">
             <Smartphone size={40} className="opacity-40" />
             <p className="text-sm">
               הזינו את תיאור הטיול כדי לראות כאן תצוגה מקדימה חיה של האפליקציה.
@@ -328,31 +329,31 @@ export default function AppFrame({
       )}
 
       {/* Bottom Navigation */}
-      <div className="shrink-0 bg-white border-t flex justify-around p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 relative shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+      <div className="shrink-0 bg-white border-t border-outline/40 flex justify-around p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 relative shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
         <button
           onClick={() => setActiveTab("itinerary")}
-          className={`flex flex-col items-center gap-1 ${activeTab === "itinerary" ? "text-blue-600" : "text-gray-400"}`}
+          className={`flex flex-col items-center gap-1 ${activeTab === "itinerary" ? "text-secondary-dark" : "text-ink-muted"}`}
         >
           <Calendar size={20} />
           <span className="text-[10px]">לו"ז</span>
         </button>
         <button
           onClick={() => setActiveTab("map")}
-          className={`flex flex-col items-center gap-1 ${activeTab === "map" ? "text-blue-600" : "text-gray-400"}`}
+          className={`flex flex-col items-center gap-1 ${activeTab === "map" ? "text-secondary-dark" : "text-ink-muted"}`}
         >
           <Map size={20} />
           <span className="text-[10px]">מפה</span>
         </button>
         <button
           onClick={() => setActiveTab("price")}
-          className={`flex flex-col items-center gap-1 ${activeTab === "price" ? "text-blue-600" : "text-gray-400"}`}
+          className={`flex flex-col items-center gap-1 ${activeTab === "price" ? "text-secondary-dark" : "text-ink-muted"}`}
         >
           <DollarSign size={20} />
           <span className="text-[10px]">תמחור</span>
         </button>
         <button
           onClick={() => setActiveTab("chat")}
-          className={`flex flex-col items-center gap-1 ${activeTab === "chat" ? "text-blue-600" : "text-gray-400"}`}
+          className={`flex flex-col items-center gap-1 ${activeTab === "chat" ? "text-secondary-dark" : "text-ink-muted"}`}
         >
           <MessageCircle size={20} />
           <span className="text-[10px]">צ'אט AI</span>
