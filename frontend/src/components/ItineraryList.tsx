@@ -126,18 +126,18 @@ export default function ItineraryList({
                     type="time"
                     value={draft.time ?? ""}
                     onChange={(e) => setDraft((d) => ({ ...d, time: e.target.value }))}
-                    className="border border-gray-300 rounded-lg p-1.5 text-xs w-32"
+                    className="border border-outline/40 rounded-lg p-1.5 text-xs w-32"
                   />
                   <input
                     type="text"
                     value={draft.title ?? ""}
                     onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
-                    className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm font-bold"
+                    className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm font-bold"
                   />
                   <textarea
                     value={draft.desc ?? ""}
                     onChange={(e) => setDraft((d) => ({ ...d, desc: e.target.value }))}
-                    className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
+                    className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
                     rows={2}
                   />
                   <select
@@ -145,7 +145,7 @@ export default function ItineraryList({
                     onChange={(e) =>
                       setDraft((d) => ({ ...d, type: e.target.value as Activity["type"] }))
                     }
-                    className="border border-gray-300 rounded-lg p-1.5 text-sm w-32"
+                    className="border border-outline/40 rounded-lg p-1.5 text-sm w-32"
                   >
                     {Object.entries(ACTIVITY_TYPE_LABELS).map(([type, label]) => (
                       <option key={type} value={type}>
@@ -154,7 +154,7 @@ export default function ItineraryList({
                     ))}
                   </select>
                   <div className="flex gap-2 min-w-0">
-                    <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-gray-500">
+                    <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
                       מחיר
                       <input
                         type="number"
@@ -166,21 +166,21 @@ export default function ItineraryList({
                             price: e.target.value === "" ? null : Number(e.target.value),
                           }))
                         }
-                        className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
+                        className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
                       />
                     </label>
-                    <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-gray-500">
+                    <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
                       קישור לאתר
                       <input
                         type="url"
                         value={draft.url ?? ""}
                         onChange={(e) => setDraft((d) => ({ ...d, url: e.target.value }))}
-                        className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
+                        className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
                       />
                     </label>
                   </div>
                   <div className="flex gap-2 min-w-0">
-                    <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-gray-500">
+                    <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
                       קו רוחב (lat)
                       <input
                         type="number"
@@ -195,10 +195,10 @@ export default function ItineraryList({
                                 : { lat: Number(e.target.value), lng: d.map_coordinates?.lng ?? 0 },
                           }))
                         }
-                        className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
+                        className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
                       />
                     </label>
-                    <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-gray-500">
+                    <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
                       קו אורך (lng)
                       <input
                         type="number"
@@ -213,7 +213,7 @@ export default function ItineraryList({
                                 : { lat: d.map_coordinates?.lat ?? 0, lng: Number(e.target.value) },
                           }))
                         }
-                        className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
+                        className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
                       />
                     </label>
                   </div>
@@ -229,7 +229,7 @@ export default function ItineraryList({
                         setEditingId(null);
                         setDraft({});
                       }}
-                      className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-3 py-1.5 rounded-lg"
+                      className="bg-surface-container hover:bg-surface-container-high text-ink-muted text-xs px-3 py-1.5 rounded-lg"
                     >
                       ביטול
                     </button>
@@ -329,20 +329,20 @@ export default function ItineraryList({
                 type="time"
                 value={draft.time ?? ""}
                 onChange={(e) => setDraft((d) => ({ ...d, time: e.target.value }))}
-                className="border border-gray-300 rounded-lg p-1.5 text-xs w-32"
+                className="border border-outline/40 rounded-lg p-1.5 text-xs w-32"
               />
               <input
                 type="text"
                 value={draft.title ?? ""}
                 onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
                 placeholder="שם הפעילות"
-                className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm font-bold"
+                className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm font-bold"
               />
               <textarea
                 value={draft.desc ?? ""}
                 onChange={(e) => setDraft((d) => ({ ...d, desc: e.target.value }))}
                 placeholder="תיאור קצר"
-                className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
+                className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
                 rows={2}
               />
               <select
@@ -350,7 +350,7 @@ export default function ItineraryList({
                 onChange={(e) =>
                   setDraft((d) => ({ ...d, type: e.target.value as Activity["type"] }))
                 }
-                className="border border-gray-300 rounded-lg p-1.5 text-sm w-32"
+                className="border border-outline/40 rounded-lg p-1.5 text-sm w-32"
               >
                 {Object.entries(ACTIVITY_TYPE_LABELS).map(([type, label]) => (
                   <option key={type} value={type}>
@@ -359,7 +359,7 @@ export default function ItineraryList({
                 ))}
               </select>
               <div className="flex gap-2 min-w-0">
-                <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-gray-500">
+                <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
                   מחיר
                   <input
                     type="number"
@@ -371,21 +371,21 @@ export default function ItineraryList({
                         price: e.target.value === "" ? null : Number(e.target.value),
                       }))
                     }
-                    className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
+                    className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
                   />
                 </label>
-                <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-gray-500">
+                <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
                   קישור לאתר
                   <input
                     type="url"
                     value={draft.url ?? ""}
                     onChange={(e) => setDraft((d) => ({ ...d, url: e.target.value }))}
-                    className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
+                    className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
                   />
                 </label>
               </div>
               <div className="flex gap-2 min-w-0">
-                <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-gray-500">
+                <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
                   קו רוחב (lat)
                   <input
                     type="number"
@@ -400,10 +400,10 @@ export default function ItineraryList({
                             : { lat: Number(e.target.value), lng: d.map_coordinates?.lng ?? 0 },
                       }))
                     }
-                    className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
+                    className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
                   />
                 </label>
-                <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-gray-500">
+                <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
                   קו אורך (lng)
                   <input
                     type="number"
@@ -418,7 +418,7 @@ export default function ItineraryList({
                             : { lat: d.map_coordinates?.lat ?? 0, lng: Number(e.target.value) },
                       }))
                     }
-                    className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
+                    className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
                   />
                 </label>
               </div>
@@ -436,7 +436,7 @@ export default function ItineraryList({
                     setIsAdding(false);
                     setDraft({});
                   }}
-                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-3 py-1.5 rounded-lg"
+                  className="bg-surface-container hover:bg-surface-container-high text-ink-muted text-xs px-3 py-1.5 rounded-lg"
                 >
                   ביטול
                 </button>

@@ -332,28 +332,28 @@ export default function AppFrame({
       <div className="shrink-0 bg-white border-t border-outline/40 flex justify-around p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 relative shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
         <button
           onClick={() => setActiveTab("itinerary")}
-          className={`flex flex-col items-center gap-1 ${activeTab === "itinerary" ? "text-secondary-dark" : "text-gray-400"}`}
+          className={`flex flex-col items-center gap-1 ${activeTab === "itinerary" ? "text-secondary-dark" : "text-ink-muted"}`}
         >
           <Calendar size={20} />
           <span className="text-[10px]">לו"ז</span>
         </button>
         <button
           onClick={() => setActiveTab("map")}
-          className={`flex flex-col items-center gap-1 ${activeTab === "map" ? "text-secondary-dark" : "text-gray-400"}`}
+          className={`flex flex-col items-center gap-1 ${activeTab === "map" ? "text-secondary-dark" : "text-ink-muted"}`}
         >
           <Map size={20} />
           <span className="text-[10px]">מפה</span>
         </button>
         <button
           onClick={() => setActiveTab("price")}
-          className={`flex flex-col items-center gap-1 ${activeTab === "price" ? "text-secondary-dark" : "text-gray-400"}`}
+          className={`flex flex-col items-center gap-1 ${activeTab === "price" ? "text-secondary-dark" : "text-ink-muted"}`}
         >
           <DollarSign size={20} />
           <span className="text-[10px]">תמחור</span>
         </button>
         <button
           onClick={() => setActiveTab("chat")}
-          className={`flex flex-col items-center gap-1 ${activeTab === "chat" ? "text-secondary-dark" : "text-gray-400"}`}
+          className={`flex flex-col items-center gap-1 ${activeTab === "chat" ? "text-secondary-dark" : "text-ink-muted"}`}
         >
           <MessageCircle size={20} />
           <span className="text-[10px]">צ'אט AI</span>

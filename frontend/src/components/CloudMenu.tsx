@@ -282,7 +282,7 @@ export default function CloudMenu({
                   <button
                     onClick={() => handleDelete(trip)}
                     disabled={busy}
-                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 p-1"
+                    className="opacity-0 group-hover:opacity-100 text-ink-muted hover:text-red-500 p-1"
                   >
                     <X size={14} />
                   </button>

@@ -14,14 +14,14 @@ export default function LanguageIndicator({ language }: { language?: string | nu
     <div className="relative">
       <button
         onClick={() => setShowInfo((v) => !v)}
-        className="flex items-center gap-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded-full transition-colors"
+        className="flex items-center gap-1.5 text-xs font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-full transition-colors"
       >
         <Globe size={14} />
         {languageLabel(language)}
       </button>
 
       {showInfo && (
-        <div className="absolute left-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 p-3 z-40 text-right text-xs text-gray-600">
+        <div className="absolute left-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-outline/20 p-3 z-40 text-right text-xs text-ink-muted">
           שפת התשובות של הסוכן נקבעת לפי השפה השלטת בטקסט הטיול שהזנתם, ומתעדכנת אוטומטית אם תכתבו
           לו בשפה אחרת.
         </div>

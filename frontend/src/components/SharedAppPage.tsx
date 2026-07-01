@@ -77,19 +77,19 @@ export default function SharedAppPage({
   };
 
   return (
-    <div className="h-dvh overflow-hidden bg-gray-200 flex justify-center" dir="rtl">
-      <div className="w-full max-w-md h-dvh bg-gray-50 shadow-2xl flex flex-col overflow-hidden">
-        <div className="flex flex-wrap items-center gap-2 p-2 bg-white border-b border-gray-200 text-xs">
+    <div className="h-dvh overflow-hidden bg-surface-container flex justify-center" dir="rtl">
+      <div className="w-full max-w-md h-dvh bg-surface shadow-2xl flex flex-col overflow-hidden">
+        <div className="flex flex-wrap items-center gap-2 p-2 bg-white border-b border-outline/20 text-xs">
           <button
             onClick={() => exportTripToFile(tripData, theme)}
-            className="flex items-center gap-1 text-gray-600 hover:text-blue-600 bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded-lg"
+            className="flex items-center gap-1 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg"
           >
             <Download size={14} />
             ייצוא לקובץ
           </button>
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1 text-gray-600 hover:text-blue-600 bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded-lg"
+            className="flex items-center gap-1 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg"
           >
             <Upload size={14} />
             ייבוא מקובץ
@@ -104,7 +104,7 @@ export default function SharedAppPage({
           <button
             onClick={handleSaveToAccount}
             disabled={saveStatus === "working"}
-            className="flex items-center gap-1 text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 disabled:opacity-60 px-2.5 py-1.5 rounded-lg"
+            className="flex items-center gap-1 text-primary hover:text-primary-dark bg-primary/10 hover:bg-primary/20 disabled:opacity-60 px-2.5 py-1.5 rounded-lg"
           >
             <UserPlus size={14} />
             {saveStatus === "working" ? "שומר..." : "שמירה לחשבון שלי"}

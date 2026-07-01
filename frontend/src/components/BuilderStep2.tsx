@@ -55,14 +55,14 @@ export default function BuilderStep2({
         ולהוסיף את אלה ידנית מאוחר יותר מתוך הלו"ז.
       </p>
 
-      <label className="flex items-center gap-3 p-3 mb-3 bg-blue-50 rounded-xl border border-blue-100 cursor-pointer group">
+      <label className="flex items-center gap-3 p-3 mb-3 bg-primary/5 rounded-xl border border-primary/20 cursor-pointer group">
         <input
           type="checkbox"
           checked={allSelected}
           onChange={toggleAll}
-          className="w-5 h-5 accent-blue-600 rounded"
+          className="w-5 h-5 accent-primary rounded"
         />
-        <span className="text-sm font-semibold text-blue-700">בחר את כל האפשרויות</span>
+        <span className="text-sm font-semibold text-primary">בחר את כל האפשרויות</span>
       </label>
 
       <div className="space-y-3 mb-6">

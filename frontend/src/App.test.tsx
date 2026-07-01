@@ -178,7 +178,7 @@ describe("App builder flow", () => {
     expect(api.enhanceTrip).toHaveBeenCalledTimes(1);
     const [tripArg] = vi.mocked(api.enhanceTrip).mock.calls[0];
     expect(tripArg.days[0].activities.map((a) => a.id)).toEqual(["a2"]);
-    expect(screen.getByText("20")).toBeInTheDocument();
+    expect(screen.getByText("₪20")).toBeInTheDocument();
   });
 
   it("re-applies the chosen Step 2 enhancements to an activity added manually via the '+' button", async () => {
@@ -211,7 +211,7 @@ describe("App builder flow", () => {
       },
     }));
 
-    fireEvent.click(screen.getByRole("button", { name: "הוספת פעילות" }));
+    fireEvent.click(screen.getByRole("button", { name: "הוספת פעילות ליום זה" }));
     fireEvent.change(screen.getByPlaceholderText("שם הפעילות"), {
       target: { value: "Manually Added Spot" },
     });
@@ -225,7 +225,7 @@ describe("App builder flow", () => {
     const [tripArg] = vi.mocked(api.enhanceTrip).mock.calls[0];
     expect(tripArg.days[0].activities.map((a) => a.title)).toEqual(["Manually Added Spot"]);
     await waitFor(() => {
-      expect(screen.getByText("15")).toBeInTheDocument();
+      expect(screen.getByText("₪15")).toBeInTheDocument();
     });
   });
 
@@ -262,7 +262,7 @@ describe("App builder flow", () => {
       },
     }));
 
-    fireEvent.click(screen.getByRole("button", { name: "הוספת פעילות" }));
+    fireEvent.click(screen.getByRole("button", { name: "הוספת פעילות ליום זה" }));
     fireEvent.change(screen.getByPlaceholderText("שם הפעילות"), {
       target: { value: "Manually Added Spot" },
     });
@@ -282,7 +282,7 @@ describe("App builder flow", () => {
       links: true,
     });
     await waitFor(() => {
-      expect(screen.getByText("15")).toBeInTheDocument();
+      expect(screen.getByText("₪15")).toBeInTheDocument();
     });
   });
 
