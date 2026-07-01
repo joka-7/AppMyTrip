@@ -118,7 +118,7 @@ function AppLogo() {
     <img
       src="/logo.png"
       alt="AppMyTrip"
-      className="w-8 h-8 rounded-lg"
+      className="w-12 h-12 rounded-xl"
       onError={() => setFailed(true)}
     />
   );
