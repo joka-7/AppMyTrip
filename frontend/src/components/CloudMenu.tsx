@@ -63,19 +63,23 @@ export default function CloudMenu({
     }
   };
 
+  const refreshTrips = async (id: string) => {
+    setTrips(await listTrips(id));
+  };
+
   useEffect(() => {
     return onAuthChange((user) => {
-      if (!user) {
+      if (user) {
+        setEmail(user.email);
+        setUid(user.uid);
+        refreshTrips(user.uid);
+      } else {
         setEmail(null);
         setUid(null);
         setTrips([]);
       }
     });
   }, []);
-
-  const refreshTrips = async (id: string) => {
-    setTrips(await listTrips(id));
-  };
 
   const handleSignIn = async () => {
     setBusy(true);
