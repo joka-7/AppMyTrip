@@ -68,6 +68,19 @@ export interface GenerateMediaResponse {
   status: string;
 }
 
+/** Thrown by postJSON on a non-OK response; carries the parsed status/detail
+ * so callers can explain the actual failure instead of guessing from the
+ * message string. */
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly detail: string,
+  ) {
+    super(`API request failed (${status}): ${detail}`);
+    this.name = "ApiError";
+  }
+}
+
 async function postJSON<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
@@ -75,8 +88,17 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`API ${path} failed (${res.status}): ${detail}`);
+    const text = await res.text().catch(() => "");
+    let detail = text;
+    try {
+      const parsed = JSON.parse(text) as { detail?: unknown };
+      if (typeof parsed?.detail === "string" && parsed.detail) {
+        detail = parsed.detail;
+      }
+    } catch {
+      // Response body wasn't JSON (e.g. a proxy/502 HTML page) — keep the raw text.
+    }
+    throw new ApiError(res.status, detail);
   }
   return (await res.json()) as T;
 }

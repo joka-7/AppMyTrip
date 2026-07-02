@@ -134,6 +134,6 @@ describe("api client", () => {
       text: async () => "bad gateway",
     } as Response);
 
-    await expect(parseTrip("text")).rejects.toThrow(/API \/api\/trip\/parse failed \(502\)/);
+    await expect(parseTrip("text")).rejects.toThrow(/API request failed \(502\)/);
   });
 });

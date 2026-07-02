@@ -95,4 +95,36 @@ describe("ItineraryList", () => {
       }),
     );
   });
+
+  it("does not show a delete button when onDeleteActivity is not provided", () => {
+    render(
+      <ItineraryList
+        activities={activities}
+        themeClass="bg-blue-600"
+        playingPodcast={null}
+        onPlayPodcast={vi.fn()}
+        onUpdateActivity={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByLabelText("מחיקת פעילות")).not.toBeInTheDocument();
+  });
+
+  it("calls onDeleteActivity with the clicked activity's id", () => {
+    const onDeleteActivity = vi.fn();
+    render(
+      <ItineraryList
+        activities={activities}
+        themeClass="bg-blue-600"
+        playingPodcast={null}
+        onPlayPodcast={vi.fn()}
+        onUpdateActivity={vi.fn()}
+        onDeleteActivity={onDeleteActivity}
+      />,
+    );
+
+    const deleteButtons = screen.getAllByLabelText("מחיקת פעילות");
+    fireEvent.click(deleteButtons[1]);
+    expect(onDeleteActivity).toHaveBeenCalledWith("a2");
+  });
 });

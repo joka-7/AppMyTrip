@@ -52,6 +52,7 @@ export default function AppFrame({
   chatNotice,
   onUpdateActivity,
   onAddActivity,
+  onDeleteActivity,
   onUpdateTrip,
   isLocalOnly,
   localOnlyNoticeText,
@@ -67,6 +68,7 @@ export default function AppFrame({
   chatNotice?: string | null;
   onUpdateActivity: (dayIndex: number, activityId: string, patch: Partial<Activity>) => void;
   onAddActivity?: (dayIndex: number, activity: Activity) => void;
+  onDeleteActivity?: (dayIndex: number, activityId: string) => void;
   onUpdateTrip: (patch: Partial<Pick<TripData, "title" | "dates" | "photo_album_url">>) => void;
   isLocalOnly?: boolean;
   localOnlyNoticeText?: string;
@@ -117,6 +119,11 @@ export default function AppFrame({
     onUpdateActivity(safeDayIdx, activityId, patch);
 
   const handleAddActivity = (activity: Activity) => onAddActivity?.(safeDayIdx, activity);
+
+  const handleDeleteActivity = (activityId: string) => {
+    onDeleteActivity?.(safeDayIdx, activityId);
+    setFocusActivityId((prev) => (prev === activityId ? null : prev));
+  };
 
   const handleShowOnMap = (activityId: string) => {
     setFocusActivityId(activityId);
@@ -276,6 +283,7 @@ export default function AppFrame({
             onPlayPodcast={togglePlay}
             onUpdateActivity={handleUpdateActivity}
             onAddActivity={onAddActivity ? handleAddActivity : undefined}
+            onDeleteActivity={onDeleteActivity ? handleDeleteActivity : undefined}
             onShowOnMap={handleShowOnMap}
             isLocalOnly={isLocalOnly}
           />
