@@ -31,20 +31,29 @@ const EMPTY_TRIP: TripData = { title: "", dates: "", days: [] };
 // "server unreachable" failure, since it's transient and not a config issue.
 const isRateLimited = (err: unknown): boolean => err instanceof ApiError && err.status === 429;
 
-// Turns a failed API call into a specific, honest Hebrew explanation instead
-// of a generic "something went wrong" — the backend already returns a
-// meaningful `detail` (rate limit, no API key configured, LLM returned an
-// invalid/incomplete response, etc.), so surface that rather than papering
-// over the failure with a canned success message.
+// Turns a failed API call into a specific, honest Hebrew explanation instead of a
+// generic "something went wrong" — but never shows the backend's raw `detail` text
+// verbatim, since that's a developer-facing string (sometimes an entire Pydantic
+// validation dump) that isn't fit for a chat bubble. Instead, classify by HTTP status
+// into a short, clean explanation a non-technical user can actually act on.
 const describeApiError = (err: unknown, fallback: string): string => {
   if (isRateLimited(err)) {
     return "ספק ה-AI מגביל קצב בקשות כרגע — נסו שוב בעוד דקה.";
   }
   if (err instanceof ApiError) {
-    if (err.status === 401) {
-      return "לא הוגדר מפתח API ל-AI. הוסיפו מפתח משלכם בהגדרות (כפתור 'הגדרת מפתח API').";
+    switch (err.status) {
+      case 401:
+        return "לא הוגדר מפתח API ל-AI. הוסיפו מפתח משלכם בהגדרות (כפתור 'הגדרת מפתח API').";
+      case 413:
+        return "הבקשה גדולה מדי עבור ה-AI. נסו לפצל אותה לבקשות קצרות יותר.";
+      case 422:
+        return "התשובה שהתקבלה מה-AI לא הייתה תקינה. נסו לנסח את הבקשה מחדש או לנסות שוב.";
+      case 502:
+      case 504:
+        return "השרת לא הצליח לעבד את הבקשה — יתכן שהטיול ארוך מדי או שהשירות עמוס כרגע. נסו לפצל את הבקשה לשלבים קטנים יותר, או נסו שוב בעוד רגע.";
+      default:
+        return fallback;
     }
-    return err.detail ? `${fallback} (${err.detail})` : fallback;
   }
   return fallback;
 };
