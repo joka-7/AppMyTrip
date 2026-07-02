@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Wand2 } from "lucide-react";
-import { parseTrip, agentInteract, generateMedia, enhanceTrip } from "./api";
+import { parseTrip, agentInteract, generateMedia, enhanceTrip, ApiError } from "./api";
 import type { Activity, EnhanceOptions, TripData } from "./api";
 import ApiKeyMenu from "./components/ApiKeyMenu";
 import ApiNotice from "./components/ApiNotice";
@@ -29,8 +29,25 @@ const EMPTY_TRIP: TripData = { title: "", dates: "", days: [] };
 // The backend surfaces a 429 status when the LLM provider is rate-limiting
 // the configured API key — worth telling the user apart from a generic
 // "server unreachable" failure, since it's transient and not a config issue.
-const isRateLimited = (err: unknown): boolean =>
-  err instanceof Error && err.message.includes("(429)");
+const isRateLimited = (err: unknown): boolean => err instanceof ApiError && err.status === 429;
+
+// Turns a failed API call into a specific, honest Hebrew explanation instead
+// of a generic "something went wrong" — the backend already returns a
+// meaningful `detail` (rate limit, no API key configured, LLM returned an
+// invalid/incomplete response, etc.), so surface that rather than papering
+// over the failure with a canned success message.
+const describeApiError = (err: unknown, fallback: string): string => {
+  if (isRateLimited(err)) {
+    return "ספק ה-AI מגביל קצב בקשות כרגע — נסו שוב בעוד דקה.";
+  }
+  if (err instanceof ApiError) {
+    if (err.status === 401) {
+      return "לא הוגדר מפתח API ל-AI. הוסיפו מפתח משלכם בהגדרות (כפתור 'הגדרת מפתח API').";
+    }
+    return err.detail ? `${fallback} (${err.detail})` : fallback;
+  }
+  return fallback;
+};
 
 // Fallback used to enrich activities added after Step 2 (via chat or the "+" button)
 // when the user skipped Step 2 entirely and so never chose any extras to remember.
@@ -176,48 +193,6 @@ function TripBuilder() {
     window.history.pushState({ appStep: next }, "");
   };
 
-  // Local fallback used when the backend is unreachable, so the prototype
-  // remains demoable without a running API / Gemini key.
-  const mockAgentReply = (userText: string) => {
-    const wantsAdd =
-      userText.includes("כן") ||
-      userText.includes("תוסיף") ||
-      userText.includes("מסעדה") ||
-      userText.includes("אוכל") ||
-      userText.includes("חלבי");
-    if (wantsAdd) {
-      setTripData((prev) => {
-        if (prev.days.length === 0) return prev;
-        const next = {
-          ...prev,
-          days: prev.days.map((d) => ({ ...d, activities: [...d.activities] })),
-        };
-        const target = next.days[1] ?? next.days[0];
-        // place the new stop near an existing one so the auto-fit map stays sensible
-        const anchor = target.activities.find((a) => a.map_coordinates)?.map_coordinates;
-        target.activities.splice(1, 0, {
-          id: `food-${Date.now()}`,
-          time: "13:30",
-          title: "מסעדה מומלצת",
-          desc: "נוספה על ידי הסוכן לבקשתך.",
-          type: "food",
-          hasPodcast: false,
-          map_coordinates: anchor ? { lat: anchor.lat + 0.001, lng: anchor.lng + 0.001 } : null,
-        });
-        return next;
-      });
-      setAgentMessages((prev) => [
-        ...prev,
-        { role: "agent", text: 'מצוין! הוספתי מסעדה (בדקו בלו"ז ובמפה). נעבור לשלב העיצוב?' },
-      ]);
-    } else {
-      setAgentMessages((prev) => [
-        ...prev,
-        { role: "agent", text: "הבנתי. אם הכל מוכן, בואו נתקדם לשלב העיצוב!" },
-      ]);
-    }
-  };
-
   const handleProcessText = async () => {
     if (!rawText.trim()) return;
     setIsProcessing(true);
@@ -329,12 +304,9 @@ function TripBuilder() {
       setAgentMessages((prev) => [...prev, { role: "agent", text: res.agent_reply }]);
     } catch (err) {
       console.error(err);
-      setApiNotice(
-        isRateLimited(err)
-          ? "ספק ה-AI מגביל קצב בקשות כרגע — נסו שוב בעוד דקה. בינתיים מגיב במצב דמו מקומי."
-          : "שרת ה-AI לא זמין — מגיב במצב דמו מקומי.",
-      );
-      mockAgentReply(userText);
+      const message = describeApiError(err, 'העדכון נכשל — הלו"ז לא השתנה.');
+      setApiNotice(message);
+      setAgentMessages((prev) => [...prev, { role: "agent", text: message }]);
     } finally {
       setIsSendingMessage(false);
     }
@@ -364,6 +336,17 @@ function TripBuilder() {
     };
     setTripData(after);
     setTripData(await enhanceNewActivities(before, after));
+  };
+
+  const handleDeleteActivity = (dayIndex: number, activityId: string) => {
+    setTripData((prev) => ({
+      ...prev,
+      days: prev.days.map((d, idx) =>
+        idx !== dayIndex
+          ? d
+          : { ...d, activities: d.activities.filter((a) => a.id !== activityId) },
+      ),
+    }));
   };
 
   const handleUpdateTrip = (
@@ -504,6 +487,7 @@ function TripBuilder() {
             isSendingMessage={isSendingMessage}
             onUpdateActivity={handleUpdateActivity}
             onAddActivity={handleAddActivity}
+            onDeleteActivity={handleDeleteActivity}
             onUpdateTrip={handleUpdateTrip}
           />
         </div>
@@ -571,11 +555,7 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
       setAgentMessages((prev) => [...prev, { role: "agent", text: res.agent_reply }]);
     } catch (err) {
       console.error(err);
-      setChatNotice(
-        isRateLimited(err)
-          ? "ספק ה-AI מגביל קצב בקשות כרגע — נסו שוב בעוד דקה."
-          : "צ'אט ה-AI לא זמין כרגע. נסו שוב מאוחר יותר.",
-      );
+      setChatNotice(describeApiError(err, 'העדכון נכשל — הלו"ז לא השתנה.'));
     } finally {
       setIsSendingMessage(false);
     }
@@ -608,6 +588,21 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
             ...prev,
             days: prev.days.map((d, idx) =>
               idx !== dayIndex ? d : { ...d, activities: [...d.activities, activity] },
+            ),
+          }
+        : prev,
+    );
+  };
+
+  const handleDeleteActivity = (dayIndex: number, activityId: string) => {
+    setTrip((prev) =>
+      prev
+        ? {
+            ...prev,
+            days: prev.days.map((d, idx) =>
+              idx !== dayIndex
+                ? d
+                : { ...d, activities: d.activities.filter((a) => a.id !== activityId) },
             ),
           }
         : prev,
@@ -652,6 +647,7 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
       chatNotice={chatNotice}
       onUpdateActivity={handleUpdateActivity}
       onAddActivity={handleAddActivity}
+      onDeleteActivity={handleDeleteActivity}
       onUpdateTrip={handleUpdateTrip}
       onImportTrip={(importedTrip, importedTheme) => {
         setTrip(importedTrip);

@@ -30,6 +30,7 @@ export default function SharedAppPage({
   chatNotice,
   onUpdateActivity,
   onAddActivity,
+  onDeleteActivity,
   onUpdateTrip,
   onImportTrip,
 }: {
@@ -44,6 +45,7 @@ export default function SharedAppPage({
   chatNotice?: string | null;
   onUpdateActivity: (dayIndex: number, activityId: string, patch: Partial<Activity>) => void;
   onAddActivity: (dayIndex: number, activity: Activity) => void;
+  onDeleteActivity?: (dayIndex: number, activityId: string) => void;
   onUpdateTrip: (patch: Partial<Pick<TripData, "title" | "dates" | "photo_album_url">>) => void;
   onImportTrip: (tripData: TripData, theme: Theme) => void;
 }) {
@@ -140,6 +142,7 @@ export default function SharedAppPage({
             chatNotice={chatNotice}
             onUpdateActivity={onUpdateActivity}
             onAddActivity={onAddActivity}
+            onDeleteActivity={onDeleteActivity}
             onUpdateTrip={onUpdateTrip}
             isLocalOnly
             localOnlyNoticeText="שינויים שתבצעו כאן (כולל דרך הצ'אט) יישמרו רק בדפדפן הזה ולא יישלחו לשרת."

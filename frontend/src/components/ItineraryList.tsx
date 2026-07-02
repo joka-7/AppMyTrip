@@ -9,6 +9,7 @@ import {
   Plane,
   Play,
   Plus,
+  Trash2,
   Utensils,
   Volume2,
 } from "lucide-react";
@@ -48,6 +49,7 @@ export default function ItineraryList({
   onPlayPodcast,
   onUpdateActivity,
   onAddActivity,
+  onDeleteActivity,
   onShowOnMap,
   isLocalOnly,
 }: {
@@ -57,6 +59,7 @@ export default function ItineraryList({
   onPlayPodcast: (act: Activity) => void;
   onUpdateActivity: (activityId: string, patch: Partial<Activity>) => void;
   onAddActivity?: (activity: Activity) => void;
+  onDeleteActivity?: (activityId: string) => void;
   onShowOnMap?: (activityId: string) => void;
   isLocalOnly?: boolean;
 }) {
@@ -233,6 +236,19 @@ export default function ItineraryList({
                     >
                       ביטול
                     </button>
+                    {onDeleteActivity && (
+                      <button
+                        onClick={() => {
+                          onDeleteActivity(act.id);
+                          setEditingId(null);
+                          setDraft({});
+                        }}
+                        className="bg-red-50 hover:bg-red-100 text-red-600 text-xs px-3 py-1.5 rounded-lg flex items-center gap-1"
+                      >
+                        <Trash2 size={12} />
+                        מחיקה
+                      </button>
+                    )}
                     {isLocalOnly && (
                       <span className="text-[10px] text-amber-600">לא נשמר בשרת</span>
                     )}
@@ -273,6 +289,15 @@ export default function ItineraryList({
                       >
                         <Pencil size={14} />
                       </button>
+                      {onDeleteActivity && (
+                        <button
+                          onClick={() => onDeleteActivity(act.id)}
+                          aria-label="מחיקת פעילות"
+                          className="text-ink-muted hover:text-red-500 p-1"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   </div>
                   <h4 className="font-bold text-ink mt-1">{act.title}</h4>
