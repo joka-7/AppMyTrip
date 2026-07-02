@@ -324,6 +324,23 @@ class LLMService:
         try:
             return AgentResponse(**json_data)
         except ValidationError as e:
+            # The model occasionally returns a well-formed updated_trip but forgets the
+            # accompanying agent_reply text — a formatting slip, not a failed edit. Don't
+            # discard a successful itinerary update over a missing chat message: fall back
+            # to a short reply in the trip's own language instead of erroring out.
+            if (
+                isinstance(json_data, dict)
+                and isinstance(json_data.get("updated_trip"), dict)
+                and not json_data.get("agent_reply")
+            ):
+                try:
+                    updated_trip = TripData(**json_data["updated_trip"])
+                except ValidationError:
+                    raise HTTPException(
+                        status_code=422, detail=f"LLM returned invalid schema: {str(e)}"
+                    ) from e
+                fallback_reply = "בוצע!" if updated_trip.language == "he" else "Done!"
+                return AgentResponse(updated_trip=updated_trip, agent_reply=fallback_reply)
             raise HTTPException(
                 status_code=422, detail=f"LLM returned invalid schema: {str(e)}"
             ) from e

@@ -539,6 +539,25 @@ def test_agent_interaction_tolerates_unexpected_extra_fields(monkeypatch):
     assert result.updated_trip.days[0].activities[0].title == "Spanish Steps"
 
 
+def test_agent_interaction_falls_back_to_a_default_reply_when_agent_reply_is_missing(monkeypatch):
+    # A well-formed updated_trip but a forgotten agent_reply field is a formatting
+    # slip, not a failed edit — the itinerary update should still go through.
+    new_trip = _sample_trip().model_dump()
+    result = _agent_interaction_with(monkeypatch, {"updated_trip": new_trip})
+    assert result.agent_reply
+    assert result.updated_trip.days[0].activities[0].id == "a1"
+
+
+def test_agent_interaction_still_rejects_invalid_updated_trip_with_missing_reply(monkeypatch):
+    # The fallback only covers a missing agent_reply — a genuinely broken
+    # updated_trip alongside it should still raise.
+    new_trip = _sample_trip().model_dump()
+    new_trip["days"][0]["activities"][0].pop("title")
+    with pytest.raises(HTTPException) as exc_info:
+        _agent_interaction_with(monkeypatch, {"updated_trip": new_trip})
+    assert exc_info.value.status_code == 422
+
+
 def test_agent_interaction_handles_reordered_and_renumbered_days(monkeypatch):
     # Moving an activity to a new day and renumbering days should round-trip cleanly.
     new_trip = {

@@ -268,7 +268,7 @@ export default function ItineraryList({
                           target="_blank"
                           rel="noopener noreferrer"
                           aria-label="קישור לאתר הפעילות"
-                          className="text-ink-muted hover:text-primary p-1"
+                          className="text-sky-500 hover:text-sky-700 p-1"
                         >
                           <LinkIcon size={14} />
                         </a>
@@ -277,7 +277,7 @@ export default function ItineraryList({
                         <button
                           onClick={() => onShowOnMap(act.id)}
                           aria-label="הצגת הפעילות על המפה"
-                          className="text-ink-muted hover:text-primary p-1"
+                          className="text-emerald-500 hover:text-emerald-700 p-1"
                         >
                           <MapPin size={14} />
                         </button>
@@ -285,7 +285,7 @@ export default function ItineraryList({
                       <button
                         onClick={() => startEdit(act)}
                         aria-label="עריכת פעילות"
-                        className="text-ink-muted hover:text-primary p-1"
+                        className="text-amber-500 hover:text-amber-700 p-1"
                       >
                         <Pencil size={14} />
                       </button>
@@ -293,7 +293,7 @@ export default function ItineraryList({
                         <button
                           onClick={() => onDeleteActivity(act.id)}
                           aria-label="מחיקת פעילות"
-                          className="text-ink-muted hover:text-red-500 p-1"
+                          className="text-red-500 hover:text-red-700 p-1"
                         >
                           <Trash2 size={14} />
                         </button>
