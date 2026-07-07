@@ -55,7 +55,7 @@ describe("ItineraryList", () => {
     expect(screen.getByText("מתנגן כעת...")).toBeInTheDocument();
   });
 
-  it("lets the user fill in price, link, and location directly when manually adding an activity", () => {
+  it("lets the user fill in price and link when manually adding an activity, leaving location unset", () => {
     const onAddActivity = vi.fn();
     render(
       <ItineraryList
@@ -78,12 +78,8 @@ describe("ItineraryList", () => {
     fireEvent.change(screen.getByText("קישור לאתר").closest("label")!.querySelector("input")!, {
       target: { value: "https://example.com" },
     });
-    fireEvent.change(screen.getByText("קו רוחב (lat)").closest("label")!.querySelector("input")!, {
-      target: { value: "1.5" },
-    });
-    fireEvent.change(screen.getByText("קו אורך (lng)").closest("label")!.querySelector("input")!, {
-      target: { value: "2.5" },
-    });
+    // Location is picked via an embedded map (LocationPicker), left unset here.
+    expect(screen.getByText(/לחצו על המפה לבחירת מיקום/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "הוספה" }));
 
     expect(onAddActivity).toHaveBeenCalledWith(
@@ -91,8 +87,33 @@ describe("ItineraryList", () => {
         title: "New Spot",
         price: 42,
         url: "https://example.com",
-        map_coordinates: { lat: 1.5, lng: 2.5 },
+        map_coordinates: null,
       }),
+    );
+  });
+
+  it("lets the user clear an existing location via the map picker when editing", () => {
+    const onUpdateActivity = vi.fn();
+    const activitiesWithCoords: Activity[] = [
+      { ...activities[0], map_coordinates: { lat: 41.9, lng: 12.5 } },
+    ];
+    render(
+      <ItineraryList
+        activities={activitiesWithCoords}
+        themeClass="bg-blue-600"
+        playingPodcast={null}
+        onPlayPodcast={vi.fn()}
+        onUpdateActivity={onUpdateActivity}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("עריכת פעילות"));
+    fireEvent.click(screen.getByRole("button", { name: "ניקוי מיקום" }));
+    fireEvent.click(screen.getByRole("button", { name: "שמירה" }));
+
+    expect(onUpdateActivity).toHaveBeenCalledWith(
+      "a1",
+      expect.objectContaining({ map_coordinates: null }),
     );
   });
 

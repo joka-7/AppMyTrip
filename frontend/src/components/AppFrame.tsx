@@ -294,6 +294,7 @@ export default function AppFrame({
             <MapView
               activities={day.activities}
               onUpdateActivity={handleUpdateActivity}
+              onAddActivity={onAddActivity ? handleAddActivity : undefined}
               focusActivityId={focusActivityId}
               onClearFocus={() => setFocusActivityId(null)}
             />
