@@ -1,9 +1,19 @@
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
-import { useEffect } from "react";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  Polyline,
+  useMap,
+  useMapEvents,
+} from "react-leaflet";
+import { useEffect, useState } from "react";
 import L from "leaflet";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ArrowRight, ExternalLink, Utensils, Bed, Landmark, Plane } from "lucide-react";
+import { ArrowRight, ExternalLink, MapPinPlus, Utensils, Bed, Landmark, Plane } from "lucide-react";
 import type { Activity } from "../api";
+import { ACTIVITY_TYPE_LABELS } from "../services/activityTypes";
+import { newActivityId } from "../services/id";
 
 /**
  * A Google Maps search query for an activity: the place's name, biased toward its
@@ -76,6 +86,13 @@ function markerIcon(type: Activity["type"]) {
   });
 }
 
+const PENDING_ICON = L.divIcon({
+  html: '<div style="width:16px;height:16px;border-radius:9999px;background:#f59e0b;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>',
+  className: "",
+  iconSize: [16, 16],
+  iconAnchor: [8, 8],
+});
+
 function FitBounds({ activities }: { activities: Activity[] }) {
   const map = useMap();
   useEffect(() => {
@@ -92,25 +109,54 @@ function FitBounds({ activities }: { activities: Activity[] }) {
   return null;
 }
 
+/** Clicking anywhere on the map that isn't an existing marker/popup starts a new
+ * pending activity at that spot — disabled while a single activity is focused. */
+function ClickToAdd({
+  enabled,
+  onPick,
+}: {
+  enabled: boolean;
+  onPick: (coords: { lat: number; lng: number }) => void;
+}) {
+  useMapEvents({
+    click(e) {
+      if (!enabled) return;
+      const target = e.originalEvent.target as HTMLElement;
+      if (target.closest(".leaflet-marker-icon") || target.closest(".leaflet-popup")) return;
+      onPick({ lat: e.latlng.lat, lng: e.latlng.lng });
+    },
+  });
+  return null;
+}
+
+const FALLBACK_CENTER: [number, number] = [41.9028, 12.4964];
+
 export default function MapView({
   activities,
   onUpdateActivity,
+  onAddActivity,
   focusActivityId,
   onClearFocus,
 }: {
   activities: Activity[];
   onUpdateActivity?: (activityId: string, patch: Partial<Activity>) => void;
+  onAddActivity?: (activity: Activity) => void;
   /** When set, show only this single activity's pin instead of the whole day. */
   focusActivityId?: string | null;
   onClearFocus?: () => void;
 }) {
+  const [pendingLocation, setPendingLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [pendingTitle, setPendingTitle] = useState("");
+  const [pendingType, setPendingType] = useState<Activity["type"]>("attraction");
+
   const allCoordActs = activities.filter((a) => a.map_coordinates);
   const focusedAct = focusActivityId
     ? allCoordActs.find((a) => a.id === focusActivityId)
     : undefined;
   const coordActs = focusedAct ? [focusedAct] : allCoordActs;
+  const canAdd = Boolean(onAddActivity) && !focusedAct;
 
-  if (coordActs.length === 0) {
+  if (coordActs.length === 0 && !onAddActivity) {
     return (
       <div className="h-full w-full flex items-center justify-center text-center text-ink-muted text-sm rounded-xl border border-outline/40 bg-surface-container-low">
         אין קואורדינטות להצגה על המפה ביום זה.
@@ -118,10 +164,9 @@ export default function MapView({
     );
   }
 
-  const center: [number, number] = [
-    coordActs[0].map_coordinates!.lat,
-    coordActs[0].map_coordinates!.lng,
-  ];
+  const center: [number, number] = coordActs[0]
+    ? [coordActs[0].map_coordinates!.lat, coordActs[0].map_coordinates!.lng]
+    : FALLBACK_CENTER;
 
   // Straight line connecting the day's stops in chronological order — not a
   // real driving/walking route (no routing API involved), just a visual cue
@@ -130,6 +175,27 @@ export default function MapView({
     a.map_coordinates!.lat,
     a.map_coordinates!.lng,
   ]);
+
+  const savePending = () => {
+    if (!pendingLocation || !pendingTitle.trim() || !onAddActivity) return;
+    onAddActivity({
+      id: newActivityId(),
+      time: "",
+      title: pendingTitle.trim(),
+      desc: "",
+      type: pendingType,
+      map_coordinates: pendingLocation,
+    });
+    setPendingLocation(null);
+    setPendingTitle("");
+    setPendingType("attraction");
+  };
+
+  const cancelPending = () => {
+    setPendingLocation(null);
+    setPendingTitle("");
+    setPendingType("attraction");
+  };
 
   return (
     <div className="h-full w-full flex flex-col gap-2">
@@ -166,11 +232,55 @@ export default function MapView({
             </a>
           )
         )}
+        {canAdd && !pendingLocation && (
+          <span className="flex items-center gap-1.5 text-xs text-ink-muted">
+            <MapPinPlus size={14} />
+            לחצו על המפה כדי להוסיף פעילות חדשה במיקום זה
+          </span>
+        )}
       </div>
+
+      {pendingLocation && (
+        <div className="flex flex-wrap items-center gap-2 bg-white border border-outline/40 rounded-lg p-2 animate-fade-in">
+          <input
+            type="text"
+            autoFocus
+            value={pendingTitle}
+            onChange={(e) => setPendingTitle(e.target.value)}
+            placeholder="שם הפעילות"
+            className="flex-1 min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
+          />
+          <select
+            value={pendingType}
+            onChange={(e) => setPendingType(e.target.value as Activity["type"])}
+            className="border border-outline/40 rounded-lg p-1.5 text-sm"
+          >
+            {Object.entries(ACTIVITY_TYPE_LABELS).map(([type, label]) => (
+              <option key={type} value={type}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={savePending}
+            disabled={!pendingTitle.trim()}
+            className="bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-xs px-3 py-1.5 rounded-lg"
+          >
+            הוספה
+          </button>
+          <button
+            onClick={cancelPending}
+            className="bg-surface-container hover:bg-surface-container-high text-ink-muted text-xs px-3 py-1.5 rounded-lg"
+          >
+            ביטול
+          </button>
+        </div>
+      )}
+
       <div className="flex-1 rounded-xl overflow-hidden border border-outline/40 shadow-inner">
         <MapContainer
           center={center}
-          zoom={13}
+          zoom={coordActs[0] ? 13 : 2}
           scrollWheelZoom
           touchZoom
           doubleClickZoom
@@ -181,6 +291,7 @@ export default function MapView({
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           <FitBounds activities={coordActs} />
+          <ClickToAdd enabled={canAdd} onPick={setPendingLocation} />
           {routePoints.length > 1 && (
             <Polyline
               positions={routePoints}
@@ -219,6 +330,19 @@ export default function MapView({
               </Popup>
             </Marker>
           ))}
+          {pendingLocation && (
+            <Marker
+              position={[pendingLocation.lat, pendingLocation.lng]}
+              icon={PENDING_ICON}
+              draggable
+              eventHandlers={{
+                dragend: (e) => {
+                  const { lat, lng } = e.target.getLatLng();
+                  setPendingLocation({ lat, lng });
+                },
+              }}
+            />
+          )}
         </MapContainer>
       </div>
     </div>

@@ -14,23 +14,15 @@ import {
   Volume2,
 } from "lucide-react";
 import type { Activity } from "../api";
-
-function newActivityId(): string {
-  return typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `act-${Date.now()}`;
-}
+import { ACTIVITY_TYPE_LABELS } from "../services/activityTypes";
+import { newActivityId } from "../services/id";
+import LocationPicker from "./LocationPicker";
 
 const ACTIVITY_ICONS: Record<Activity["type"], typeof Utensils> = {
   food: Utensils,
   lodging: Bed,
   transport: Plane,
   attraction: Landmark,
-};
-
-const ACTIVITY_TYPE_LABELS: Record<Activity["type"], string> = {
-  attraction: "אטרקציה",
-  food: "אוכל",
-  lodging: "לינה",
-  transport: "תחבורה",
 };
 
 // Per-category accent used for the card's leading border and the price chip,
@@ -66,6 +58,10 @@ export default function ItineraryList({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<Activity>>({});
   const [isAdding, setIsAdding] = useState(false);
+
+  // Centers the location picker's mini map near the day's other stops instead of
+  // defaulting to a fixed spot halfway across the world.
+  const anchorCenter = activities.find((a) => a.map_coordinates)?.map_coordinates ?? undefined;
 
   const startEdit = (act: Activity) => {
     setEditingId(act.id);
@@ -182,44 +178,11 @@ export default function ItineraryList({
                       />
                     </label>
                   </div>
-                  <div className="flex gap-2 min-w-0">
-                    <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
-                      קו רוחב (lat)
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        value={draft.map_coordinates?.lat ?? ""}
-                        onChange={(e) =>
-                          setDraft((d) => ({
-                            ...d,
-                            map_coordinates:
-                              e.target.value === ""
-                                ? null
-                                : { lat: Number(e.target.value), lng: d.map_coordinates?.lng ?? 0 },
-                          }))
-                        }
-                        className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
-                      />
-                    </label>
-                    <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
-                      קו אורך (lng)
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        value={draft.map_coordinates?.lng ?? ""}
-                        onChange={(e) =>
-                          setDraft((d) => ({
-                            ...d,
-                            map_coordinates:
-                              e.target.value === ""
-                                ? null
-                                : { lat: d.map_coordinates?.lat ?? 0, lng: Number(e.target.value) },
-                          }))
-                        }
-                        className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
-                      />
-                    </label>
-                  </div>
+                  <LocationPicker
+                    value={draft.map_coordinates ?? null}
+                    onChange={(coords) => setDraft((d) => ({ ...d, map_coordinates: coords }))}
+                    defaultCenter={anchorCenter}
+                  />
                   <div className="flex gap-2 items-center">
                     <button
                       onClick={() => saveEdit(act.id)}
@@ -409,45 +372,11 @@ export default function ItineraryList({
                   />
                 </label>
               </div>
-              <div className="flex gap-2 min-w-0">
-                <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
-                  קו רוחב (lat)
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    value={draft.map_coordinates?.lat ?? ""}
-                    onChange={(e) =>
-                      setDraft((d) => ({
-                        ...d,
-                        map_coordinates:
-                          e.target.value === ""
-                            ? null
-                            : { lat: Number(e.target.value), lng: d.map_coordinates?.lng ?? 0 },
-                      }))
-                    }
-                    className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
-                  />
-                </label>
-                <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
-                  קו אורך (lng)
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    value={draft.map_coordinates?.lng ?? ""}
-                    onChange={(e) =>
-                      setDraft((d) => ({
-                        ...d,
-                        map_coordinates:
-                          e.target.value === ""
-                            ? null
-                            : { lat: d.map_coordinates?.lat ?? 0, lng: Number(e.target.value) },
-                      }))
-                    }
-                    className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
-                  />
-                </label>
-              </div>
-              <p className="text-[11px] text-ink-muted">ניתן להשאיר ריק — המיקום יאותר אוטומטית</p>
+              <LocationPicker
+                value={draft.map_coordinates ?? null}
+                onChange={(coords) => setDraft((d) => ({ ...d, map_coordinates: coords }))}
+                defaultCenter={anchorCenter}
+              />
               <div className="flex gap-2 items-center">
                 <button
                   onClick={saveAdd}
