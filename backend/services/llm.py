@@ -44,7 +44,16 @@ class GeminiProvider:
         payload = {
             "systemInstruction": {"parts": [{"text": system_prompt}]},
             "contents": [{"parts": [{"text": user_content}]}],
-            "generationConfig": {"responseMimeType": "application/json"},
+            # Each agent turn echoes back the *entire* itinerary (not a diff), which can
+            # run long for multi-day trips with many activities — too low a cap here
+            # truncates the JSON mid-day, silently dropping the rest of the trip. Gemini
+            # 2.5 models also spend part of this same budget on internal "thinking" before
+            # writing the answer, so too low a cap can leave nothing for the actual JSON
+            # and come back completely empty rather than merely truncated.
+            "generationConfig": {
+                "responseMimeType": "application/json",
+                "maxOutputTokens": 16384,
+            },
         }
         async with httpx.AsyncClient() as client:
             response = await client.post(url, json=payload, timeout=30.0)
@@ -81,6 +90,11 @@ class _OpenAICompatibleProvider:
                 {"role": "user", "content": user_content},
             ],
             "response_format": {"type": "json_object"},
+            # Each agent turn echoes back the *entire* itinerary (not a diff), which can
+            # run long for multi-day trips with many activities — left unset, some
+            # providers/models default to a much smaller completion budget than their
+            # context window allows, silently truncating the JSON mid-day.
+            "max_tokens": 16384,
         }
         headers = {"Authorization": f"Bearer {self.api_key}"}
         async with httpx.AsyncClient() as client:
@@ -134,7 +148,7 @@ class AnthropicProvider:
             # Each agent turn echoes back the *entire* itinerary (not a diff), which can
             # run long for multi-day trips with many activities — too low a cap here
             # truncates the JSON mid-day, silently dropping the rest of the trip.
-            "max_tokens": 8192,
+            "max_tokens": 16384,
             "system": f"{system_prompt}\nRespond with ONLY valid JSON — no markdown fences, no commentary.",
             "messages": [{"role": "user", "content": user_content}],
         }
