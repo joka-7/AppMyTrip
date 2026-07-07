@@ -5,11 +5,23 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ArrowRight, ExternalLink, Utensils, Bed, Landmark, Plane } from "lucide-react";
 import type { Activity } from "../api";
 
+/**
+ * A Google Maps search query for an activity: the place's name, biased toward its
+ * generated coordinates so Maps resolves the actual named place (with its real
+ * listing, hours, reviews) rather than dropping a bare, nameless GPS pin — which is
+ * all a plain "lat,lng" query produces. Falls back to raw coordinates only if the
+ * activity somehow has no title.
+ */
+function placeQuery(act: Activity): string {
+  const { lat, lng } = act.map_coordinates!;
+  return act.title.trim() ? `${act.title.trim()} @${lat},${lng}` : `${lat},${lng}`;
+}
+
 /** Builds a Google Maps URL centered on a single place (no routing). */
 function googleMapsPlaceUrl(act: Activity): string {
   const url = new URL("https://www.google.com/maps/search/");
   url.searchParams.set("api", "1");
-  url.searchParams.set("query", `${act.map_coordinates!.lat},${act.map_coordinates!.lng}`);
+  url.searchParams.set("query", placeQuery(act));
   return url.toString();
 }
 
@@ -20,7 +32,7 @@ function googleMapsPlaceUrl(act: Activity): string {
  * device/account language for free.
  */
 function googleMapsDirectionsUrl(coordActs: Activity[]): string {
-  const points = coordActs.map((a) => `${a.map_coordinates!.lat},${a.map_coordinates!.lng}`);
+  const points = coordActs.map(placeQuery);
   const url = new URL("https://www.google.com/maps/dir/");
   url.searchParams.set("api", "1");
   url.searchParams.set("origin", points[0]);
@@ -192,7 +204,19 @@ export default function MapView({
                   : undefined
               }
             >
-              <Popup>{act.title}</Popup>
+              <Popup>
+                <div className="flex flex-col gap-1">
+                  <span className="font-semibold">{act.title}</span>
+                  <a
+                    href={googleMapsPlaceUrl(act)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:text-primary-dark text-xs"
+                  >
+                    פתיחה ב-Google Maps
+                  </a>
+                </div>
+              </Popup>
             </Marker>
           ))}
         </MapContainer>

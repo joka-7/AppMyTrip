@@ -33,4 +33,18 @@ describe("MapView", () => {
     render(<MapView activities={[activityWithoutCoords]} />);
     expect(screen.getByText(/אין קואורדינטות להצגה/)).toBeInTheDocument();
   });
+
+  it("links to Google Maps by place name (not just raw coordinates) when focused on a single activity", () => {
+    render(
+      <MapView
+        activities={[activityWithCoords]}
+        focusActivityId="a1"
+        onClearFocus={() => {}}
+      />,
+    );
+    const link = screen.getByRole("link", { name: "פתיחה ב-Google Maps" });
+    const query = new URL(link.getAttribute("href")!).searchParams.get("query");
+    expect(query).toContain("Museum");
+    expect(query).toContain("41.9,12.5");
+  });
 });
