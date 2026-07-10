@@ -341,6 +341,85 @@ def test_agent_endpoint_allows_a_legitimate_partial_change(monkeypatch):
     assert resp.status_code == 200
 
 
+def test_agent_endpoint_allows_a_large_but_legitimate_restructure(monkeypatch):
+    # A big edit that isn't phrased with any deletion keyword (e.g. "shorten
+    # this trip") should still go through as long as it doesn't collapse
+    # past the (loosened) 65%-drop threshold.
+    trimmed = _multi_day_trip(4)  # 9 -> 4 activities: a 56% drop, over the old 50% bar
+    monkeypatch.setattr(
+        LLMService,
+        "agent_interaction",
+        AsyncMock(return_value=AgentResponse(updated_trip=trimmed, agent_reply="קיצרתי")),
+    )
+    resp = client.post(
+        "/api/trip/agent",
+        json={
+            "trip_data": _multi_day_trip(9).model_dump(),
+            "user_message": "trim this itinerary down, it's too packed",
+        },
+    )
+    assert resp.status_code == 200
+
+
+def test_agent_endpoint_recognizes_deletion_keywords_in_other_languages(monkeypatch):
+    # The deletion allowlist isn't limited to Hebrew/English anymore.
+    kept_only_day1 = _multi_day_trip(1)
+    monkeypatch.setattr(
+        LLMService,
+        "agent_interaction",
+        AsyncMock(return_value=AgentResponse(updated_trip=kept_only_day1, agent_reply="Supprimé")),
+    )
+    resp = client.post(
+        "/api/trip/agent",
+        json={
+            "trip_data": _multi_day_trip(9).model_dump(),
+            "user_message": "Supprime tous les jours sauf le premier",
+        },
+    )
+    assert resp.status_code == 200
+
+
+def test_agent_endpoint_retries_once_before_rejecting_a_truncated_response(monkeypatch):
+    # A truncated response is often a one-off hiccup — the backend should
+    # silently retry the agent call once before surfacing an error.
+    collapsed = _multi_day_trip(1)
+    recovered = _multi_day_trip(9)
+    mock = AsyncMock(
+        side_effect=[
+            AgentResponse(updated_trip=collapsed, agent_reply="עדכנתי"),
+            AgentResponse(updated_trip=recovered, agent_reply="עדכנתי בהצלחה"),
+        ]
+    )
+    monkeypatch.setattr(LLMService, "agent_interaction", mock)
+    resp = client.post(
+        "/api/trip/agent",
+        json={
+            "trip_data": _multi_day_trip(9).model_dump(),
+            "user_message": "add a coffee stop on day 3",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["agent_reply"] == "עדכנתי בהצלחה"
+    assert mock.await_count == 2
+
+
+def test_agent_endpoint_rejects_after_retry_still_looks_truncated(monkeypatch):
+    # If the retry also comes back truncated, the request should still fail
+    # rather than retry indefinitely.
+    collapsed = _multi_day_trip(1)
+    mock = AsyncMock(return_value=AgentResponse(updated_trip=collapsed, agent_reply="עדכנתי"))
+    monkeypatch.setattr(LLMService, "agent_interaction", mock)
+    resp = client.post(
+        "/api/trip/agent",
+        json={
+            "trip_data": _multi_day_trip(9).model_dump(),
+            "user_message": "add a coffee stop on day 3",
+        },
+    )
+    assert resp.status_code == 502
+    assert mock.await_count == 2
+
+
 def test_cors_headers_present():
     # A cross-origin POST should be echoed an Access-Control-Allow-Origin header.
     resp = client.post(
