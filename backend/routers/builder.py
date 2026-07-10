@@ -18,35 +18,92 @@ def _activity_count(trip: TripData) -> int:
 # language than the itinerary's dominant one, so we match broadly instead.
 _DELETION_KEYWORDS = (
     # Hebrew
-    "מחק", "מחיקה", "תמחק", "הסר", "הסרה", "תסיר", "בטל", "ביטול",
+    "מחק",
+    "מחיקה",
+    "תמחק",
+    "הסר",
+    "הסרה",
+    "תסיר",
+    "בטל",
+    "ביטול",
     # English
-    "delete", "remove", "cancel",
+    "delete",
+    "remove",
+    "cancel",
     # French
-    "supprime", "supprimer", "enlève", "enlever", "annule", "annuler",
+    "supprime",
+    "supprimer",
+    "enlève",
+    "enlever",
+    "annule",
+    "annuler",
     # Spanish
-    "elimina", "eliminar", "borra", "borrar", "quitar", "cancela", "cancelar",
+    "elimina",
+    "eliminar",
+    "borra",
+    "borrar",
+    "quitar",
+    "cancela",
+    "cancelar",
     # German
-    "lösche", "löschen", "entferne", "entfernen", "storniere", "stornieren",
+    "lösche",
+    "löschen",
+    "entferne",
+    "entfernen",
+    "storniere",
+    "stornieren",
     # Italian
-    "cancella", "cancellare", "rimuovi", "rimuovere",
+    "cancella",
+    "cancellare",
+    "rimuovi",
+    "rimuovere",
     # Portuguese
-    "apaga", "apagar", "remove", "remover", "cancela", "cancelar",
+    "apaga",
+    "apagar",
+    "remove",
+    "remover",
+    "cancela",
+    "cancelar",
     # Russian
-    "удали", "удалить", "убери", "убрать", "отмени", "отменить",
+    "удали",
+    "удалить",
+    "убери",
+    "убрать",
+    "отмени",
+    "отменить",
     # Arabic
-    "احذف", "حذف", "ألغِ", "إلغاء", "أزل",
+    "احذف",
+    "حذف",
+    "ألغِ",
+    "إلغاء",
+    "أزل",
     # Turkish
-    "silme", "kaldır", "iptal",
+    "silme",
+    "kaldır",
+    "iptal",
     # Dutch
-    "verwijder", "verwijderen", "annuleer", "annuleren",
+    "verwijder",
+    "verwijderen",
+    "annuleer",
+    "annuleren",
     # Chinese
-    "删除", "取消", "移除",
+    "删除",
+    "取消",
+    "移除",
     # Japanese
-    "削除", "取り消", "キャンセル",
+    "削除",
+    "取り消",
+    "キャンセル",
     # Korean
-    "삭제", "취소", "제거",
+    "삭제",
+    "취소",
+    "제거",
     # Hindi
-    "हटाओ", "हटाना", "मिटाओ", "मिटाना", "रद्द",
+    "हटाओ",
+    "हटाना",
+    "मिटाओ",
+    "मिटाना",
+    "रद्द",
 )
 
 
