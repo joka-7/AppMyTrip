@@ -13,8 +13,11 @@ def _activity_count(trip: TripData) -> int:
 
 # Words that signal the user themselves asked to delete/remove things — if
 # present, a big drop in activity count is the expected outcome, not a
-# truncation bug, so the guard below should not fire.
+# truncation bug, so the guard below should not fire. Not tied to the trip's
+# `language` field on purpose: users often type a chat message in a different
+# language than the itinerary's dominant one, so we match broadly instead.
 _DELETION_KEYWORDS = (
+    # Hebrew
     "מחק",
     "מחיקה",
     "תמחק",
@@ -23,9 +26,84 @@ _DELETION_KEYWORDS = (
     "תסיר",
     "בטל",
     "ביטול",
+    # English
     "delete",
     "remove",
     "cancel",
+    # French
+    "supprime",
+    "supprimer",
+    "enlève",
+    "enlever",
+    "annule",
+    "annuler",
+    # Spanish
+    "elimina",
+    "eliminar",
+    "borra",
+    "borrar",
+    "quitar",
+    "cancela",
+    "cancelar",
+    # German
+    "lösche",
+    "löschen",
+    "entferne",
+    "entfernen",
+    "storniere",
+    "stornieren",
+    # Italian
+    "cancella",
+    "cancellare",
+    "rimuovi",
+    "rimuovere",
+    # Portuguese
+    "apaga",
+    "apagar",
+    "remove",
+    "remover",
+    "cancela",
+    "cancelar",
+    # Russian
+    "удали",
+    "удалить",
+    "убери",
+    "убрать",
+    "отмени",
+    "отменить",
+    # Arabic
+    "احذف",
+    "حذف",
+    "ألغِ",
+    "إلغاء",
+    "أزل",
+    # Turkish
+    "silme",
+    "kaldır",
+    "iptal",
+    # Dutch
+    "verwijder",
+    "verwijderen",
+    "annuleer",
+    "annuleren",
+    # Chinese
+    "删除",
+    "取消",
+    "移除",
+    # Japanese
+    "削除",
+    "取り消",
+    "キャンセル",
+    # Korean
+    "삭제",
+    "취소",
+    "제거",
+    # Hindi
+    "हटाओ",
+    "हटाना",
+    "मिटाओ",
+    "मिटाना",
+    "रद्द",
 )
 
 
@@ -37,14 +115,17 @@ def _looks_truncated(previous: TripData, updated: TripData, user_message: str = 
     (each agent turn re-sends the *entire* itinerary, not just a diff).
 
     Skipped when the user's own message asks to delete/remove something —
-    a big drop is then the intended result, not a truncation bug."""
+    a big drop is then the intended result, not a truncation bug. Tuned to
+    only fire on near-total collapses (>65% dropped, on trips with at least
+    6 activities to begin with) so legitimate large restructurings (e.g.
+    "shorten this to just the weekend") aren't mistaken for truncation."""
     lowered = user_message.lower()
     if any(keyword in lowered for keyword in _DELETION_KEYWORDS):
         return False
     prev_count = _activity_count(previous)
-    if prev_count < 4:
+    if prev_count < 6:
         return False
-    return _activity_count(updated) < prev_count / 2
+    return _activity_count(updated) < prev_count * 0.35
 
 
 class TripBuilder:
@@ -107,12 +188,22 @@ class TripBuilder:
         )
 
         if _looks_truncated(previous_trip, agent_response.updated_trip, user_message):
-            raise HTTPException(
-                status_code=502,
-                detail="The AI's response looks incomplete — it dropped most of the "
-                "existing itinerary, which can happen on long trips. Your itinerary "
-                "was left unchanged; try again, or break your request into smaller steps.",
+            # Truncation is often a one-off token-budget hiccup rather than a
+            # consistent failure, so retry once server-side before giving up.
+            agent_response = await LLMService.agent_interaction(
+                previous_trip,
+                user_message,
+                self._preferences,
+                api_key=self._api_key,
+                provider=self._provider,
             )
+            if _looks_truncated(previous_trip, agent_response.updated_trip, user_message):
+                raise HTTPException(
+                    status_code=502,
+                    detail="The AI's response looks incomplete — it dropped most of the "
+                    "existing itinerary, which can happen on long trips. Your itinerary "
+                    "was left unchanged; try again, or break your request into smaller steps.",
+                )
 
         # Update builder state with the new trip
         self._trip = agent_response.updated_trip
