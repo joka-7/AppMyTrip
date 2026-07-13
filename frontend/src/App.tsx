@@ -52,7 +52,7 @@ const describeApiError = (err: unknown, fallback: string): string => {
       // (it dropped most of the itinerary) — distinct from an actual provider
       // failure, so it gets its own, more specific message.
       case 409:
-        return "התשובה מה-AI נראתה כאילו מחקה את רוב הלו\"ז, אז השארנו אותו כפי שהיה. נסו שוב, או פצלו את הבקשה לשלבים קטנים יותר.";
+        return 'התשובה מה-AI נראתה כאילו מחקה את רוב הלו"ז, אז השארנו אותו כפי שהיה. נסו שוב, או פצלו את הבקשה לשלבים קטנים יותר.';
       case 502:
       case 504:
         return "ספק ה-AI לא הצליח להשיב כרגע (תקלה זמנית בשירות). נסו שוב בעוד רגע.";
