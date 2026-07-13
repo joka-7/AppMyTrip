@@ -168,6 +168,24 @@ class AnthropicProvider:
         return json.loads(text_content)
 
 
+_VALID_ACTIVITY_TYPES = {"attraction", "food", "lodging", "transport"}
+
+
+def _coerce_invalid_activity_types(trip_json: object) -> None:
+    """LLMs occasionally emit a plausible but off-schema 'type' value (e.g.
+    'sightseeing' instead of 'attraction'). Rather than discarding an entire
+    otherwise-good response over one enum mismatch, coerce it to a safe
+    default in place before validation."""
+    if not isinstance(trip_json, dict):
+        return
+    for day in trip_json.get("days") or []:
+        if not isinstance(day, dict):
+            continue
+        for act in day.get("activities") or []:
+            if isinstance(act, dict) and act.get("type") not in _VALID_ACTIVITY_TYPES:
+                act["type"] = "attraction"
+
+
 _PROVIDERS: dict[str, type] = {
     "gemini": GeminiProvider,
     "openai": OpenAIProvider,
@@ -218,8 +236,9 @@ class LLMService:
                     if attempt == max_retries - 1:
                         raise HTTPException(
                             status_code=429,
-                            detail="The LLM provider is rate-limiting this API key. "
-                            "Wait a bit before trying again, or use a different model/key.",
+                            detail="The LLM provider is rate-limiting this API key. Wait a bit "
+                            "before trying again, or add your own API key in settings — the "
+                            "shared default key is more likely to hit shared rate limits.",
                         ) from e
                     retry_after = e.response.headers.get("retry-after")
                     delay = float(retry_after) if retry_after else delays[attempt]
@@ -278,6 +297,7 @@ class LLMService:
         json_data = await cls._execute_with_retry(
             system_prompt, user_content, api_key=api_key, provider=provider
         )
+        _coerce_invalid_activity_types(json_data)
 
         try:
             return TripData(**json_data)
@@ -334,6 +354,8 @@ class LLMService:
         json_data = await cls._execute_with_retry(
             system_prompt, user_content, api_key=api_key, provider=provider
         )
+        if isinstance(json_data, dict):
+            _coerce_invalid_activity_types(json_data.get("updated_trip"))
 
         try:
             return AgentResponse(**json_data)
@@ -425,6 +447,7 @@ class LLMService:
         json_data = await cls._execute_with_retry(
             system_prompt, user_content, api_key=api_key, provider=provider
         )
+        _coerce_invalid_activity_types(json_data)
         try:
             return TripData(**json_data)
         except ValidationError as e:

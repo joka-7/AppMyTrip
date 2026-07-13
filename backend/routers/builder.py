@@ -198,8 +198,11 @@ class TripBuilder:
                 provider=self._provider,
             )
             if _looks_truncated(previous_trip, agent_response.updated_trip, user_message):
+                # 409, not 502/504: this isn't an upstream/provider failure, it's our
+                # own guard rejecting an otherwise-successful response — the frontend
+                # tells these apart to give more specific guidance.
                 raise HTTPException(
-                    status_code=502,
+                    status_code=409,
                     detail="The AI's response looks incomplete — it dropped most of the "
                     "existing itinerary, which can happen on long trips. Your itinerary "
                     "was left unchanged; try again, or break your request into smaller steps.",

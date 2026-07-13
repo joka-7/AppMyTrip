@@ -38,7 +38,7 @@ const isRateLimited = (err: unknown): boolean => err instanceof ApiError && err.
 // into a short, clean explanation a non-technical user can actually act on.
 const describeApiError = (err: unknown, fallback: string): string => {
   if (isRateLimited(err)) {
-    return "ספק ה-AI מגביל קצב בקשות כרגע — נסו שוב בעוד דקה.";
+    return "ספק ה-AI מגביל קצב בקשות כרגע — נסו שוב בעוד דקה, או הוסיפו מפתח API משלכם בהגדרות כדי להימנע מהגבלה משותפת.";
   }
   if (err instanceof ApiError) {
     switch (err.status) {
@@ -48,9 +48,14 @@ const describeApiError = (err: unknown, fallback: string): string => {
         return "הבקשה גדולה מדי עבור ה-AI. נסו לפצל אותה לבקשות קצרות יותר.";
       case 422:
         return "התשובה שהתקבלה מה-AI לא הייתה תקינה. נסו לנסח את הבקשה מחדש או לנסות שוב.";
+      // 409: our own truncation guard rejected an otherwise-successful response
+      // (it dropped most of the itinerary) — distinct from an actual provider
+      // failure, so it gets its own, more specific message.
+      case 409:
+        return "התשובה מה-AI נראתה כאילו מחקה את רוב הלו\"ז, אז השארנו אותו כפי שהיה. נסו שוב, או פצלו את הבקשה לשלבים קטנים יותר.";
       case 502:
       case 504:
-        return "השרת לא הצליח לעבד את הבקשה — יתכן שהטיול ארוך מדי או שהשירות עמוס כרגע. נסו לפצל את הבקשה לשלבים קטנים יותר, או נסו שוב בעוד רגע.";
+        return "ספק ה-AI לא הצליח להשיב כרגע (תקלה זמנית בשירות). נסו שוב בעוד רגע.";
       default:
         return fallback;
     }
