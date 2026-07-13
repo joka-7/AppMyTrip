@@ -287,8 +287,8 @@ def _multi_day_trip(num_days: int) -> TripData:
 
 def test_agent_endpoint_rejects_legitimate_bulk_delete_request(monkeypatch):
     # The user explicitly asks to delete most of their trip (not a hallucinated
-    # truncation) — today the guard can't tell the two apart and blocks this
-    # with a 502, even though the AI did exactly what was asked.
+    # truncation) — the deletion-keyword allowlist should let this through
+    # instead of the guard blocking it with a 409.
     kept_only_day1 = _multi_day_trip(1)
     monkeypatch.setattr(
         LLMService,
@@ -322,7 +322,7 @@ def test_agent_endpoint_rejects_response_that_drops_most_of_the_trip(monkeypatch
             "user_message": "add a coffee stop on day 3",
         },
     )
-    assert resp.status_code == 502
+    assert resp.status_code == 409
     assert "incomplete" in resp.json()["detail"]
 
 
@@ -416,7 +416,7 @@ def test_agent_endpoint_rejects_after_retry_still_looks_truncated(monkeypatch):
             "user_message": "add a coffee stop on day 3",
         },
     )
-    assert resp.status_code == 502
+    assert resp.status_code == 409
     assert mock.await_count == 2
 
 
@@ -616,6 +616,18 @@ def test_agent_interaction_tolerates_unexpected_extra_fields(monkeypatch):
         monkeypatch, {"updated_trip": new_trip, "agent_reply": "עדכנתי"}
     )
     assert result.updated_trip.days[0].activities[0].title == "Spanish Steps"
+
+
+def test_agent_interaction_coerces_an_invalid_activity_type(monkeypatch):
+    # LLMs occasionally invent a plausible-but-off-schema 'type' (e.g.
+    # "sightseeing" instead of "attraction") — that shouldn't fail the
+    # whole response when the rest of it is fine.
+    new_trip = _sample_trip().model_dump()
+    new_trip["days"][0]["activities"][0]["type"] = "sightseeing"
+    result = _agent_interaction_with(
+        monkeypatch, {"updated_trip": new_trip, "agent_reply": "עדכנתי"}
+    )
+    assert result.updated_trip.days[0].activities[0].type == "attraction"
 
 
 def test_agent_interaction_falls_back_to_a_default_reply_when_agent_reply_is_missing(monkeypatch):
