@@ -87,4 +87,20 @@ describe("ApiKeyMenu", () => {
     fireEvent.click(screen.getByRole("button", { name: /הסתרת המפתח/ }));
     expect(input).toHaveAttribute("type", "password");
   });
+
+  it("saves and clears an optional Google Maps key separately from the LLM key", () => {
+    render(<ApiKeyMenu />);
+    fireEvent.click(screen.getByRole("button", { name: /הגדרת מפתח API/ }));
+
+    fireEvent.change(screen.getByPlaceholderText("Google Maps API Key..."), {
+      target: { value: "maps-key-123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "שמירת מפתח Google Maps" }));
+    expect(localStorage.getItem("tripweaver_google_maps_key")).toBe("maps-key-123");
+    // The LLM key store is untouched by the Maps key.
+    expect(localStorage.getItem("tripweaver_api_keys")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "הסרת מפתח Google Maps" }));
+    expect(localStorage.getItem("tripweaver_google_maps_key")).toBeNull();
+  });
 });

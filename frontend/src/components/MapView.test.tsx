@@ -34,14 +34,15 @@ describe("MapView", () => {
     expect(screen.getByText(/אין קואורדינטות להצגה/)).toBeInTheDocument();
   });
 
-  it("links to Google Maps by place name (not just raw coordinates) when focused on a single activity", () => {
+  it("links to Google Maps by place name biased to its coordinates when focused on a single activity", () => {
     render(
       <MapView activities={[activityWithCoords]} focusActivityId="a1" onClearFocus={() => {}} />,
     );
     const link = screen.getByRole("link", { name: "פתיחה ב-Google Maps" });
-    const query = new URL(link.getAttribute("href")!).searchParams.get("query");
-    expect(query).toContain("Museum");
-    expect(query).toContain("41.9,12.5");
+    const href = link.getAttribute("href")!;
+    // Named place biased to its coordinates via the valid path form — not the
+    // old "name @lat,lng" query that Google failed to resolve.
+    expect(href).toBe("https://www.google.com/maps/search/Museum/@41.9,12.5,15z");
   });
 
   it("shows the map (not the empty state) with an add hint when onAddActivity is provided, even with no activities", () => {

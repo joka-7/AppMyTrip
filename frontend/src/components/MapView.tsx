@@ -7,52 +7,19 @@ import {
   useMap,
   useMapEvents,
 } from "react-leaflet";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import L from "leaflet";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ArrowRight, ExternalLink, MapPinPlus, Utensils, Bed, Landmark, Plane } from "lucide-react";
 import type { Activity } from "../api";
 import { ACTIVITY_TYPE_LABELS } from "../services/activityTypes";
 import { newActivityId } from "../services/id";
+import { googleMapsPlaceUrl, googleMapsDirectionsUrl } from "../services/mapLinks";
+import { getGoogleMapsKey } from "../services/mapsKey";
 
-/**
- * A Google Maps search query for an activity: the place's name, biased toward its
- * generated coordinates so Maps resolves the actual named place (with its real
- * listing, hours, reviews) rather than dropping a bare, nameless GPS pin — which is
- * all a plain "lat,lng" query produces. Falls back to raw coordinates only if the
- * activity somehow has no title.
- */
-function placeQuery(act: Activity): string {
-  const { lat, lng } = act.map_coordinates!;
-  return act.title.trim() ? `${act.title.trim()} @${lat},${lng}` : `${lat},${lng}`;
-}
-
-/** Builds a Google Maps URL centered on a single place (no routing). */
-function googleMapsPlaceUrl(act: Activity): string {
-  const url = new URL("https://www.google.com/maps/search/");
-  url.searchParams.set("api", "1");
-  url.searchParams.set("query", placeQuery(act));
-  return url.toString();
-}
-
-/**
- * Builds a Google Maps directions URL for the day's stops in order. Opening the real
- * Google Maps app/site (rather than embedding Google's tiles, which needs a paid API
- * key) gets users turn-by-turn directions, travel duration, and a map in their own
- * device/account language for free.
- */
-function googleMapsDirectionsUrl(coordActs: Activity[]): string {
-  const points = coordActs.map(placeQuery);
-  const url = new URL("https://www.google.com/maps/dir/");
-  url.searchParams.set("api", "1");
-  url.searchParams.set("origin", points[0]);
-  url.searchParams.set("destination", points[points.length - 1]);
-  if (points.length > 2) {
-    url.searchParams.set("waypoints", points.slice(1, -1).join("|"));
-  }
-  url.searchParams.set("travelmode", "walking");
-  return url.toString();
-}
+// Only pulled into the bundle for users who configured a Google Maps key; the
+// default OpenStreetMap/Leaflet path never downloads the Google Maps library.
+const GoogleMapView = lazy(() => import("./GoogleMapView"));
 
 const MARKER_COLORS: Record<Activity["type"], string> = {
   food: "bg-secondary",
@@ -148,6 +115,11 @@ export default function MapView({
   const [pendingLocation, setPendingLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [pendingTitle, setPendingTitle] = useState("");
   const [pendingType, setPendingType] = useState<Activity["type"]>("attraction");
+
+  // When the user has configured their own Google Maps key we render real
+  // Google Maps tiles; otherwise we fall back to the free OpenStreetMap/Leaflet
+  // map below. Read once on mount — changing the key takes effect on reload.
+  const googleMapsKey = useMemo(() => getGoogleMapsKey(), []);
 
   const allCoordActs = activities.filter((a) => a.map_coordinates);
   const focusedAct = focusActivityId
@@ -278,72 +250,94 @@ export default function MapView({
       )}
 
       <div className="flex-1 rounded-xl overflow-hidden border border-outline/40 shadow-inner">
-        <MapContainer
-          center={center}
-          zoom={coordActs[0] ? 13 : 2}
-          scrollWheelZoom
-          touchZoom
-          doubleClickZoom
-          style={{ height: "100%", width: "100%" }}
-        >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          <FitBounds activities={coordActs} />
-          <ClickToAdd enabled={canAdd} onPick={setPendingLocation} />
-          {routePoints.length > 1 && (
-            <Polyline
-              positions={routePoints}
-              pathOptions={{ color: "#1a5276", weight: 3, opacity: 0.6, dashArray: "6 8" }}
+        {googleMapsKey ? (
+          <Suspense
+            fallback={
+              <div className="h-full w-full flex items-center justify-center text-sm text-ink-muted bg-surface-container-low">
+                טוען את Google Maps…
+              </div>
+            }
+          >
+            <GoogleMapView
+              googleMapsApiKey={googleMapsKey}
+              coordActs={coordActs}
+              center={center}
+              canAdd={canAdd}
+              draggableMarkers={Boolean(onUpdateActivity)}
+              pendingLocation={pendingLocation}
+              onMapClick={setPendingLocation}
+              onMarkerDragEnd={(id, coords) => onUpdateActivity?.(id, { map_coordinates: coords })}
+              onPendingDragEnd={setPendingLocation}
             />
-          )}
-          {coordActs.map((act) => (
-            <Marker
-              key={act.id}
-              position={[act.map_coordinates!.lat, act.map_coordinates!.lng]}
-              icon={markerIcon(act.type)}
-              draggable={Boolean(onUpdateActivity)}
-              eventHandlers={
-                onUpdateActivity
-                  ? {
-                      dragend: (e) => {
-                        const { lat, lng } = e.target.getLatLng();
-                        onUpdateActivity(act.id, { map_coordinates: { lat, lng } });
-                      },
-                    }
-                  : undefined
-              }
-            >
-              <Popup>
-                <div className="flex flex-col gap-1">
-                  <span className="font-semibold">{act.title}</span>
-                  <a
-                    href={googleMapsPlaceUrl(act)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:text-primary-dark text-xs"
-                  >
-                    פתיחה ב-Google Maps
-                  </a>
-                </div>
-              </Popup>
-            </Marker>
-          ))}
-          {pendingLocation && (
-            <Marker
-              position={[pendingLocation.lat, pendingLocation.lng]}
-              icon={PENDING_ICON}
-              draggable
-              eventHandlers={{
-                dragend: (e) => {
-                  const { lat, lng } = e.target.getLatLng();
-                  setPendingLocation({ lat, lng });
-                },
-              }}
+          </Suspense>
+        ) : (
+          <MapContainer
+            center={center}
+            zoom={coordActs[0] ? 13 : 2}
+            scrollWheelZoom
+            touchZoom
+            doubleClickZoom
+            style={{ height: "100%", width: "100%" }}
+          >
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-          )}
-        </MapContainer>
+            <FitBounds activities={coordActs} />
+            <ClickToAdd enabled={canAdd} onPick={setPendingLocation} />
+            {routePoints.length > 1 && (
+              <Polyline
+                positions={routePoints}
+                pathOptions={{ color: "#1a5276", weight: 3, opacity: 0.6, dashArray: "6 8" }}
+              />
+            )}
+            {coordActs.map((act) => (
+              <Marker
+                key={act.id}
+                position={[act.map_coordinates!.lat, act.map_coordinates!.lng]}
+                icon={markerIcon(act.type)}
+                draggable={Boolean(onUpdateActivity)}
+                eventHandlers={
+                  onUpdateActivity
+                    ? {
+                        dragend: (e) => {
+                          const { lat, lng } = e.target.getLatLng();
+                          onUpdateActivity(act.id, { map_coordinates: { lat, lng } });
+                        },
+                      }
+                    : undefined
+                }
+              >
+                <Popup>
+                  <div className="flex flex-col gap-1">
+                    <span className="font-semibold">{act.title}</span>
+                    <a
+                      href={googleMapsPlaceUrl(act)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:text-primary-dark text-xs"
+                    >
+                      פתיחה ב-Google Maps
+                    </a>
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
+            {pendingLocation && (
+              <Marker
+                position={[pendingLocation.lat, pendingLocation.lng]}
+                icon={PENDING_ICON}
+                draggable
+                eventHandlers={{
+                  dragend: (e) => {
+                    const { lat, lng } = e.target.getLatLng();
+                    setPendingLocation({ lat, lng });
+                  },
+                }}
+              />
+            )}
+          </MapContainer>
+        )}
       </div>
     </div>
   );
