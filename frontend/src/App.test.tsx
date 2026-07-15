@@ -115,7 +115,7 @@ describe("App builder flow", () => {
           podcast: true,
           links: true,
         },
-        null,
+        [],
         "gemini",
       );
     });

@@ -224,6 +224,75 @@ def test_execute_with_retry_raises_429_after_exhausting_retries(monkeypatch):
     assert exc_info.value.status_code == 429
 
 
+def test_resolve_key_list_merges_dedups_and_falls_back_to_env():
+    # Legacy single key + list are merged, blanks/dupes dropped, order preserved.
+    assert LLMService._resolve_key_list("a", ["b", "a", "  ", "c"]) == ["b", "a", "c"]
+    # No keys at all → [None] so the provider uses the server env var.
+    assert LLMService._resolve_key_list(None, None) == [None]
+    assert LLMService._resolve_key_list(None, []) == [None]
+    # A single legacy key still works on its own.
+    assert LLMService._resolve_key_list("solo", None) == ["solo"]
+
+
+def _rate_limit_error() -> httpx.HTTPStatusError:
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    response = httpx.Response(429, request=request, headers={"retry-after": "0"})
+    return httpx.HTTPStatusError("rate limited", request=request, response=response)
+
+
+def test_execute_with_retry_rotates_to_the_next_key_on_rate_limit(monkeypatch):
+    # First key is always rate-limited; second key works. The request should
+    # succeed by rotating, without exhausting retries on the first key.
+    error = _rate_limit_error()
+
+    class KeyedProvider:
+        def __init__(self, api_key=None, provider=None):
+            self.api_key = api_key
+
+        async def complete_json(self, system_prompt, user_content):
+            if self.api_key == "good-key":
+                return {"ok": True}
+            raise error
+
+    monkeypatch.setattr(
+        LLMService,
+        "_get_provider",
+        staticmethod(lambda api_key=None, provider=None: KeyedProvider(api_key)),
+    )
+
+    result = asyncio.run(
+        LLMService._execute_with_retry("sys", "user", api_keys=["bad-key", "good-key"])
+    )
+    assert result == {"ok": True}
+
+
+def test_execute_with_retry_raises_429_only_after_every_key_is_rate_limited(monkeypatch):
+    error = _rate_limit_error()
+    tried: list[str | None] = []
+
+    class RateLimitedProvider:
+        def __init__(self, api_key=None):
+            self.api_key = api_key
+
+        async def complete_json(self, system_prompt, user_content):
+            tried.append(self.api_key)
+            raise error
+
+    monkeypatch.setattr(
+        LLMService,
+        "_get_provider",
+        staticmethod(lambda api_key=None, provider=None: RateLimitedProvider(api_key)),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            LLMService._execute_with_retry("sys", "user", api_keys=["k1", "k2"], max_retries=2)
+        )
+    assert exc_info.value.status_code == 429
+    # Every key was attempted before giving up.
+    assert "k1" in tried and "k2" in tried
+
+
 # ---------------------------------------------------------------------------
 # Endpoints (LLM mocked)
 # ---------------------------------------------------------------------------
@@ -451,7 +520,7 @@ def test_generate_media_endpoint():
 def test_parse_endpoint_passes_through_supplied_preferences(monkeypatch):
     captured = {}
 
-    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None):
+    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None, api_keys=None):
         captured["preferences"] = preferences
         return _sample_trip()
 
@@ -465,7 +534,7 @@ def test_parse_endpoint_passes_through_supplied_preferences(monkeypatch):
 def test_parse_endpoint_no_preferences_supplied(monkeypatch):
     captured = {}
 
-    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None):
+    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None, api_keys=None):
         captured["preferences"] = preferences
         return _sample_trip()
 
@@ -479,7 +548,7 @@ def test_parse_endpoint_no_preferences_supplied(monkeypatch):
 def test_parse_endpoint_passes_through_caller_api_key(monkeypatch):
     captured = {}
 
-    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None):
+    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None, api_keys=None):
         captured["api_key"] = api_key
         return _sample_trip()
 
@@ -490,10 +559,27 @@ def test_parse_endpoint_passes_through_caller_api_key(monkeypatch):
     assert captured["api_key"] == "user-supplied-key"
 
 
+def test_parse_endpoint_passes_through_caller_api_keys_list(monkeypatch):
+    captured = {}
+
+    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None, api_keys=None):
+        captured["api_keys"] = api_keys
+        return _sample_trip()
+
+    monkeypatch.setattr(LLMService, "parse_trip_text", fake_parse)
+
+    resp = client.post(
+        "/api/trip/parse",
+        json={"raw_text": "Rome", "api_keys": ["key-a", "key-b", "key-c"]},
+    )
+    assert resp.status_code == 200
+    assert captured["api_keys"] == ["key-a", "key-b", "key-c"]
+
+
 def test_parse_endpoint_passes_through_caller_provider(monkeypatch):
     captured = {}
 
-    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None):
+    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None, api_keys=None):
         captured["provider"] = provider
         return _sample_trip()
 

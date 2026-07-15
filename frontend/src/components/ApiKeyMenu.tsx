@@ -1,101 +1,128 @@
 import { useState } from "react";
-import { Check, Eye, EyeOff, KeyRound, MapPin, Trash2 } from "lucide-react";
+import { Check, Eye, EyeOff, KeyRound, MapPin, Plus, Trash2 } from "lucide-react";
 import {
-  clearApiKey,
-  getApiKeyForProvider,
+  addApiKey,
+  getApiKeysForProvider,
   getApiProvider,
   PROVIDERS,
-  setApiKey,
+  removeApiKey,
+  setApiProvider,
   type LLMProvider,
 } from "../services/apiKey";
 import {
-  clearGoogleMapsKey,
-  getGoogleMapsKey,
+  addGoogleMapsKey,
+  getGoogleMapsKeys,
   GOOGLE_MAPS_KEY_URL,
-  setGoogleMapsKey,
+  removeGoogleMapsKey,
 } from "../services/mapsKey";
 
+/** Masks a key for display so it's recognizable without exposing the whole secret. */
+function maskKey(key: string): string {
+  if (key.length <= 8) return "••••";
+  return `${key.slice(0, 4)}…${key.slice(-4)}`;
+}
+
+/** A saved key chip with a remove button. */
+function KeyRow({ value, onRemove }: { value: string; onRemove: () => void }) {
+  const masked = maskKey(value);
+  return (
+    <div className="flex items-center justify-between gap-2 bg-surface-container rounded-lg px-2.5 py-1.5">
+      <span className="text-xs font-mono text-ink-muted truncate" dir="ltr">
+        {masked}
+      </span>
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`הסרת מפתח ${masked}`}
+        className="text-ink-muted hover:text-red-600 shrink-0"
+      >
+        <Trash2 size={14} />
+      </button>
+    </div>
+  );
+}
+
 /**
- * Lets each user pick their preferred LLM provider (Gemini, OpenAI, Claude,
- * or Groq) and paste in their own API key for it, so the app calls the LLM
- * with their key/quota instead of sharing the developer's. Each provider's
- * key is stored separately in localStorage and sent with each builder
- * request; never touches our backend's env vars.
+ * Lets each user pick their preferred LLM provider (Gemini, OpenAI, Claude, or
+ * Groq) and store one or more of their own API keys for it. Multiple keys are
+ * sent to the backend and rotated through when one hits its rate limit, so a few
+ * free-tier keys together outlast any single key's quota. An optional Google Maps
+ * key (also supporting several) swaps the in-app map to real Google Maps. Every
+ * key is stored only in localStorage and never touches our backend's env vars.
  */
 export default function ApiKeyMenu() {
   const [isOpen, setIsOpen] = useState(false);
   const [provider, setProvider] = useState<LLMProvider>(getApiProvider());
-  const [draft, setDraft] = useState(getApiKeyForProvider(provider) ?? "");
-  const [savedKey, setSavedKey] = useState(getApiKeyForProvider(provider));
-  const [showKey, setShowKey] = useState(false);
+  const [llmKeys, setLlmKeys] = useState<string[]>(() => getApiKeysForProvider(provider));
+  const [llmDraft, setLlmDraft] = useState("");
+  const [showLlmDraft, setShowLlmDraft] = useState(false);
 
-  // Optional Google Maps key: when set, the map view shows real Google Maps
-  // tiles instead of the default OpenStreetMap map. Stored separately from the
-  // LLM keys since it isn't an LLM provider.
-  const [mapsDraft, setMapsDraft] = useState(getGoogleMapsKey() ?? "");
-  const [savedMapsKey, setSavedMapsKey] = useState(getGoogleMapsKey());
-  const [showMapsKey, setShowMapsKey] = useState(false);
-
-  const handleSaveMapsKey = () => {
-    const trimmed = mapsDraft.trim();
-    if (!trimmed) return;
-    setGoogleMapsKey(trimmed);
-    setSavedMapsKey(trimmed);
-  };
-
-  const handleClearMapsKey = () => {
-    clearGoogleMapsKey();
-    setSavedMapsKey(null);
-    setMapsDraft("");
-  };
+  const [mapsKeys, setMapsKeys] = useState<string[]>(() => getGoogleMapsKeys());
+  const [mapsDraft, setMapsDraft] = useState("");
+  const [showMapsDraft, setShowMapsDraft] = useState(false);
 
   const handleProviderChange = (next: LLMProvider) => {
     setProvider(next);
-    const existing = getApiKeyForProvider(next);
-    setDraft(existing ?? "");
-    setSavedKey(existing);
+    setApiProvider(next);
+    setLlmKeys(getApiKeysForProvider(next));
+    setLlmDraft("");
   };
 
-  const handleSave = () => {
-    const trimmed = draft.trim();
+  const handleAddLlmKey = () => {
+    const trimmed = llmDraft.trim();
     if (!trimmed) return;
-    setApiKey(trimmed, provider);
-    setSavedKey(trimmed);
-    setIsOpen(false);
+    addApiKey(trimmed, provider);
+    setLlmKeys(getApiKeysForProvider(provider));
+    setLlmDraft("");
   };
 
-  const handleClear = () => {
-    clearApiKey(provider);
-    setSavedKey(null);
-    setDraft("");
+  const handleRemoveLlmKey = (key: string) => {
+    removeApiKey(key, provider);
+    setLlmKeys(getApiKeysForProvider(provider));
+  };
+
+  const handleAddMapsKey = () => {
+    const trimmed = mapsDraft.trim();
+    if (!trimmed) return;
+    addGoogleMapsKey(trimmed);
+    setMapsKeys(getGoogleMapsKeys());
+    setMapsDraft("");
+  };
+
+  const handleRemoveMapsKey = (key: string) => {
+    removeGoogleMapsKey(key);
+    setMapsKeys(getGoogleMapsKeys());
   };
 
   const keyUrl = PROVIDERS.find((p) => p.value === provider)?.keyUrl ?? PROVIDERS[0].keyUrl;
+  const hasKeys = llmKeys.length > 0;
 
   return (
     <div className="relative">
       <button
         onClick={() => setIsOpen((v) => !v)}
         className={`flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-full transition-colors ${
-          savedKey
+          hasKeys
             ? "text-green-700 bg-green-50 hover:bg-green-100"
             : "text-amber-700 bg-amber-50 hover:bg-amber-100"
         }`}
       >
         <KeyRound size={16} />
-        {savedKey ? "מפתח API מוגדר" : "הגדרת מפתח API"}
+        {hasKeys
+          ? `מפתח API מוגדר${llmKeys.length > 1 ? ` (${llmKeys.length})` : ""}`
+          : "הגדרת מפתח API"}
       </button>
 
       {isOpen && (
         <div className="absolute left-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-outline/20 p-4 z-40 text-right">
-          <h3 className="text-sm font-bold text-ink mb-1">מפתח API משלכם</h3>
+          <h3 className="text-sm font-bold text-ink mb-1">מפתחות API משלכם</h3>
           <p className="text-xs text-ink-muted mb-3">
-            כדי שכל משתמש ישלם על השימוש שלו (ולא ישתמש במכסה של מפתח אחר), בחרו ספק והדביקו כאן
-            מפתח API משלכם — חינמי ב-
+            בחרו ספק והדביקו מפתח API משלכם — חינמי ב-
             <a href={keyUrl} target="_blank" rel="noreferrer" className="text-primary underline">
               {keyUrl.replace("https://", "")}
             </a>
-            . כל ספק שומר את המפתח שלו בנפרד, רק בדפדפן שלכם.
+            . אפשר להוסיף כמה מפתחות; כשאחד מגיע למגבלת הקצב נעבור אוטומטית לבא. הכול נשמר רק בדפדפן
+            שלכם.
           </p>
           <select
             value={provider}
@@ -108,47 +135,46 @@ export default function ApiKeyMenu() {
               </option>
             ))}
           </select>
-          <div className="relative mb-3">
+
+          {llmKeys.length > 0 && (
+            <div className="flex flex-col gap-1.5 mb-2">
+              {llmKeys.map((key) => (
+                <KeyRow key={key} value={key} onRemove={() => handleRemoveLlmKey(key)} />
+              ))}
+            </div>
+          )}
+
+          <div className="relative mb-2">
             <input
-              type={showKey ? "text" : "password"}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              type={showLlmDraft ? "text" : "password"}
+              value={llmDraft}
+              onChange={(e) => setLlmDraft(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleAddLlmKey()}
               placeholder="API Key..."
               className="w-full border border-outline/40 rounded-lg px-3 py-2 pl-9 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
             <button
               type="button"
-              onClick={() => setShowKey((v) => !v)}
-              aria-label={showKey ? "הסתרת המפתח" : "הצגת המפתח"}
+              onClick={() => setShowLlmDraft((v) => !v)}
+              aria-label={showLlmDraft ? "הסתרת המפתח" : "הצגת המפתח"}
               className="absolute left-2 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink"
             >
-              {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+              {showLlmDraft ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={handleSave}
-              disabled={!draft.trim()}
-              className="flex-1 flex items-center justify-center gap-1.5 bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-sm px-3 py-2 rounded-lg"
-            >
-              <Check size={14} />
-              שמירה
-            </button>
-            {savedKey && (
-              <button
-                onClick={handleClear}
-                className="flex-1 flex items-center justify-center gap-1.5 bg-surface-container hover:bg-surface-container-high text-ink-muted text-sm px-3 py-2 rounded-lg"
-              >
-                <Trash2 size={14} />
-                הסרה
-              </button>
-            )}
-          </div>
+          <button
+            onClick={handleAddLlmKey}
+            disabled={!llmDraft.trim()}
+            className="w-full flex items-center justify-center gap-1.5 bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-sm px-3 py-2 rounded-lg"
+          >
+            <Plus size={14} />
+            הוספת מפתח
+          </button>
 
           <div className="border-t border-outline/20 mt-4 pt-4">
             <h3 className="text-sm font-bold text-ink mb-1 flex items-center gap-1.5">
               <MapPin size={14} />
-              מפתח Google Maps (רשות)
+              מפתחות Google Maps (רשות)
             </h3>
             <p className="text-xs text-ink-muted mb-3">
               עם מפתח Google Maps תוצג מפת Google אמיתית בתוך האפליקציה במקום מפת OpenStreetMap. ללא
@@ -161,52 +187,53 @@ export default function ApiKeyMenu() {
               >
                 Google Cloud
               </a>
-              , והגבילו אותו לדומיין שלכם. נשמר רק בדפדפן שלכם.
+              , והגבילו אותו לדומיין שלכם. שינוי ייכנס לתוקף לאחר רענון הדף.
             </p>
-            <div className="relative mb-3">
+
+            {mapsKeys.length > 0 && (
+              <div className="flex flex-col gap-1.5 mb-2">
+                {mapsKeys.map((key) => (
+                  <KeyRow key={key} value={key} onRemove={() => handleRemoveMapsKey(key)} />
+                ))}
+              </div>
+            )}
+
+            <div className="relative mb-2">
               <input
-                type={showMapsKey ? "text" : "password"}
+                type={showMapsDraft ? "text" : "password"}
                 value={mapsDraft}
                 onChange={(e) => setMapsDraft(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddMapsKey()}
                 placeholder="Google Maps API Key..."
                 className="w-full border border-outline/40 rounded-lg px-3 py-2 pl-9 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
               <button
                 type="button"
-                onClick={() => setShowMapsKey((v) => !v)}
-                aria-label={showMapsKey ? "הסתרת מפתח Google Maps" : "הצגת מפתח Google Maps"}
+                onClick={() => setShowMapsDraft((v) => !v)}
+                aria-label={showMapsDraft ? "הסתרת מפתח Google Maps" : "הצגת מפתח Google Maps"}
                 className="absolute left-2 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink"
               >
-                {showMapsKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                {showMapsDraft ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={handleSaveMapsKey}
-                disabled={!mapsDraft.trim()}
-                aria-label="שמירת מפתח Google Maps"
-                className="flex-1 flex items-center justify-center gap-1.5 bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-sm px-3 py-2 rounded-lg"
-              >
-                <Check size={14} />
-                שמירה
-              </button>
-              {savedMapsKey && (
-                <button
-                  onClick={handleClearMapsKey}
-                  aria-label="הסרת מפתח Google Maps"
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-surface-container hover:bg-surface-container-high text-ink-muted text-sm px-3 py-2 rounded-lg"
-                >
-                  <Trash2 size={14} />
-                  הסרה
-                </button>
-              )}
-            </div>
-            {savedMapsKey && (
-              <p className="text-[11px] text-ink-muted mt-2">
-                שינוי המפתח ייכנס לתוקף לאחר רענון הדף.
-              </p>
-            )}
+            <button
+              onClick={handleAddMapsKey}
+              disabled={!mapsDraft.trim()}
+              aria-label="הוספת מפתח Google Maps"
+              className="w-full flex items-center justify-center gap-1.5 bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-sm px-3 py-2 rounded-lg"
+            >
+              <Plus size={14} />
+              הוספת מפתח
+            </button>
           </div>
+
+          <button
+            onClick={() => setIsOpen(false)}
+            className="w-full flex items-center justify-center gap-1.5 text-ink-muted hover:text-ink text-sm px-3 py-2 rounded-lg mt-3"
+          >
+            <Check size={14} />
+            סגירה
+          </button>
         </div>
       )}
     </div>

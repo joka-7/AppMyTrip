@@ -1,18 +1,21 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { GoogleMap, MarkerF, PolylineF, InfoWindowF, useJsApiLoader } from "@react-google-maps/api";
 import type { Activity } from "../api";
 import { googleMapsPlaceUrl } from "../services/mapLinks";
 
 // Interactive Google Maps surface, used in place of the Leaflet/OSM map when the
-// user has configured their own Google Maps JavaScript API key. Mirrors the
+// user has configured their own Google Maps JavaScript API key(s). Mirrors the
 // Leaflet surface's capabilities: colored markers per activity type, a dashed
 // route line through the day's stops, drag-to-reposition, click-to-add, and a
 // popup with an "open in Google Maps" link.
+//
+// Several keys can be supplied: the map loads with the first, and if that key
+// fails to load or is rejected (quota/referrer/auth) it rotates to the next one,
+// only showing an error once every key has failed.
 
 type Coords = { lat: number; lng: number };
 
-export interface GoogleMapViewProps {
-  googleMapsApiKey: string;
+interface SurfaceProps {
   coordActs: Activity[];
   center: [number, number];
   canAdd: boolean;
@@ -21,6 +24,10 @@ export interface GoogleMapViewProps {
   onMapClick: (coords: Coords) => void;
   onMarkerDragEnd: (activityId: string, coords: Coords) => void;
   onPendingDragEnd: (coords: Coords) => void;
+}
+
+export interface GoogleMapViewProps extends SurfaceProps {
+  googleMapsApiKeys: string[];
 }
 
 // Hex equivalents of the Leaflet surface's Tailwind marker colors, so both
@@ -45,8 +52,48 @@ function circleSymbol(color: string, scale: number): google.maps.Symbol {
   };
 }
 
-export default function GoogleMapView({
+function MapMessage({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="h-full w-full flex items-center justify-center text-center text-sm text-ink-muted rounded-xl border border-outline/40 bg-surface-container-low p-4">
+      {children}
+    </div>
+  );
+}
+
+export default function GoogleMapView({ googleMapsApiKeys, ...surface }: GoogleMapViewProps) {
+  const [keyIndex, setKeyIndex] = useState(0);
+  const activeKey = googleMapsApiKeys[keyIndex];
+  const hasMoreKeys = keyIndex < googleMapsApiKeys.length - 1;
+
+  // Advance to the next key when the current one fails, if any remain.
+  const rotateKey = useCallback(() => {
+    setKeyIndex((i) => (i < googleMapsApiKeys.length - 1 ? i + 1 : i));
+  }, [googleMapsApiKeys.length]);
+
+  if (!activeKey) {
+    return (
+      <MapMessage>
+        לא הצלחנו לטעון את Google Maps עם אף אחד מהמפתחות — ודאו שהם תקינים ומורשים לדומיין הזה, או
+        הסירו אותם כדי לחזור למפת OpenStreetMap.
+      </MapMessage>
+    );
+  }
+
+  // Remount the loader whenever the active key changes so the next key's script
+  // is used instead of the failed one.
+  return (
+    <GoogleMapSurface
+      key={activeKey}
+      googleMapsApiKey={activeKey}
+      onKeyFailed={hasMoreKeys ? rotateKey : undefined}
+      {...surface}
+    />
+  );
+}
+
+function GoogleMapSurface({
   googleMapsApiKey,
+  onKeyFailed,
   coordActs,
   center,
   canAdd,
@@ -55,13 +102,30 @@ export default function GoogleMapView({
   onMapClick,
   onMarkerDragEnd,
   onPendingDragEnd,
-}: GoogleMapViewProps) {
+}: SurfaceProps & { googleMapsApiKey: string; onKeyFailed?: () => void }) {
   const { isLoaded, loadError } = useJsApiLoader({
     id: "tripweaver-google-map",
     googleMapsApiKey,
   });
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+
+  // The script tag failed to load outright (e.g. network error).
+  useEffect(() => {
+    if (loadError && onKeyFailed) onKeyFailed();
+  }, [loadError, onKeyFailed]);
+
+  // An invalid/over-quota key still loads the script but fires gm_authFailure
+  // rather than loadError — treat it the same and rotate to the next key.
+  useEffect(() => {
+    if (!onKeyFailed) return;
+    const w = window as unknown as { gm_authFailure?: () => void };
+    const previous = w.gm_authFailure;
+    w.gm_authFailure = () => onKeyFailed();
+    return () => {
+      w.gm_authFailure = previous;
+    };
+  }, [onKeyFailed]);
 
   // Keep the viewport framed on the current day's stops, matching Leaflet's FitBounds.
   useEffect(() => {
@@ -81,19 +145,15 @@ export default function GoogleMapView({
 
   if (loadError) {
     return (
-      <div className="h-full w-full flex items-center justify-center text-center text-sm text-ink-muted rounded-xl border border-outline/40 bg-surface-container-low p-4">
+      <MapMessage>
         לא הצלחנו לטעון את Google Maps — ודאו שמפתח ה-API תקין ומורשה לדומיין הזה, או הסירו אותו כדי
         לחזור למפת OpenStreetMap.
-      </div>
+      </MapMessage>
     );
   }
 
   if (!isLoaded) {
-    return (
-      <div className="h-full w-full flex items-center justify-center text-center text-sm text-ink-muted rounded-xl border border-outline/40 bg-surface-container-low">
-        טוען את Google Maps…
-      </div>
-    );
+    return <MapMessage>טוען את Google Maps…</MapMessage>;
   }
 
   const routePath = coordActs.map((a) => ({

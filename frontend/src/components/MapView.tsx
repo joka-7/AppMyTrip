@@ -15,7 +15,7 @@ import type { Activity } from "../api";
 import { ACTIVITY_TYPE_LABELS } from "../services/activityTypes";
 import { newActivityId } from "../services/id";
 import { googleMapsPlaceUrl, googleMapsDirectionsUrl } from "../services/mapLinks";
-import { getGoogleMapsKey } from "../services/mapsKey";
+import { getGoogleMapsKeys } from "../services/mapsKey";
 
 // Only pulled into the bundle for users who configured a Google Maps key; the
 // default OpenStreetMap/Leaflet path never downloads the Google Maps library.
@@ -116,10 +116,10 @@ export default function MapView({
   const [pendingTitle, setPendingTitle] = useState("");
   const [pendingType, setPendingType] = useState<Activity["type"]>("attraction");
 
-  // When the user has configured their own Google Maps key we render real
+  // When the user has configured their own Google Maps key(s) we render real
   // Google Maps tiles; otherwise we fall back to the free OpenStreetMap/Leaflet
-  // map below. Read once on mount — changing the key takes effect on reload.
-  const googleMapsKey = useMemo(() => getGoogleMapsKey(), []);
+  // map below. Read once on mount — changing the keys takes effect on reload.
+  const googleMapsKeys = useMemo(() => getGoogleMapsKeys(), []);
 
   const allCoordActs = activities.filter((a) => a.map_coordinates);
   const focusedAct = focusActivityId
@@ -250,7 +250,7 @@ export default function MapView({
       )}
 
       <div className="flex-1 rounded-xl overflow-hidden border border-outline/40 shadow-inner">
-        {googleMapsKey ? (
+        {googleMapsKeys.length > 0 ? (
           <Suspense
             fallback={
               <div className="h-full w-full flex items-center justify-center text-sm text-ink-muted bg-surface-container-low">
@@ -259,7 +259,7 @@ export default function MapView({
             }
           >
             <GoogleMapView
-              googleMapsApiKey={googleMapsKey}
+              googleMapsApiKeys={googleMapsKeys}
               coordActs={coordActs}
               center={center}
               canAdd={canAdd}
