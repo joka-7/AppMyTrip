@@ -16,6 +16,7 @@ import { ACTIVITY_TYPE_LABELS } from "../services/activityTypes";
 import { newActivityId } from "../services/id";
 import { googleMapsPlaceUrl, googleMapsDirectionsUrl } from "../services/mapLinks";
 import { getGoogleMapsKeys } from "../services/mapsKey";
+import GoogleMapsErrorBoundary from "./GoogleMapsErrorBoundary";
 
 // Only pulled into the bundle for users who configured a Google Maps key; the
 // default OpenStreetMap/Leaflet path never downloads the Google Maps library.
@@ -178,8 +179,8 @@ export default function MapView({
     <div className="h-full w-full flex flex-col gap-2">
       {googleMapsFailed && (
         <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-1.5">
-          לא הצלחנו לטעון את Google Maps עם המפתחות שסופקו (בדקו שהם תקינים ומורשים לדומיין הזה) —
-          חזרנו למפת OpenStreetMap.
+          לא הצלחנו להציג את Google Maps (ודאו שהמפתחות שהוגדרו תקינים ומורשים לדומיין הזה) — חזרנו
+          למפת OpenStreetMap.
         </p>
       )}
       <div className="flex flex-wrap items-center gap-2">
@@ -262,26 +263,30 @@ export default function MapView({
 
       <div className="flex-1 rounded-xl overflow-hidden border border-outline/40 shadow-inner">
         {useGoogleMaps ? (
-          <Suspense
-            fallback={
-              <div className="h-full w-full flex items-center justify-center text-sm text-ink-muted bg-surface-container-low">
-                טוען את Google Maps…
-              </div>
-            }
-          >
-            <GoogleMapView
-              googleMapsApiKeys={googleMapsKeys}
-              onAllKeysFailed={() => setGoogleMapsFailed(true)}
-              coordActs={coordActs}
-              center={center}
-              canAdd={canAdd}
-              draggableMarkers={Boolean(onUpdateActivity)}
-              pendingLocation={pendingLocation}
-              onMapClick={setPendingLocation}
-              onMarkerDragEnd={(id, coords) => onUpdateActivity?.(id, { map_coordinates: coords })}
-              onPendingDragEnd={setPendingLocation}
-            />
-          </Suspense>
+          <GoogleMapsErrorBoundary onError={() => setGoogleMapsFailed(true)}>
+            <Suspense
+              fallback={
+                <div className="h-full w-full flex items-center justify-center text-sm text-ink-muted bg-surface-container-low">
+                  טוען את Google Maps…
+                </div>
+              }
+            >
+              <GoogleMapView
+                googleMapsApiKeys={googleMapsKeys}
+                onAllKeysFailed={() => setGoogleMapsFailed(true)}
+                coordActs={coordActs}
+                center={center}
+                canAdd={canAdd}
+                draggableMarkers={Boolean(onUpdateActivity)}
+                pendingLocation={pendingLocation}
+                onMapClick={setPendingLocation}
+                onMarkerDragEnd={(id, coords) =>
+                  onUpdateActivity?.(id, { map_coordinates: coords })
+                }
+                onPendingDragEnd={setPendingLocation}
+              />
+            </Suspense>
+          </GoogleMapsErrorBoundary>
         ) : (
           <MapContainer
             center={center}
