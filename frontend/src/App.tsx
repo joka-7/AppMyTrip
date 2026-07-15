@@ -14,7 +14,7 @@ import PhonePreview from "./components/PhonePreview";
 import ProgressBar from "./components/ProgressBar";
 import SharedAppPage from "./components/SharedAppPage";
 import type { Theme } from "./components/ThemeSelector";
-import { getApiKey, getApiProvider } from "./services/apiKey";
+import { getApiKeys, getApiProvider } from "./services/apiKey";
 import { loadSharedTrip } from "./services/tripsStore";
 import "leaflet/dist/leaflet.css";
 
@@ -212,7 +212,7 @@ function TripBuilder() {
     setIsProcessing(true);
     setApiNotice(null);
     try {
-      const res = await parseTrip(rawText, preferences || null, getApiKey(), getApiProvider());
+      const res = await parseTrip(rawText, preferences || null, getApiKeys(), getApiProvider());
       setTripData(res.trip_data);
       setTripId(null);
       setAgentMessages(
@@ -243,7 +243,7 @@ function TripBuilder() {
     setEnhanceOptions(options);
     setIsEnhancing(true);
     try {
-      const res = await enhanceTrip(tripData, options, getApiKey(), getApiProvider());
+      const res = await enhanceTrip(tripData, options, getApiKeys(), getApiProvider());
       setTripData(res.trip_data);
     } catch (err) {
       console.error(err);
@@ -278,7 +278,7 @@ function TripBuilder() {
           days: [{ dayNum: 1, activities: newActivities }],
         },
         options,
-        getApiKey(),
+        getApiKeys(),
         getApiProvider(),
       );
       const enhancedById = new Map(
@@ -311,7 +311,7 @@ function TripBuilder() {
         tripData,
         userText,
         preferences || null,
-        getApiKey(),
+        getApiKeys(),
         getApiProvider(),
       );
       setTripData(await enhanceNewActivities(tripData, res.trip_data));
@@ -564,7 +564,7 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
     setChatNotice(null);
 
     try {
-      const res = await agentInteract(trip, userText, null, getApiKey(), getApiProvider());
+      const res = await agentInteract(trip, userText, null, getApiKeys(), getApiProvider());
       setTrip(res.trip_data);
       setAgentMessages((prev) => [...prev, { role: "agent", text: res.agent_reply }]);
     } catch (err) {

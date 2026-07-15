@@ -107,13 +107,13 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
 export function parseTrip(
   rawText: string,
   preferences?: string | null,
-  apiKey?: string | null,
+  apiKeys?: string[] | null,
   provider?: string | null,
 ): Promise<ParseResponse> {
   return postJSON<ParseResponse>("/api/trip/parse", {
     raw_text: rawText,
     preferences: preferences ?? null,
-    api_key: apiKey ?? null,
+    api_keys: apiKeys ?? null,
     provider: provider ?? null,
   });
 }
@@ -123,14 +123,14 @@ export function agentInteract(
   tripData: TripData,
   userMessage: string,
   preferences?: string | null,
-  apiKey?: string | null,
+  apiKeys?: string[] | null,
   provider?: string | null,
 ): Promise<AgentResponse> {
   return postJSON<AgentResponse>("/api/trip/agent", {
     trip_data: tripData,
     user_message: userMessage,
     preferences: preferences ?? null,
-    api_key: apiKey ?? null,
+    api_keys: apiKeys ?? null,
     provider: provider ?? null,
   });
 }
@@ -151,13 +151,13 @@ export interface EnhanceResponse {
 export function enhanceTrip(
   tripData: TripData,
   options: EnhanceOptions,
-  apiKey?: string | null,
+  apiKeys?: string[] | null,
   provider?: string | null,
 ): Promise<EnhanceResponse> {
   return postJSON<EnhanceResponse>("/api/trip/enhance", {
     trip_data: tripData,
     options,
-    api_key: apiKey ?? null,
+    api_keys: apiKeys ?? null,
     provider: provider ?? null,
   });
 }

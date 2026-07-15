@@ -74,7 +74,14 @@ class AgentInteractRequest(BaseModel):
     api_key: str | None = Field(
         None,
         description="Caller's own LLM provider API key. Falls back to the server's "
-        "GEMINI_API_KEY/OPENAI_API_KEY/ANTHROPIC_API_KEY/GROQ_API_KEY env var if omitted.",
+        "GEMINI_API_KEY/OPENAI_API_KEY/ANTHROPIC_API_KEY/GROQ_API_KEY env var if omitted. "
+        "Legacy single-key field; prefer `api_keys` for rotation across several keys.",
+    )
+    api_keys: list[str] | None = Field(
+        None,
+        description="Caller's own LLM provider API keys, tried in order — when one is "
+        "rate-limited (429) the server rotates to the next before failing. Merged with "
+        "the legacy `api_key` field if both are sent.",
     )
     provider: str | None = Field(
         None,
@@ -94,7 +101,14 @@ class ParseRequest(BaseModel):
     api_key: str | None = Field(
         None,
         description="Caller's own LLM provider API key. Falls back to the server's "
-        "GEMINI_API_KEY/OPENAI_API_KEY/ANTHROPIC_API_KEY/GROQ_API_KEY env var if omitted.",
+        "GEMINI_API_KEY/OPENAI_API_KEY/ANTHROPIC_API_KEY/GROQ_API_KEY env var if omitted. "
+        "Legacy single-key field; prefer `api_keys` for rotation across several keys.",
+    )
+    api_keys: list[str] | None = Field(
+        None,
+        description="Caller's own LLM provider API keys, tried in order — when one is "
+        "rate-limited (429) the server rotates to the next before failing. Merged with "
+        "the legacy `api_key` field if both are sent.",
     )
     provider: str | None = Field(
         None,
@@ -124,7 +138,14 @@ class EnhanceRequest(BaseModel):
     api_key: str | None = Field(
         None,
         description="Caller's own LLM provider API key. Falls back to the server's "
-        "GEMINI_API_KEY/OPENAI_API_KEY/ANTHROPIC_API_KEY/GROQ_API_KEY env var if omitted.",
+        "GEMINI_API_KEY/OPENAI_API_KEY/ANTHROPIC_API_KEY/GROQ_API_KEY env var if omitted. "
+        "Legacy single-key field; prefer `api_keys` for rotation across several keys.",
+    )
+    api_keys: list[str] | None = Field(
+        None,
+        description="Caller's own LLM provider API keys, tried in order — when one is "
+        "rate-limited (429) the server rotates to the next before failing. Merged with "
+        "the legacy `api_key` field if both are sent.",
     )
     provider: str | None = Field(
         None,

@@ -216,46 +216,77 @@ class LLMService:
             )
         return instance
 
+    @staticmethod
+    def _resolve_key_list(api_key: str | None, api_keys: list[str] | None) -> list[str | None]:
+        """Merge the legacy single `api_key` and the newer `api_keys` list into one
+        ordered, de-duplicated list of keys to try. Returns ``[None]`` when no keys
+        are supplied, so the provider falls back to the server's env var."""
+        merged: list[str] = []
+        for key in [*(api_keys or []), *([api_key] if api_key else [])]:
+            cleaned = (key or "").strip()
+            if cleaned and cleaned not in merged:
+                merged.append(cleaned)
+        return list(merged) if merged else [None]
+
     @classmethod
     async def _execute_with_retry(
         cls,
         system_prompt: str,
         user_content: str,
-        api_key: str | None = None,
+        api_keys: list[str | None] | None = None,
         provider: str | None = None,
         max_retries: int = 5,
     ) -> dict:
-        llm_provider = cls._get_provider(api_key, provider)
+        # Try each supplied key in turn; when one is rate-limited we rotate to the
+        # next (a fresh key beats waiting on an exhausted one) and only surface a
+        # 429 once every key has been rate-limited. Non-429 errors still retry with
+        # exponential backoff on the current key, as before.
+        keys = api_keys if api_keys else [None]
         delays = [1, 2, 4, 8, 16]
+        last_rate_limit: httpx.HTTPStatusError | None = None
 
-        for attempt in range(max_retries):
-            try:
-                return await llm_provider.complete_json(system_prompt, user_content)
-            except httpx.HTTPStatusError as e:
-                if e.response.status_code == 429:
+        for key_index, key in enumerate(keys):
+            llm_provider = cls._get_provider(key, provider)
+            is_last_key = key_index == len(keys) - 1
+
+            for attempt in range(max_retries):
+                try:
+                    return await llm_provider.complete_json(system_prompt, user_content)
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code == 429:
+                        last_rate_limit = e
+                        if not is_last_key:
+                            break  # rotate to the next key immediately
+                        if attempt == max_retries - 1:
+                            raise cls._all_keys_rate_limited(e) from e
+                        retry_after = e.response.headers.get("retry-after")
+                        delay = float(retry_after) if retry_after else delays[attempt]
+                        await asyncio.sleep(delay)
+                        continue
                     if attempt == max_retries - 1:
                         raise HTTPException(
-                            status_code=429,
-                            detail="The LLM provider is rate-limiting this API key. Wait a bit "
-                            "before trying again, or add your own API key in settings — the "
-                            "shared default key is more likely to hit shared rate limits.",
+                            status_code=502, detail=f"LLM API failed after retries: {str(e)}"
                         ) from e
-                    retry_after = e.response.headers.get("retry-after")
-                    delay = float(retry_after) if retry_after else delays[attempt]
-                    await asyncio.sleep(delay)
-                    continue
-                if attempt == max_retries - 1:
-                    raise HTTPException(
-                        status_code=502, detail=f"LLM API failed after retries: {str(e)}"
-                    ) from e
-                await asyncio.sleep(delays[attempt])
-            except (httpx.HTTPError, ValueError, json.JSONDecodeError) as e:
-                if attempt == max_retries - 1:
-                    raise HTTPException(
-                        status_code=502, detail=f"LLM API failed after retries: {str(e)}"
-                    ) from e
-                await asyncio.sleep(delays[attempt])
+                    await asyncio.sleep(delays[attempt])
+                except (httpx.HTTPError, ValueError, json.JSONDecodeError) as e:
+                    if attempt == max_retries - 1:
+                        raise HTTPException(
+                            status_code=502, detail=f"LLM API failed after retries: {str(e)}"
+                        ) from e
+                    await asyncio.sleep(delays[attempt])
+
+        # Reached only when every key broke out on a 429 without succeeding.
+        if last_rate_limit is not None:
+            raise cls._all_keys_rate_limited(last_rate_limit) from last_rate_limit
         return {}
+
+    @staticmethod
+    def _all_keys_rate_limited(source: Exception) -> HTTPException:
+        return HTTPException(
+            status_code=429,
+            detail="All of your API keys are rate-limited right now. Add another key in "
+            "settings, wait a bit before trying again, or switch provider.",
+        )
 
     @classmethod
     async def parse_trip_text(
@@ -264,6 +295,7 @@ class LLMService:
         preferences: str | None = None,
         api_key: str | None = None,
         provider: str | None = None,
+        api_keys: list[str] | None = None,
     ) -> TripData:
         """Calls the LLM to parse raw text into a structured TripData object.
 
@@ -295,7 +327,10 @@ class LLMService:
         )
 
         json_data = await cls._execute_with_retry(
-            system_prompt, user_content, api_key=api_key, provider=provider
+            system_prompt,
+            user_content,
+            api_keys=cls._resolve_key_list(api_key, api_keys),
+            provider=provider,
         )
         _coerce_invalid_activity_types(json_data)
 
@@ -314,6 +349,7 @@ class LLMService:
         preferences: str | None = None,
         api_key: str | None = None,
         provider: str | None = None,
+        api_keys: list[str] | None = None,
     ) -> AgentResponse:
         """Calls the LLM to update the trip based on user chat and return a conversational reply."""
         preferences_fragment = f"IMPORTANT: {preferences} " if preferences else ""
@@ -352,7 +388,10 @@ class LLMService:
         )
 
         json_data = await cls._execute_with_retry(
-            system_prompt, user_content, api_key=api_key, provider=provider
+            system_prompt,
+            user_content,
+            api_keys=cls._resolve_key_list(api_key, api_keys),
+            provider=provider,
         )
         if isinstance(json_data, dict):
             _coerce_invalid_activity_types(json_data.get("updated_trip"))
@@ -429,7 +468,7 @@ class LLMService:
         cls,
         current_trip: TripData,
         instruction: str,
-        api_key: str | None,
+        api_keys: list[str | None],
         provider: str | None,
     ) -> TripData:
         system_prompt = (
@@ -445,7 +484,7 @@ class LLMService:
             f"Output strict JSON matching this schema: {json.dumps(schema)}"
         )
         json_data = await cls._execute_with_retry(
-            system_prompt, user_content, api_key=api_key, provider=provider
+            system_prompt, user_content, api_keys=api_keys, provider=provider
         )
         _coerce_invalid_activity_types(json_data)
         try:
@@ -470,6 +509,7 @@ class LLMService:
         options: EnhanceOptions,
         api_key: str | None = None,
         provider: str | None = None,
+        api_keys: list[str] | None = None,
     ) -> TripData:
         """Fills in the optional extras the user opted into in Step 2 (directions, prices,
         podcast briefs, links), plus — always, regardless of `options` — real map
@@ -490,13 +530,15 @@ class LLMService:
         if not selected:
             return current_trip
 
+        resolved_keys = cls._resolve_key_list(api_key, api_keys)
+
         # return_exceptions=True: each piece is an independent LLM call, so one
         # rate-limited or malformed response (more likely now that checking every
         # box fires several calls at once) must not sink the others — apply
         # whichever pieces succeeded and only raise if every single one failed.
         results = await asyncio.gather(
             *(
-                cls._enhance_one(current_trip, instruction, api_key, provider)
+                cls._enhance_one(current_trip, instruction, resolved_keys, provider)
                 for _fields, instruction in selected
             ),
             return_exceptions=True,

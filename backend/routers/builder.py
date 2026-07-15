@@ -139,6 +139,7 @@ class TripBuilder:
         self._raw_text: str = ""
         self._preferences: str | None = None
         self._api_key: str | None = None
+        self._api_keys: list[str] | None = None
         self._provider: str | None = None
 
     def load_initial_text(self, text: str) -> "TripBuilder":
@@ -156,6 +157,12 @@ class TripBuilder:
         self._api_key = api_key
         return self
 
+    def set_api_keys(self, api_keys: list[str] | None) -> "TripBuilder":
+        """Sets the caller's LLM provider API keys to rotate through on rate limits
+        (merged with the legacy single `api_key`; falls back to server env var)."""
+        self._api_keys = api_keys
+        return self
+
     def set_provider(self, provider: str | None) -> "TripBuilder":
         """Sets which LLM provider `api_key` belongs to (falls back to server env var)."""
         self._provider = provider
@@ -164,7 +171,11 @@ class TripBuilder:
     async def extract_with_llm(self) -> "TripBuilder":
         """Invokes the LLMService to parse the text."""
         self._trip = await LLMService.parse_trip_text(
-            self._raw_text, self._preferences, api_key=self._api_key, provider=self._provider
+            self._raw_text,
+            self._preferences,
+            api_key=self._api_key,
+            provider=self._provider,
+            api_keys=self._api_keys,
         )
         return self
 
@@ -185,6 +196,7 @@ class TripBuilder:
             self._preferences,
             api_key=self._api_key,
             provider=self._provider,
+            api_keys=self._api_keys,
         )
 
         if _looks_truncated(previous_trip, agent_response.updated_trip, user_message):
@@ -196,6 +208,7 @@ class TripBuilder:
                 self._preferences,
                 api_key=self._api_key,
                 provider=self._provider,
+                api_keys=self._api_keys,
             )
             if _looks_truncated(previous_trip, agent_response.updated_trip, user_message):
                 # 409, not 502/504: this isn't an upstream/provider failure, it's our
@@ -219,7 +232,11 @@ class TripBuilder:
         if not self._trip:
             raise ValueError("Trip has not been initialized.")
         self._trip = await LLMService.enhance_trip(
-            self._trip, options, api_key=self._api_key, provider=self._provider
+            self._trip,
+            options,
+            api_key=self._api_key,
+            provider=self._provider,
+            api_keys=self._api_keys,
         )
         return self
 
@@ -257,6 +274,7 @@ async def parse_initial_trip(request: ParseRequest) -> dict:
     builder = TripBuilder()
     builder.set_preferences(request.preferences)
     builder.set_api_key(request.api_key)
+    builder.set_api_keys(request.api_keys)
     builder.set_provider(request.provider)
 
     # Execute the LLM pipeline asynchronously
@@ -275,6 +293,7 @@ async def agent_interaction(request: AgentInteractRequest) -> dict:
     builder = TripBuilder().load_existing_trip(request.trip_data)
     builder.set_preferences(request.preferences)
     builder.set_api_key(request.api_key)
+    builder.set_api_keys(request.api_keys)
     builder.set_provider(request.provider)
 
     # AI modifies the trip and generates a reply
@@ -291,6 +310,7 @@ async def enhance_trip_endpoint(request: EnhanceRequest) -> dict:
     """
     builder = TripBuilder().load_existing_trip(request.trip_data)
     builder.set_api_key(request.api_key)
+    builder.set_api_keys(request.api_keys)
     builder.set_provider(request.provider)
 
     await builder.enhance(request.options)
