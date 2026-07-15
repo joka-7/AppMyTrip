@@ -1,10 +1,10 @@
-// Vite's code-split dynamic imports (e.g. lazy(() => import("./GoogleMapView")))
-// embed a content-hashed chunk URL at build time. A tab left open across a
-// deploy — or a stale service-worker cache still serving the pre-deploy bundle —
-// keeps referencing that OLD hash, which no longer exists once the new build
-// replaces dist/assets/. The server's SPA fallback then returns index.html
-// (text/html) for that request, which the browser rejects as an invalid module
-// script — surfacing as "Failed to fetch dynamically imported module".
+// Vite's code-split dynamic imports embed a content-hashed chunk URL at build
+// time. A tab left open across a deploy — or a stale service-worker cache still
+// serving the pre-deploy bundle — keeps referencing that OLD hash, which no
+// longer exists once the new build replaces dist/assets/. The server's SPA
+// fallback then returns index.html (text/html) for that request, which the
+// browser rejects as an invalid module script — surfacing as
+// "Failed to fetch dynamically imported module".
 //
 // Vite fires `vite:preloadError` on window for exactly this case. The fix is a
 // one-time hard reload to fetch the current index.html/bundle, guarded against
