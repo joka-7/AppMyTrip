@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { GoogleMap, MarkerF, PolylineF, InfoWindowF, useJsApiLoader } from "@react-google-maps/api";
 import type { Activity } from "../api";
 import { googleMapsPlaceUrl } from "../services/mapLinks";
@@ -159,6 +159,35 @@ function GoogleMapSurface({
     map.fitBounds(bounds, 40);
   }, [map, coordActs]);
 
+  // A stable identity for the current set of stops, so `routePath` below only
+  // gets a new array/object reference when the actual points change — not on
+  // every unrelated re-render. Passing a fresh array into <PolylineF> each
+  // render makes Google's SDK diff it against its internal MVCArray via
+  // setAt() far more often than needed; combined with the Polyline mounting/
+  // unmounting whenever the stop count crosses the 1-point threshold below,
+  // that churn can race Google's own internal cleanup and throw deep inside
+  // its SDK ("Cannot read properties of undefined (reading 'setAt')").
+  // Keying <PolylineF> by this same value forces a clean create/destroy on
+  // any real structural change instead of an in-place patch, sidestepping
+  // that internal diffing path entirely.
+  const routeKey = coordActs
+    .filter(
+      (a) => Number.isFinite(a.map_coordinates?.lat) && Number.isFinite(a.map_coordinates?.lng),
+    )
+    .map((a) => `${a.id}:${a.map_coordinates!.lat}:${a.map_coordinates!.lng}`)
+    .join("|");
+
+  const routePath = useMemo(
+    () =>
+      coordActs
+        .filter(
+          (a) => Number.isFinite(a.map_coordinates?.lat) && Number.isFinite(a.map_coordinates?.lng),
+        )
+        .map((a) => ({ lat: a.map_coordinates!.lat, lng: a.map_coordinates!.lng })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- routeKey is the intentional, cheaper dependency
+    [routeKey],
+  );
+
   if (loadError || authFailed) {
     return <MapMessage>טוען מפה חלופית…</MapMessage>;
   }
@@ -166,11 +195,6 @@ function GoogleMapSurface({
   if (!isLoaded) {
     return <MapMessage>טוען את Google Maps…</MapMessage>;
   }
-
-  const routePath = coordActs.map((a) => ({
-    lat: a.map_coordinates!.lat,
-    lng: a.map_coordinates!.lng,
-  }));
 
   return (
     <GoogleMap
@@ -190,42 +214,48 @@ function GoogleMapSurface({
     >
       {routePath.length > 1 && (
         <PolylineF
+          key={routeKey}
           path={routePath}
           options={{ strokeColor: "#1a5276", strokeOpacity: 0.6, strokeWeight: 3 }}
         />
       )}
 
-      {coordActs.map((act) => (
-        <MarkerF
-          key={act.id}
-          position={{ lat: act.map_coordinates!.lat, lng: act.map_coordinates!.lng }}
-          icon={circleSymbol(MARKER_HEX[act.type] ?? MARKER_HEX.attraction, 8)}
-          draggable={draggableMarkers}
-          onClick={() => setOpenId(act.id)}
-          onDragEnd={(e) => {
-            if (e.latLng) onMarkerDragEnd(act.id, { lat: e.latLng.lat(), lng: e.latLng.lng() });
-          }}
-        >
-          {openId === act.id && (
-            <InfoWindowF
-              position={{ lat: act.map_coordinates!.lat, lng: act.map_coordinates!.lng }}
-              onCloseClick={() => setOpenId(null)}
-            >
-              <div className="flex flex-col gap-1 text-right">
-                <span className="font-semibold">{act.title}</span>
-                <a
-                  href={googleMapsPlaceUrl(act)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:text-primary-dark text-xs"
-                >
-                  פתיחה ב-Google Maps
-                </a>
-              </div>
-            </InfoWindowF>
-          )}
-        </MarkerF>
-      ))}
+      {coordActs
+        .filter(
+          (act) =>
+            Number.isFinite(act.map_coordinates?.lat) && Number.isFinite(act.map_coordinates?.lng),
+        )
+        .map((act) => (
+          <MarkerF
+            key={act.id}
+            position={{ lat: act.map_coordinates!.lat, lng: act.map_coordinates!.lng }}
+            icon={circleSymbol(MARKER_HEX[act.type] ?? MARKER_HEX.attraction, 8)}
+            draggable={draggableMarkers}
+            onClick={() => setOpenId(act.id)}
+            onDragEnd={(e) => {
+              if (e.latLng) onMarkerDragEnd(act.id, { lat: e.latLng.lat(), lng: e.latLng.lng() });
+            }}
+          >
+            {openId === act.id && (
+              <InfoWindowF
+                position={{ lat: act.map_coordinates!.lat, lng: act.map_coordinates!.lng }}
+                onCloseClick={() => setOpenId(null)}
+              >
+                <div className="flex flex-col gap-1 text-right">
+                  <span className="font-semibold">{act.title}</span>
+                  <a
+                    href={googleMapsPlaceUrl(act)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:text-primary-dark text-xs"
+                  >
+                    פתיחה ב-Google Maps
+                  </a>
+                </div>
+              </InfoWindowF>
+            )}
+          </MarkerF>
+        ))}
 
       {pendingLocation && (
         <MarkerF
