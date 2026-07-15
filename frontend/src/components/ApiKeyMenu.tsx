@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, Eye, EyeOff, KeyRound, MapPin, Plus, Trash2 } from "lucide-react";
+import { Check, Eye, EyeOff, KeyRound, Plus, Trash2 } from "lucide-react";
 import {
   addApiKey,
   getApiKeysForProvider,
@@ -9,12 +9,6 @@ import {
   setApiProvider,
   type LLMProvider,
 } from "../services/apiKey";
-import {
-  addGoogleMapsKey,
-  getGoogleMapsKeys,
-  GOOGLE_MAPS_KEY_URL,
-  removeGoogleMapsKey,
-} from "../services/mapsKey";
 
 /** Masks a key for display so it's recognizable without exposing the whole secret. */
 function maskKey(key: string): string {
@@ -46,9 +40,8 @@ function KeyRow({ value, onRemove }: { value: string; onRemove: () => void }) {
  * Lets each user pick their preferred LLM provider (Gemini, OpenAI, Claude, or
  * Groq) and store one or more of their own API keys for it. Multiple keys are
  * sent to the backend and rotated through when one hits its rate limit, so a few
- * free-tier keys together outlast any single key's quota. An optional Google Maps
- * key (also supporting several) swaps the in-app map to real Google Maps. Every
- * key is stored only in localStorage and never touches our backend's env vars.
+ * free-tier keys together outlast any single key's quota. Every key is stored
+ * only in localStorage and never touches our backend's env vars.
  */
 export default function ApiKeyMenu() {
   const [isOpen, setIsOpen] = useState(false);
@@ -56,10 +49,6 @@ export default function ApiKeyMenu() {
   const [llmKeys, setLlmKeys] = useState<string[]>(() => getApiKeysForProvider(provider));
   const [llmDraft, setLlmDraft] = useState("");
   const [showLlmDraft, setShowLlmDraft] = useState(false);
-
-  const [mapsKeys, setMapsKeys] = useState<string[]>(() => getGoogleMapsKeys());
-  const [mapsDraft, setMapsDraft] = useState("");
-  const [showMapsDraft, setShowMapsDraft] = useState(false);
 
   const handleProviderChange = (next: LLMProvider) => {
     setProvider(next);
@@ -79,19 +68,6 @@ export default function ApiKeyMenu() {
   const handleRemoveLlmKey = (key: string) => {
     removeApiKey(key, provider);
     setLlmKeys(getApiKeysForProvider(provider));
-  };
-
-  const handleAddMapsKey = () => {
-    const trimmed = mapsDraft.trim();
-    if (!trimmed) return;
-    addGoogleMapsKey(trimmed);
-    setMapsKeys(getGoogleMapsKeys());
-    setMapsDraft("");
-  };
-
-  const handleRemoveMapsKey = (key: string) => {
-    removeGoogleMapsKey(key);
-    setMapsKeys(getGoogleMapsKeys());
   };
 
   const keyUrl = PROVIDERS.find((p) => p.value === provider)?.keyUrl ?? PROVIDERS[0].keyUrl;
@@ -170,62 +146,6 @@ export default function ApiKeyMenu() {
             <Plus size={14} />
             הוספת מפתח
           </button>
-
-          <div className="border-t border-outline/20 mt-4 pt-4">
-            <h3 className="text-sm font-bold text-ink mb-1 flex items-center gap-1.5">
-              <MapPin size={14} />
-              מפתחות Google Maps (רשות)
-            </h3>
-            <p className="text-xs text-ink-muted mb-3">
-              עם מפתח Google Maps תוצג מפת Google אמיתית בתוך האפליקציה במקום מפת OpenStreetMap. ללא
-              מפתח הכול עובד כרגיל. השיגו מפתח ב-
-              <a
-                href={GOOGLE_MAPS_KEY_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="text-primary underline"
-              >
-                Google Cloud
-              </a>
-              , והגבילו אותו לדומיין שלכם. שינוי ייכנס לתוקף לאחר רענון הדף.
-            </p>
-
-            {mapsKeys.length > 0 && (
-              <div className="flex flex-col gap-1.5 mb-2">
-                {mapsKeys.map((key) => (
-                  <KeyRow key={key} value={key} onRemove={() => handleRemoveMapsKey(key)} />
-                ))}
-              </div>
-            )}
-
-            <div className="relative mb-2">
-              <input
-                type={showMapsDraft ? "text" : "password"}
-                value={mapsDraft}
-                onChange={(e) => setMapsDraft(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAddMapsKey()}
-                placeholder="Google Maps API Key..."
-                className="w-full border border-outline/40 rounded-lg px-3 py-2 pl-9 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-              />
-              <button
-                type="button"
-                onClick={() => setShowMapsDraft((v) => !v)}
-                aria-label={showMapsDraft ? "הסתרת מפתח Google Maps" : "הצגת מפתח Google Maps"}
-                className="absolute left-2 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink"
-              >
-                {showMapsDraft ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-            <button
-              onClick={handleAddMapsKey}
-              disabled={!mapsDraft.trim()}
-              aria-label="הוספת מפתח Google Maps"
-              className="w-full flex items-center justify-center gap-1.5 bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-sm px-3 py-2 rounded-lg"
-            >
-              <Plus size={14} />
-              הוספת מפתח
-            </button>
-          </div>
 
           <button
             onClick={() => setIsOpen(false)}

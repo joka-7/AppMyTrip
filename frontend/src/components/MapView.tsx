@@ -7,7 +7,7 @@ import {
   useMap,
   useMapEvents,
 } from "react-leaflet";
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import L from "leaflet";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ArrowRight, ExternalLink, MapPinPlus, Utensils, Bed, Landmark, Plane } from "lucide-react";
@@ -15,12 +15,6 @@ import type { Activity } from "../api";
 import { ACTIVITY_TYPE_LABELS } from "../services/activityTypes";
 import { newActivityId } from "../services/id";
 import { googleMapsPlaceUrl, googleMapsDirectionsUrl } from "../services/mapLinks";
-import { getGoogleMapsKeys } from "../services/mapsKey";
-import GoogleMapsErrorBoundary from "./GoogleMapsErrorBoundary";
-
-// Only pulled into the bundle for users who configured a Google Maps key; the
-// default OpenStreetMap/Leaflet path never downloads the Google Maps library.
-const GoogleMapView = lazy(() => import("./GoogleMapView"));
 
 const MARKER_COLORS: Record<Activity["type"], string> = {
   food: "bg-secondary",
@@ -117,16 +111,6 @@ export default function MapView({
   const [pendingTitle, setPendingTitle] = useState("");
   const [pendingType, setPendingType] = useState<Activity["type"]>("attraction");
 
-  // When the user has configured their own Google Maps key(s) we render real
-  // Google Maps tiles; otherwise we fall back to the free OpenStreetMap/Leaflet
-  // map below. Read once on mount — changing the keys takes effect on reload.
-  const googleMapsKeys = useMemo(() => getGoogleMapsKeys(), []);
-  // Set once every configured Google Maps key has failed to load/authenticate,
-  // so we drop back to the always-working OpenStreetMap map for the rest of
-  // this session instead of leaving Google's own broken error overlay on screen.
-  const [googleMapsFailed, setGoogleMapsFailed] = useState(false);
-  const useGoogleMaps = googleMapsKeys.length > 0 && !googleMapsFailed;
-
   const allCoordActs = activities.filter((a) => a.map_coordinates);
   const focusedAct = focusActivityId
     ? allCoordActs.find((a) => a.id === focusActivityId)
@@ -177,12 +161,6 @@ export default function MapView({
 
   return (
     <div className="h-full w-full flex flex-col gap-2">
-      {googleMapsFailed && (
-        <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-1.5">
-          לא הצלחנו להציג את Google Maps (ודאו שהמפתחות שהוגדרו תקינים ומורשים לדומיין הזה) — חזרנו
-          למפת OpenStreetMap.
-        </p>
-      )}
       <div className="flex flex-wrap items-center gap-2">
         {focusedAct && onClearFocus && (
           <button
@@ -262,99 +240,72 @@ export default function MapView({
       )}
 
       <div className="flex-1 rounded-xl overflow-hidden border border-outline/40 shadow-inner">
-        {useGoogleMaps ? (
-          <GoogleMapsErrorBoundary onError={() => setGoogleMapsFailed(true)}>
-            <Suspense
-              fallback={
-                <div className="h-full w-full flex items-center justify-center text-sm text-ink-muted bg-surface-container-low">
-                  טוען את Google Maps…
-                </div>
+        <MapContainer
+          center={center}
+          zoom={coordActs[0] ? 13 : 2}
+          scrollWheelZoom
+          touchZoom
+          doubleClickZoom
+          style={{ height: "100%", width: "100%" }}
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          <FitBounds activities={coordActs} />
+          <ClickToAdd enabled={canAdd} onPick={setPendingLocation} />
+          {routePoints.length > 1 && (
+            <Polyline
+              positions={routePoints}
+              pathOptions={{ color: "#1a5276", weight: 3, opacity: 0.6, dashArray: "6 8" }}
+            />
+          )}
+          {coordActs.map((act) => (
+            <Marker
+              key={act.id}
+              position={[act.map_coordinates!.lat, act.map_coordinates!.lng]}
+              icon={markerIcon(act.type)}
+              draggable={Boolean(onUpdateActivity)}
+              eventHandlers={
+                onUpdateActivity
+                  ? {
+                      dragend: (e) => {
+                        const { lat, lng } = e.target.getLatLng();
+                        onUpdateActivity(act.id, { map_coordinates: { lat, lng } });
+                      },
+                    }
+                  : undefined
               }
             >
-              <GoogleMapView
-                googleMapsApiKeys={googleMapsKeys}
-                onAllKeysFailed={() => setGoogleMapsFailed(true)}
-                coordActs={coordActs}
-                center={center}
-                canAdd={canAdd}
-                draggableMarkers={Boolean(onUpdateActivity)}
-                pendingLocation={pendingLocation}
-                onMapClick={setPendingLocation}
-                onMarkerDragEnd={(id, coords) =>
-                  onUpdateActivity?.(id, { map_coordinates: coords })
-                }
-                onPendingDragEnd={setPendingLocation}
-              />
-            </Suspense>
-          </GoogleMapsErrorBoundary>
-        ) : (
-          <MapContainer
-            center={center}
-            zoom={coordActs[0] ? 13 : 2}
-            scrollWheelZoom
-            touchZoom
-            doubleClickZoom
-            style={{ height: "100%", width: "100%" }}
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              <Popup>
+                <div className="flex flex-col gap-1">
+                  <span className="font-semibold">{act.title}</span>
+                  <a
+                    href={googleMapsPlaceUrl(act)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:text-primary-dark text-xs"
+                  >
+                    פתיחה ב-Google Maps
+                  </a>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+          {pendingLocation && (
+            <Marker
+              position={[pendingLocation.lat, pendingLocation.lng]}
+              icon={PENDING_ICON}
+              draggable
+              eventHandlers={{
+                dragend: (e) => {
+                  const { lat, lng } = e.target.getLatLng();
+                  setPendingLocation({ lat, lng });
+                },
+              }}
             />
-            <FitBounds activities={coordActs} />
-            <ClickToAdd enabled={canAdd} onPick={setPendingLocation} />
-            {routePoints.length > 1 && (
-              <Polyline
-                positions={routePoints}
-                pathOptions={{ color: "#1a5276", weight: 3, opacity: 0.6, dashArray: "6 8" }}
-              />
-            )}
-            {coordActs.map((act) => (
-              <Marker
-                key={act.id}
-                position={[act.map_coordinates!.lat, act.map_coordinates!.lng]}
-                icon={markerIcon(act.type)}
-                draggable={Boolean(onUpdateActivity)}
-                eventHandlers={
-                  onUpdateActivity
-                    ? {
-                        dragend: (e) => {
-                          const { lat, lng } = e.target.getLatLng();
-                          onUpdateActivity(act.id, { map_coordinates: { lat, lng } });
-                        },
-                      }
-                    : undefined
-                }
-              >
-                <Popup>
-                  <div className="flex flex-col gap-1">
-                    <span className="font-semibold">{act.title}</span>
-                    <a
-                      href={googleMapsPlaceUrl(act)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:text-primary-dark text-xs"
-                    >
-                      פתיחה ב-Google Maps
-                    </a>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
-            {pendingLocation && (
-              <Marker
-                position={[pendingLocation.lat, pendingLocation.lng]}
-                icon={PENDING_ICON}
-                draggable
-                eventHandlers={{
-                  dragend: (e) => {
-                    const { lat, lng } = e.target.getLatLng();
-                    setPendingLocation({ lat, lng });
-                  },
-                }}
-              />
-            )}
-          </MapContainer>
-        )}
+          )}
+        </MapContainer>
       </div>
     </div>
   );
