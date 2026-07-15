@@ -120,6 +120,11 @@ export default function MapView({
   // Google Maps tiles; otherwise we fall back to the free OpenStreetMap/Leaflet
   // map below. Read once on mount — changing the keys takes effect on reload.
   const googleMapsKeys = useMemo(() => getGoogleMapsKeys(), []);
+  // Set once every configured Google Maps key has failed to load/authenticate,
+  // so we drop back to the always-working OpenStreetMap map for the rest of
+  // this session instead of leaving Google's own broken error overlay on screen.
+  const [googleMapsFailed, setGoogleMapsFailed] = useState(false);
+  const useGoogleMaps = googleMapsKeys.length > 0 && !googleMapsFailed;
 
   const allCoordActs = activities.filter((a) => a.map_coordinates);
   const focusedAct = focusActivityId
@@ -171,6 +176,12 @@ export default function MapView({
 
   return (
     <div className="h-full w-full flex flex-col gap-2">
+      {googleMapsFailed && (
+        <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-1.5">
+          לא הצלחנו לטעון את Google Maps עם המפתחות שסופקו (בדקו שהם תקינים ומורשים לדומיין הזה) —
+          חזרנו למפת OpenStreetMap.
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         {focusedAct && onClearFocus && (
           <button
@@ -250,7 +261,7 @@ export default function MapView({
       )}
 
       <div className="flex-1 rounded-xl overflow-hidden border border-outline/40 shadow-inner">
-        {googleMapsKeys.length > 0 ? (
+        {useGoogleMaps ? (
           <Suspense
             fallback={
               <div className="h-full w-full flex items-center justify-center text-sm text-ink-muted bg-surface-container-low">
@@ -260,6 +271,7 @@ export default function MapView({
           >
             <GoogleMapView
               googleMapsApiKeys={googleMapsKeys}
+              onAllKeysFailed={() => setGoogleMapsFailed(true)}
               coordActs={coordActs}
               center={center}
               canAdd={canAdd}

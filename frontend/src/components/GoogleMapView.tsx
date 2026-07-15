@@ -10,8 +10,12 @@ import { googleMapsPlaceUrl } from "../services/mapLinks";
 // popup with an "open in Google Maps" link.
 //
 // Several keys can be supplied: the map loads with the first, and if that key
-// fails to load or is rejected (quota/referrer/auth) it rotates to the next one,
-// only showing an error once every key has failed.
+// fails to load or is rejected (quota/referrer/auth) it rotates to the next one.
+// Once every key has failed, `onAllKeysFailed` fires so the caller (MapView) can
+// fall back to the always-free OpenStreetMap map instead of leaving Google's own
+// unstyled "Oops! Something went wrong" overlay on screen — an invalid/quota'd/
+// wrong-referrer key would otherwise strand the user on that broken overlay with
+// no way back to a working map.
 
 type Coords = { lat: number; lng: number };
 
@@ -28,6 +32,7 @@ interface SurfaceProps {
 
 export interface GoogleMapViewProps extends SurfaceProps {
   googleMapsApiKeys: string[];
+  onAllKeysFailed: () => void;
 }
 
 // Hex equivalents of the Leaflet surface's Tailwind marker colors, so both
@@ -60,24 +65,29 @@ function MapMessage({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function GoogleMapView({ googleMapsApiKeys, ...surface }: GoogleMapViewProps) {
+export default function GoogleMapView({
+  googleMapsApiKeys,
+  onAllKeysFailed,
+  ...surface
+}: GoogleMapViewProps) {
   const [keyIndex, setKeyIndex] = useState(0);
   const activeKey = googleMapsApiKeys[keyIndex];
-  const hasMoreKeys = keyIndex < googleMapsApiKeys.length - 1;
 
-  // Advance to the next key when the current one fails, if any remain.
+  // Advance to the next key when the current one fails; once none remain,
+  // hand off to the caller instead of leaving a broken Google overlay on screen.
   const rotateKey = useCallback(() => {
-    setKeyIndex((i) => (i < googleMapsApiKeys.length - 1 ? i + 1 : i));
-  }, [googleMapsApiKeys.length]);
+    setKeyIndex((i) => {
+      if (i < googleMapsApiKeys.length - 1) return i + 1;
+      onAllKeysFailed();
+      return i;
+    });
+  }, [googleMapsApiKeys.length, onAllKeysFailed]);
 
-  if (!activeKey) {
-    return (
-      <MapMessage>
-        לא הצלחנו לטעון את Google Maps עם אף אחד מהמפתחות — ודאו שהם תקינים ומורשים לדומיין הזה, או
-        הסירו אותם כדי לחזור למפת OpenStreetMap.
-      </MapMessage>
-    );
-  }
+  useEffect(() => {
+    if (!activeKey) onAllKeysFailed();
+  }, [activeKey, onAllKeysFailed]);
+
+  if (!activeKey) return null;
 
   // Remount the loader whenever the active key changes so the next key's script
   // is used instead of the failed one.
@@ -85,7 +95,7 @@ export default function GoogleMapView({ googleMapsApiKeys, ...surface }: GoogleM
     <GoogleMapSurface
       key={activeKey}
       googleMapsApiKey={activeKey}
-      onKeyFailed={hasMoreKeys ? rotateKey : undefined}
+      onKeyFailed={rotateKey}
       {...surface}
     />
   );
@@ -102,26 +112,32 @@ function GoogleMapSurface({
   onMapClick,
   onMarkerDragEnd,
   onPendingDragEnd,
-}: SurfaceProps & { googleMapsApiKey: string; onKeyFailed?: () => void }) {
+}: SurfaceProps & { googleMapsApiKey: string; onKeyFailed: () => void }) {
   const { isLoaded, loadError } = useJsApiLoader({
     id: "tripweaver-google-map",
     googleMapsApiKey,
   });
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  // The script loaded, but Google itself rejected the key (invalid/quota/wrong
+  // referrer) — stop rendering <GoogleMap> so its own broken "Oops!" overlay
+  // doesn't linger in the DOM while we rotate away from this key.
+  const [authFailed, setAuthFailed] = useState(false);
 
   // The script tag failed to load outright (e.g. network error).
   useEffect(() => {
-    if (loadError && onKeyFailed) onKeyFailed();
+    if (loadError) onKeyFailed();
   }, [loadError, onKeyFailed]);
 
   // An invalid/over-quota key still loads the script but fires gm_authFailure
   // rather than loadError — treat it the same and rotate to the next key.
   useEffect(() => {
-    if (!onKeyFailed) return;
     const w = window as unknown as { gm_authFailure?: () => void };
     const previous = w.gm_authFailure;
-    w.gm_authFailure = () => onKeyFailed();
+    w.gm_authFailure = () => {
+      setAuthFailed(true);
+      onKeyFailed();
+    };
     return () => {
       w.gm_authFailure = previous;
     };
@@ -143,13 +159,8 @@ function GoogleMapSurface({
     map.fitBounds(bounds, 40);
   }, [map, coordActs]);
 
-  if (loadError) {
-    return (
-      <MapMessage>
-        לא הצלחנו לטעון את Google Maps — ודאו שמפתח ה-API תקין ומורשה לדומיין הזה, או הסירו אותו כדי
-        לחזור למפת OpenStreetMap.
-      </MapMessage>
-    );
+  if (loadError || authFailed) {
+    return <MapMessage>טוען מפה חלופית…</MapMessage>;
   }
 
   if (!isLoaded) {
