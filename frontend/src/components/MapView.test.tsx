@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { useEffect } from "react";
 import MapView from "./MapView";
 import type { Activity } from "../api";
+import * as mapsKey from "../services/mapsKey";
 
 const activityWithCoords: Activity = {
   id: "a1",
@@ -85,5 +87,26 @@ describe("MapView", () => {
 
     fireEvent.click(container.querySelector(".leaflet-container")!);
     expect(screen.queryByPlaceholderText("שם הפעילות")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the OpenStreetMap map (instead of a dead Google Maps overlay) once every Google Maps key fails", async () => {
+    // Regression test: previously, when a configured Google Maps key was
+    // invalid/quota'd/wrong-referrer, Google's own broken "Oops!" overlay was
+    // left on screen with no way back to a working map.
+    vi.spyOn(mapsKey, "getGoogleMapsKeys").mockReturnValue(["bad-key"]);
+    function StubGoogleMapView({ onAllKeysFailed }: { onAllKeysFailed: () => void }) {
+      useEffect(() => onAllKeysFailed(), [onAllKeysFailed]);
+      return null;
+    }
+    vi.doMock("./GoogleMapView", () => ({ default: StubGoogleMapView }));
+
+    const { container } = render(<MapView activities={[activityWithCoords]} />);
+
+    await waitFor(() => {
+      expect(container.querySelector(".leaflet-container")).toBeInTheDocument();
+    });
+    expect(screen.getByText(/חזרנו למפת OpenStreetMap/)).toBeInTheDocument();
+
+    vi.doUnmock("./GoogleMapView");
   });
 });
