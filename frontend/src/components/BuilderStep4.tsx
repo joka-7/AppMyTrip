@@ -11,6 +11,7 @@ import {
   Settings,
 } from "lucide-react";
 import type { TripData } from "../api";
+import { useI18n } from "../i18n/useI18n";
 import { getCurrentSession, saveTrip, shareTrip, signInWithGoogle } from "../services/tripsStore";
 import ThemeSelector, { type Theme } from "./ThemeSelector";
 
@@ -31,7 +32,8 @@ export default function BuilderStep4({
   onSaved: (tripId: string, title: string) => void;
   onBack: () => void;
 }) {
-  const [tripName, setTripName] = useState(tripData.title || "הטיול שלי");
+  const { t } = useI18n();
+  const [tripName, setTripName] = useState(tripData.title || t("step4.defaultTripName"));
   const [status, setStatus] = useState<"idle" | "working" | "done" | "error">("idle");
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -66,35 +68,33 @@ export default function BuilderStep4({
 
   return (
     <div className="animate-fade-in">
-      <h2 className="text-2xl font-bold mb-2">שלב אחרון: עיצוב האפליקציה שלך</h2>
-      <p className="text-ink-muted mb-6">
-        בחרו צבעים, פונטים ותצורה לפני שיתוף האפליקציה למשתתפי הטיול.
-      </p>
+      <h2 className="text-2xl font-bold mb-2">{t("step4.heading")}</h2>
+      <p className="text-ink-muted mb-6">{t("step4.subtitle")}</p>
 
       <div className="space-y-6">
         <div className="bg-surface-container p-5 rounded-xl border border-outline/20">
           <h3 className="text-sm font-bold text-ink mb-4 flex items-center gap-2">
-            <PencilLine size={18} className="text-primary" /> שם הטיול
+            <PencilLine size={18} className="text-primary" /> {t("step4.tripNameLabel")}
           </h3>
           <input
             type="text"
             value={tripName}
             onChange={(e) => setTripName(e.target.value)}
-            placeholder="לדוגמה: טיול לרומא עם המשפחה"
+            placeholder={t("step4.tripNamePlaceholder")}
             className="w-full border border-outline/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
         </div>
 
         <div className="bg-surface-container p-5 rounded-xl border border-outline/20">
           <h3 className="text-sm font-bold text-ink mb-4 flex items-center gap-2">
-            <Palette size={18} className="text-primary" /> בחירת צבע נושא
+            <Palette size={18} className="text-primary" /> {t("step4.themeLabel")}
           </h3>
           <ThemeSelector theme={theme} onChange={onChangeTheme} />
         </div>
 
         <div className="bg-surface-container p-5 rounded-xl border border-outline/20">
           <h3 className="text-sm font-bold text-ink mb-4 flex items-center gap-2">
-            <Settings size={18} className="text-primary" /> תוקף קישור השיתוף
+            <Settings size={18} className="text-primary" /> {t("step4.shareValidityLabel")}
           </h3>
           <select
             value={shareDays}
@@ -102,10 +102,10 @@ export default function BuilderStep4({
             disabled={status === "working"}
             className="w-full border border-outline/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
           >
-            <option value={7}>7 ימים</option>
-            <option value={30}>30 יום</option>
-            <option value={90}>90 יום</option>
-            <option value={0}>לתמיד</option>
+            <option value={7}>{t("share.days7")}</option>
+            <option value={30}>{t("share.days30")}</option>
+            <option value={90}>{t("share.days90")}</option>
+            <option value={0}>{t("share.forever")}</option>
           </select>
         </div>
       </div>
@@ -116,7 +116,7 @@ export default function BuilderStep4({
         className="bg-surface-container hover:bg-surface-container-high disabled:opacity-60 text-ink-muted px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-colors mt-10"
       >
         <ChevronLeft size={20} />
-        חזרה
+        {t("common.back")}
       </button>
 
       {tripId ? (
@@ -131,7 +131,7 @@ export default function BuilderStep4({
             ) : (
               <Smartphone size={22} />
             )}
-            עדכון הטיול הקיים
+            {t("step4.updateExisting")}
           </button>
           <button
             onClick={() => handleDeploy(true)}
@@ -139,7 +139,7 @@ export default function BuilderStep4({
             className="flex-1 bg-surface-container hover:bg-surface-container-high disabled:opacity-70 disabled:cursor-wait text-ink-muted px-6 py-4 rounded-xl font-bold flex items-center gap-2 justify-center transition-all"
           >
             <Copy size={20} />
-            שמירה כעותק חדש
+            {t("step4.saveAsNew")}
           </button>
         </div>
       ) : (
@@ -153,7 +153,7 @@ export default function BuilderStep4({
           ) : (
             <Smartphone size={24} />
           )}
-          {status === "working" ? "משגר..." : "שגר למכשיר! שמרו ושתפו את הטיול"}
+          {status === "working" ? t("step4.deploying") : t("step4.deploy")}
         </button>
       )}
 
@@ -169,7 +169,7 @@ export default function BuilderStep4({
             className="bg-primary hover:bg-primary-dark text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium transition-colors"
           >
             {copied ? <Check size={16} /> : <Copy size={16} />}
-            {copied ? "הועתק!" : "העתק קישור"}
+            {copied ? t("step4.copied") : t("step4.copyLink")}
           </button>
           <a
             href={shareUrl}
@@ -178,21 +178,16 @@ export default function BuilderStep4({
             className="bg-white border border-outline/40 hover:bg-surface-container text-primary px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium transition-colors"
           >
             <ExternalLink size={16} />
-            מעבר לקישור
+            {t("step4.openLink")}
           </a>
         </div>
       )}
 
       {status === "error" && (
-        <p className="text-sm text-red-600 text-center mt-3">
-          משהו השתבש בעת השמירה והשיתוף. נסו שוב בעוד רגע.
-        </p>
+        <p className="text-sm text-red-600 text-center mt-3">{t("step4.deployError")}</p>
       )}
 
-      <p className="text-xs text-ink-muted text-center mt-2">
-        השיגור שומר את הטיול בחשבון Google שלכם (תתבצע התחברות אם צריך) ומפיק קישור שניתן לשתף עם
-        משתתפי הטיול.
-      </p>
+      <p className="text-xs text-ink-muted text-center mt-2">{t("step4.deployHint")}</p>
     </div>
   );
 }

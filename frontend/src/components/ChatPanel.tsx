@@ -1,4 +1,5 @@
 import type { RefObject } from "react";
+import { useI18n } from "../i18n/useI18n";
 import LanguageIndicator from "./LanguageIndicator";
 
 export interface AgentMessage {
@@ -30,6 +31,7 @@ export default function ChatPanel({
   notice?: string | null;
   language?: string | null;
 }) {
+  const { t } = useI18n();
   return (
     <div className="flex flex-col h-full">
       <div className="flex justify-end mb-2">
@@ -71,7 +73,7 @@ export default function ChatPanel({
           type="text"
           value={chatInput}
           onChange={(e) => onChangeChatInput(e.target.value)}
-          placeholder="ענה לסוכן (למשל: 'כן, תוסיף')"
+          placeholder={t("chat.inputPlaceholder")}
           disabled={isSending}
           className="flex-1 border border-outline/40 rounded-xl p-3 outline-none focus:ring-2 focus:ring-primary/50 shadow-sm disabled:opacity-60"
         />
@@ -80,7 +82,7 @@ export default function ChatPanel({
           disabled={isSending}
           className="bg-secondary hover:bg-secondary-dark disabled:opacity-60 text-white px-6 rounded-xl font-medium transition-colors shadow-sm"
         >
-          שלח
+          {t("chat.send")}
         </button>
       </form>
     </div>

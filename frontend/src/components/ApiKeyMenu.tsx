@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Check, Eye, EyeOff, KeyRound, Plus, Trash2 } from "lucide-react";
+import { useI18n } from "../i18n/useI18n";
 import {
   addApiKey,
   getApiKeysForProvider,
@@ -18,6 +19,7 @@ function maskKey(key: string): string {
 
 /** A saved key chip with a remove button. */
 function KeyRow({ value, onRemove }: { value: string; onRemove: () => void }) {
+  const { t } = useI18n();
   const masked = maskKey(value);
   return (
     <div className="flex items-center justify-between gap-2 bg-surface-container rounded-lg px-2.5 py-1.5">
@@ -27,7 +29,7 @@ function KeyRow({ value, onRemove }: { value: string; onRemove: () => void }) {
       <button
         type="button"
         onClick={onRemove}
-        aria-label={`הסרת מפתח ${masked}`}
+        aria-label={t("apiKey.removeAria", { key: masked })}
         className="text-ink-muted hover:text-red-600 shrink-0"
       >
         <Trash2 size={14} />
@@ -44,6 +46,7 @@ function KeyRow({ value, onRemove }: { value: string; onRemove: () => void }) {
  * only in localStorage and never touches our backend's env vars.
  */
 export default function ApiKeyMenu() {
+  const { t } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const [provider, setProvider] = useState<LLMProvider>(getApiProvider());
   const [llmKeys, setLlmKeys] = useState<string[]>(() => getApiKeysForProvider(provider));
@@ -85,20 +88,21 @@ export default function ApiKeyMenu() {
       >
         <KeyRound size={16} />
         {hasKeys
-          ? `מפתח API מוגדר${llmKeys.length > 1 ? ` (${llmKeys.length})` : ""}`
-          : "הגדרת מפתח API"}
+          ? llmKeys.length > 1
+            ? t("apiKey.configuredCount", { count: llmKeys.length })
+            : t("apiKey.configured")
+          : t("apiKey.setKey")}
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-outline/20 p-4 z-40 text-right">
-          <h3 className="text-sm font-bold text-ink mb-1">מפתחות API משלכם</h3>
+        <div className="absolute left-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-outline/20 p-4 z-40 text-start">
+          <h3 className="text-sm font-bold text-ink mb-1">{t("apiKey.heading")}</h3>
           <p className="text-xs text-ink-muted mb-3">
-            בחרו ספק והדביקו מפתח API משלכם — חינמי ב-
+            {t("apiKey.descriptionBefore")}
             <a href={keyUrl} target="_blank" rel="noreferrer" className="text-primary underline">
               {keyUrl.replace("https://", "")}
             </a>
-            . אפשר להוסיף כמה מפתחות; כשאחד מגיע למגבלת הקצב נעבור אוטומטית לבא. הכול נשמר רק בדפדפן
-            שלכם.
+            {t("apiKey.descriptionAfter")}
           </p>
           <select
             value={provider}
@@ -126,13 +130,13 @@ export default function ApiKeyMenu() {
               value={llmDraft}
               onChange={(e) => setLlmDraft(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAddLlmKey()}
-              placeholder="API Key..."
+              placeholder={t("apiKey.inputPlaceholder")}
               className="w-full border border-outline/40 rounded-lg px-3 py-2 pl-9 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
             <button
               type="button"
               onClick={() => setShowLlmDraft((v) => !v)}
-              aria-label={showLlmDraft ? "הסתרת המפתח" : "הצגת המפתח"}
+              aria-label={showLlmDraft ? t("apiKey.hideAria") : t("apiKey.showAria")}
               className="absolute left-2 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink"
             >
               {showLlmDraft ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -144,7 +148,7 @@ export default function ApiKeyMenu() {
             className="w-full flex items-center justify-center gap-1.5 bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-sm px-3 py-2 rounded-lg"
           >
             <Plus size={14} />
-            הוספת מפתח
+            {t("apiKey.addKey")}
           </button>
 
           <button
@@ -152,7 +156,7 @@ export default function ApiKeyMenu() {
             className="w-full flex items-center justify-center gap-1.5 text-ink-muted hover:text-ink text-sm px-3 py-2 rounded-lg mt-3"
           >
             <Check size={14} />
-            סגירה
+            {t("apiKey.close")}
           </button>
         </div>
       )}

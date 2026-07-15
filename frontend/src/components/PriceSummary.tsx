@@ -1,11 +1,6 @@
 import type { Activity, TripData } from "../api";
-
-const ACTIVITY_TYPE_LABELS: Record<Activity["type"], string> = {
-  attraction: "אטרקציה",
-  food: "אוכל",
-  lodging: "לינה",
-  transport: "תחבורה",
-};
+import { useI18n } from "../i18n/useI18n";
+import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABEL_KEYS } from "../services/activityTypes";
 
 const ACTIVITY_TYPE_DOT: Record<Activity["type"], string> = {
   attraction: "bg-emerald-500",
@@ -14,11 +9,14 @@ const ACTIVITY_TYPE_DOT: Record<Activity["type"], string> = {
   transport: "bg-sky-500",
 };
 
-function formatPrice(value: number): string {
-  return value.toLocaleString("he-IL", { maximumFractionDigits: 2 });
-}
+// Number formatting locale per UI language (thousands separators etc.); the
+// currency symbol (₪) is part of the trip data, not the interface language.
+const NUMBER_LOCALE: Record<string, string> = { he: "he-IL", en: "en-US", fr: "fr-FR" };
 
 export default function PriceSummary({ tripData }: { tripData: TripData }) {
+  const { t, lang } = useI18n();
+  const formatPrice = (value: number): string =>
+    value.toLocaleString(NUMBER_LOCALE[lang] ?? "he-IL", { maximumFractionDigits: 2 });
   const days = tripData.days ?? [];
   const allActivities = days.flatMap((day) => day.activities);
   const grandTotal = allActivities.reduce((sum, act) => sum + (act.price ?? 0), 0);
@@ -26,30 +24,30 @@ export default function PriceSummary({ tripData }: { tripData: TripData }) {
   if (allActivities.every((act) => act.price == null)) {
     return (
       <div className="h-full flex items-center justify-center text-center text-ink-muted text-sm px-6">
-        עדיין לא הוזנו מחירים. ניתן להוסיף מחיר לכל פעילות מתוך לוח הזמנים.
+        {t("price.empty")}
       </div>
     );
   }
 
-  const categoryTotals = (Object.keys(ACTIVITY_TYPE_LABELS) as Activity["type"][])
-    .map((type) => ({
-      type,
-      total: allActivities
-        .filter((act) => act.type === type)
-        .reduce((s, act) => s + (act.price ?? 0), 0),
-    }))
-    .filter((c) => c.total > 0);
+  const categoryTotals = ACTIVITY_TYPES.map((type) => ({
+    type,
+    total: allActivities
+      .filter((act) => act.type === type)
+      .reduce((s, act) => s + (act.price ?? 0), 0),
+  })).filter((c) => c.total > 0);
 
   return (
     <div className="space-y-4 animate-fade-in">
       {categoryTotals.length > 0 && (
         <div className="bg-white p-4 rounded-xl shadow-card border border-outline/20">
-          <h4 className="font-bold text-ink text-sm mb-3">פילוח לפי קטגוריה</h4>
+          <h4 className="font-bold text-ink text-sm mb-3">{t("price.byCategory")}</h4>
           <div className="grid grid-cols-2 gap-2.5">
             {categoryTotals.map(({ type, total }) => (
               <div key={type} className="flex items-center gap-2 text-sm">
                 <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${ACTIVITY_TYPE_DOT[type]}`} />
-                <span className="text-ink-muted flex-1 truncate">{ACTIVITY_TYPE_LABELS[type]}</span>
+                <span className="text-ink-muted flex-1 truncate">
+                  {t(ACTIVITY_TYPE_LABEL_KEYS[type])}
+                </span>
                 <span className="font-semibold text-ink">{formatPrice(total)} ₪</span>
               </div>
             ))}
@@ -65,7 +63,7 @@ export default function PriceSummary({ tripData }: { tripData: TripData }) {
             className="bg-white p-4 rounded-xl shadow-card border border-outline/20"
           >
             <div className="flex items-center justify-between mb-2">
-              <h4 className="font-bold text-ink">יום {day.dayNum}</h4>
+              <h4 className="font-bold text-ink">{t("appFrame.day", { num: day.dayNum })}</h4>
               <span className="text-sm font-semibold text-ink-muted">
                 {formatPrice(dayTotal)} ₪
               </span>
@@ -88,7 +86,7 @@ export default function PriceSummary({ tripData }: { tripData: TripData }) {
       })}
 
       <div className="bg-primary text-white p-4 rounded-xl shadow-card flex items-center justify-between">
-        <span className="font-bold">סה"כ לטיול</span>
+        <span className="font-bold">{t("price.total")}</span>
         <span className="font-bold text-lg">{formatPrice(grandTotal)} ₪</span>
       </div>
     </div>

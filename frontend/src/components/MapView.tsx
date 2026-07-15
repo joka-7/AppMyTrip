@@ -12,7 +12,8 @@ import L from "leaflet";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ArrowRight, ExternalLink, MapPinPlus, Utensils, Bed, Landmark, Plane } from "lucide-react";
 import type { Activity } from "../api";
-import { ACTIVITY_TYPE_LABELS } from "../services/activityTypes";
+import { useI18n } from "../i18n/useI18n";
+import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABEL_KEYS } from "../services/activityTypes";
 import { newActivityId } from "../services/id";
 import { googleMapsPlaceUrl, googleMapsDirectionsUrl } from "../services/mapLinks";
 
@@ -107,6 +108,7 @@ export default function MapView({
   focusActivityId?: string | null;
   onClearFocus?: () => void;
 }) {
+  const { t } = useI18n();
   const [pendingLocation, setPendingLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [pendingTitle, setPendingTitle] = useState("");
   const [pendingType, setPendingType] = useState<Activity["type"]>("attraction");
@@ -121,7 +123,7 @@ export default function MapView({
   if (coordActs.length === 0 && !onAddActivity) {
     return (
       <div className="h-full w-full flex items-center justify-center text-center text-ink-muted text-sm rounded-xl border border-outline/40 bg-surface-container-low">
-        אין קואורדינטות להצגה על המפה ביום זה.
+        {t("map.noCoords")}
       </div>
     );
   }
@@ -168,7 +170,7 @@ export default function MapView({
             className="self-start flex items-center gap-1.5 text-xs font-medium text-ink-muted hover:text-ink bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-lg transition-colors"
           >
             <ArrowRight size={14} />
-            חזרה למפת היום המלאה
+            {t("map.backToFullDay")}
           </button>
         )}
         {focusedAct ? (
@@ -179,7 +181,7 @@ export default function MapView({
             className="self-start flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary-dark bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors"
           >
             <ExternalLink size={14} />
-            פתיחה ב-Google Maps
+            {t("map.openInGoogleMaps")}
           </a>
         ) : (
           coordActs.length > 1 && (
@@ -190,14 +192,14 @@ export default function MapView({
               className="self-start flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary-dark bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors"
             >
               <ExternalLink size={14} />
-              פתיחת מסלול והוראות הגעה ב-Google Maps
+              {t("map.openRoute")}
             </a>
           )
         )}
         {canAdd && !pendingLocation && (
           <span className="flex items-center gap-1.5 text-xs text-ink-muted">
             <MapPinPlus size={14} />
-            לחצו על המפה כדי להוסיף פעילות חדשה במיקום זה
+            {t("map.clickToAdd")}
           </span>
         )}
       </div>
@@ -209,7 +211,7 @@ export default function MapView({
             autoFocus
             value={pendingTitle}
             onChange={(e) => setPendingTitle(e.target.value)}
-            placeholder="שם הפעילות"
+            placeholder={t("itinerary.activityNamePlaceholder")}
             className="flex-1 min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
           />
           <select
@@ -217,9 +219,9 @@ export default function MapView({
             onChange={(e) => setPendingType(e.target.value as Activity["type"])}
             className="border border-outline/40 rounded-lg p-1.5 text-sm"
           >
-            {Object.entries(ACTIVITY_TYPE_LABELS).map(([type, label]) => (
+            {ACTIVITY_TYPES.map((type) => (
               <option key={type} value={type}>
-                {label}
+                {t(ACTIVITY_TYPE_LABEL_KEYS[type])}
               </option>
             ))}
           </select>
@@ -228,13 +230,13 @@ export default function MapView({
             disabled={!pendingTitle.trim()}
             className="bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-xs px-3 py-1.5 rounded-lg"
           >
-            הוספה
+            {t("common.add")}
           </button>
           <button
             onClick={cancelPending}
             className="bg-surface-container hover:bg-surface-container-high text-ink-muted text-xs px-3 py-1.5 rounded-lg"
           >
-            ביטול
+            {t("common.cancel")}
           </button>
         </div>
       )}
@@ -286,7 +288,7 @@ export default function MapView({
                     rel="noopener noreferrer"
                     className="text-primary hover:text-primary-dark text-xs"
                   >
-                    פתיחה ב-Google Maps
+                    {t("map.openInGoogleMaps")}
                   </a>
                 </div>
               </Popup>

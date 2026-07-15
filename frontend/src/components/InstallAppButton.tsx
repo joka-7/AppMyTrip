@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Download, Share, SquarePlus, X } from "lucide-react";
+import { useI18n } from "../i18n/useI18n";
 import { useInstallPrompt } from "../hooks/useInstallPrompt";
 
 /**
@@ -10,6 +11,7 @@ import { useInstallPrompt } from "../hooks/useInstallPrompt";
  * installed or on browsers that support neither path.
  */
 export default function InstallAppButton() {
+  const { t } = useI18n();
   const { canInstall, isIos, installed, promptInstall } = useInstallPrompt();
   const [showIosHelp, setShowIosHelp] = useState(false);
 
@@ -22,7 +24,7 @@ export default function InstallAppButton() {
         className="flex items-center gap-1 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg text-xs"
       >
         <Download size={14} />
-        התקנת האפליקציה
+        {t("install.button")}
       </button>
 
       {showIosHelp && (
@@ -35,7 +37,7 @@ export default function InstallAppButton() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-bold text-ink">התקנה כאפליקציה ב-iPhone/iPad</h3>
+              <h3 className="font-bold text-ink">{t("install.iosTitle")}</h3>
               <button
                 onClick={() => setShowIosHelp(false)}
                 className="text-ink-muted hover:text-ink"
@@ -46,11 +48,11 @@ export default function InstallAppButton() {
             <ol className="text-sm text-ink-muted flex flex-col gap-3">
               <li className="flex items-center gap-2">
                 <Share size={16} className="text-primary flex-shrink-0" />
-                לחצו על כפתור השיתוף בסרגל הכלים של Safari
+                {t("install.iosStep1")}
               </li>
               <li className="flex items-center gap-2">
                 <SquarePlus size={16} className="text-primary flex-shrink-0" />
-                בחרו &quot;הוספה למסך הבית&quot; (Add to Home Screen)
+                {t("install.iosStep2")}
               </li>
             </ol>
           </div>
