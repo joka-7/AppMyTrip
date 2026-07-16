@@ -5,13 +5,30 @@
 // lets a few free-tier keys together outlast any single key's quota. Stored only
 // in the browser's localStorage — never sent anywhere but our own backend.
 
-export type LLMProvider = "gemini" | "openai" | "anthropic" | "groq";
+export type LLMProvider =
+  | "gemini"
+  | "openai"
+  | "anthropic"
+  | "groq"
+  | "openrouter"
+  | "cerebras"
+  | "mistral";
 
-export const PROVIDERS: { value: LLMProvider; label: string; keyUrl: string }[] = [
-  { value: "gemini", label: "Gemini", keyUrl: "https://aistudio.google.com/apikey" },
+// `free` marks providers with a usable free tier, surfaced in the key menu so
+// users can find a no-cost option quickly.
+export const PROVIDERS: { value: LLMProvider; label: string; keyUrl: string; free?: boolean }[] = [
+  { value: "gemini", label: "Gemini", keyUrl: "https://aistudio.google.com/apikey", free: true },
+  { value: "groq", label: "Groq", keyUrl: "https://console.groq.com/keys", free: true },
+  {
+    value: "openrouter",
+    label: "OpenRouter",
+    keyUrl: "https://openrouter.ai/keys",
+    free: true,
+  },
+  { value: "cerebras", label: "Cerebras", keyUrl: "https://cloud.cerebras.ai", free: true },
+  { value: "mistral", label: "Mistral", keyUrl: "https://console.mistral.ai/api-keys", free: true },
   { value: "openai", label: "OpenAI (GPT)", keyUrl: "https://platform.openai.com/api-keys" },
   { value: "anthropic", label: "Claude", keyUrl: "https://console.anthropic.com/settings/keys" },
-  { value: "groq", label: "Groq", keyUrl: "https://console.groq.com/keys" },
 ];
 
 // Keys are stored per-provider so switching providers doesn't overwrite a

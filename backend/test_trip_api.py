@@ -19,7 +19,16 @@ from pydantic import ValidationError
 import services.tts as tts_module
 from models import Activity, AgentResponse, EnhanceOptions, TripData, TripDay
 from routers.builder import TripBuilder
-from services.llm import AnthropicProvider, GeminiProvider, GroqProvider, LLMService, OpenAIProvider
+from services.llm import (
+    AnthropicProvider,
+    CerebrasProvider,
+    GeminiProvider,
+    GroqProvider,
+    LLMService,
+    MistralProvider,
+    OpenAIProvider,
+    OpenRouterProvider,
+)
 from services.tts import MockTTSProvider, PiperTTSProvider, TTSService
 from trip_api_backend import app
 
@@ -188,6 +197,25 @@ def test_llm_provider_param_overrides_env_var(monkeypatch):
     # Per-request provider choice takes precedence over the server's LLM_PROVIDER env var.
     monkeypatch.setenv("LLM_PROVIDER", "gemini")
     assert isinstance(LLMService._get_provider(api_key="test-key", provider="groq"), GroqProvider)
+
+
+def test_llm_provider_free_openai_compatible_providers(monkeypatch):
+    # The added free providers resolve and point at their own endpoints.
+    openrouter = LLMService._get_provider(api_key="k", provider="openrouter")
+    cerebras = LLMService._get_provider(api_key="k", provider="cerebras")
+    mistral = LLMService._get_provider(api_key="k", provider="mistral")
+    assert isinstance(openrouter, OpenRouterProvider)
+    assert isinstance(cerebras, CerebrasProvider)
+    assert isinstance(mistral, MistralProvider)
+    assert openrouter.url == "https://openrouter.ai/api/v1/chat/completions"
+    assert cerebras.url == "https://api.cerebras.ai/v1/chat/completions"
+    assert mistral.url == "https://api.mistral.ai/v1/chat/completions"
+
+
+def test_llm_provider_model_overridable_via_env(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_MODEL", "some/custom-model")
+    provider = LLMService._get_provider(api_key="k", provider="openrouter")
+    assert provider.model == "some/custom-model"
 
 
 def test_llm_provider_unknown_raises_config_error(monkeypatch):
