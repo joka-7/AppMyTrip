@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import type { Activity, TripData } from "../api";
 import { usePodcastPlayer } from "../hooks/usePodcastPlayer";
-import { hebrewWeekdayLetter, parseTripStartDate } from "../services/hebrewDate";
+import { tripStartWeekdayIndex, weekdayTabLabel } from "../services/hebrewDate";
 import type { AgentMessage } from "./ChatPanel";
 import ChatPanel from "./ChatPanel";
 import ItineraryList from "./ItineraryList";
@@ -88,7 +88,7 @@ export default function AppFrame({
   const hasTrip = days.length > 0;
   const safeDayIdx = Math.min(activeDay, Math.max(0, days.length - 1));
   const day = days[safeDayIdx];
-  const tripStartDate = parseTripStartDate(tripData.dates);
+  const tripStartWeekday = tripStartWeekdayIndex(tripData.dates);
 
   const startEditingHeader = () => {
     setTitleDraft(tripData.title);
@@ -236,13 +236,9 @@ export default function AppFrame({
                 }`}
               >
                 יום {d.dayNum}
-                {tripStartDate && (
+                {tripStartWeekday !== null && (
                   <span className="text-[10px] text-gray-400">
-                    (
-                    {hebrewWeekdayLetter(
-                      new Date(tripStartDate.getTime() + (d.dayNum - 1) * 86400000),
-                    )}
-                    ')
+                    ({weekdayTabLabel(tripStartWeekday + d.dayNum - 1, tripData.language)})
                   </span>
                 )}
               </button>

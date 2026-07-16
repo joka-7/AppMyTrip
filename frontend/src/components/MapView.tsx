@@ -5,11 +5,26 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ArrowRight, ExternalLink, Utensils, Bed, Landmark, Plane } from "lucide-react";
 import type { Activity } from "../api";
 
+/** Stop-order label for map markers and Google Maps waypoints (A, B, C, …). */
+function stopLabel(index: number): string {
+  return index < 26 ? String.fromCharCode(65 + index) : `${index + 1}`;
+}
+
+/**
+ * A Google Maps search query for an activity: the place's name, biased toward its
+ * generated coordinates so Maps resolves the actual named place rather than a bare
+ * GPS pin — which is all a plain "lat,lng" query produces.
+ */
+function placeQuery(act: Activity): string {
+  const { lat, lng } = act.map_coordinates!;
+  return act.title.trim() ? `${act.title.trim()} @${lat},${lng}` : `${lat},${lng}`;
+}
+
 /** Builds a Google Maps URL centered on a single place (no routing). */
 function googleMapsPlaceUrl(act: Activity): string {
   const url = new URL("https://www.google.com/maps/search/");
   url.searchParams.set("api", "1");
-  url.searchParams.set("query", `${act.map_coordinates!.lat},${act.map_coordinates!.lng}`);
+  url.searchParams.set("query", placeQuery(act));
   return url.toString();
 }
 
@@ -20,7 +35,7 @@ function googleMapsPlaceUrl(act: Activity): string {
  * device/account language for free.
  */
 function googleMapsDirectionsUrl(coordActs: Activity[]): string {
-  const points = coordActs.map((a) => `${a.map_coordinates!.lat},${a.map_coordinates!.lng}`);
+  const points = coordActs.map(placeQuery);
   const url = new URL("https://www.google.com/maps/dir/");
   url.searchParams.set("api", "1");
   url.searchParams.set("origin", points[0]);
@@ -46,21 +61,29 @@ const MARKER_ICONS: Record<Activity["type"], typeof Utensils> = {
   transport: Plane,
 };
 
-function markerIcon(type: Activity["type"]) {
+function markerIcon(type: Activity["type"], label: string) {
   const Icon = MARKER_ICONS[type] ?? Landmark;
   const html = renderToStaticMarkup(
-    <div
-      className={`p-1.5 rounded-full text-white shadow-lg ${MARKER_COLORS[type]}`}
-      style={{ display: "inline-flex" }}
-    >
-      <Icon size={14} />
+    <div className="relative" style={{ width: 32, height: 36 }}>
+      <div
+        className={`absolute left-0 top-3 p-1.5 rounded-full text-white shadow-lg ${MARKER_COLORS[type]}`}
+        style={{ display: "inline-flex" }}
+      >
+        <Icon size={14} />
+      </div>
+      <div
+        className="absolute right-0 top-0 min-w-[18px] h-[18px] px-0.5 rounded-full bg-white text-[11px] font-bold text-gray-800 border border-gray-300 shadow flex items-center justify-center leading-none"
+        style={{ display: "flex" }}
+      >
+        {label}
+      </div>
     </div>,
   );
   return L.divIcon({
     html,
     className: "",
-    iconSize: [28, 28],
-    iconAnchor: [14, 28],
+    iconSize: [32, 36],
+    iconAnchor: [16, 36],
   });
 }
 
@@ -175,11 +198,11 @@ export default function MapView({
               pathOptions={{ color: "#2563eb", weight: 3, opacity: 0.6, dashArray: "6 8" }}
             />
           )}
-          {coordActs.map((act) => (
+          {coordActs.map((act, index) => (
             <Marker
               key={act.id}
               position={[act.map_coordinates!.lat, act.map_coordinates!.lng]}
-              icon={markerIcon(act.type)}
+              icon={markerIcon(act.type, stopLabel(index))}
               draggable={Boolean(onUpdateActivity)}
               eventHandlers={
                 onUpdateActivity
@@ -192,7 +215,9 @@ export default function MapView({
                   : undefined
               }
             >
-              <Popup>{act.title}</Popup>
+              <Popup>
+                <span className="font-semibold">{stopLabel(index)}.</span> {act.title}
+              </Popup>
             </Marker>
           ))}
         </MapContainer>
