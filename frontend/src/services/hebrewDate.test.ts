@@ -25,9 +25,21 @@ describe("tripStartWeekdayIndex", () => {
     expect(tripStartWeekdayIndex("מיום שני הקרוב")).toBe(1);
   });
 
+  it("parses an English weekday name or abbreviation (earliest one wins)", () => {
+    expect(tripStartWeekdayIndex("Thu - Sun")).toBe(4);
+    expect(tripStartWeekdayIndex("Thursday to Sunday")).toBe(4);
+    expect(tripStartWeekdayIndex("Mon - Wed")).toBe(1);
+  });
+
+  it("parses a French weekday name", () => {
+    expect(tripStartWeekdayIndex("lundi au mercredi")).toBe(1);
+    expect(tripStartWeekdayIndex("jeudi - dimanche")).toBe(4);
+  });
+
   it("returns null for a freeform string with no recognizable date", () => {
     expect(tripStartWeekdayIndex("12-19 ביולי")).toBeNull();
     expect(tripStartWeekdayIndex("בקרוב")).toBeNull();
+    expect(tripStartWeekdayIndex("sometime soon")).toBeNull();
   });
 });
 

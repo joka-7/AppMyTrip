@@ -10,6 +10,20 @@ const HEBREW_WEEKDAY_NAME_TO_INDEX: Record<string, number> = {
   שבת: 6,
 };
 
+// English + French weekday names (full and common abbreviations) → Sun=0..Sat=6,
+// so trips written in those languages (e.g. dates like "Thu - Sun") also get a
+// weekday on their day tabs. French 3-letter abbreviations are intentionally
+// omitted to avoid colliding with month abbreviations (e.g. "mar" = March).
+const EN_FR_WEEKDAY_PATTERNS: { re: RegExp; index: number }[] = [
+  { re: /\b(sunday|sun|dimanche)\b/i, index: 0 },
+  { re: /\b(monday|mon|lundi)\b/i, index: 1 },
+  { re: /\b(tuesday|tues|tue|mardi)\b/i, index: 2 },
+  { re: /\b(wednesday|wed|mercredi)\b/i, index: 3 },
+  { re: /\b(thursday|thurs|thu|jeudi)\b/i, index: 4 },
+  { re: /\b(friday|fri|vendredi)\b/i, index: 5 },
+  { re: /\b(saturday|sat|samedi)\b/i, index: 6 },
+];
+
 /** Maps a Sun=0..Sat=6 weekday index to its single Hebrew letter (with wraparound). */
 export function hebrewWeekdayLetter(weekdayIndex: number): string {
   return HEBREW_WEEKDAY_LETTERS[((weekdayIndex % 7) + 7) % 7];
@@ -44,6 +58,17 @@ export function tripStartWeekdayIndex(datesText: string): number | null {
 
   const letterMatch = datesText.match(/יום[ ]*([א-ו]|ש)['׳]/);
   if (letterMatch) return HEBREW_WEEKDAY_LETTERS.indexOf(letterMatch[1]);
+
+  // English/French weekday name (e.g. "Thu - Sun", "lundi au mercredi") — take
+  // the earliest one in the string as the trip's start day.
+  let earliest: { pos: number; index: number } | null = null;
+  for (const { re, index } of EN_FR_WEEKDAY_PATTERNS) {
+    const match = datesText.match(re);
+    if (match?.index !== undefined && (!earliest || match.index < earliest.pos)) {
+      earliest = { pos: match.index, index };
+    }
+  }
+  if (earliest) return earliest.index;
 
   return null;
 }
