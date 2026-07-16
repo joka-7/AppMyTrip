@@ -1,5 +1,6 @@
 import { MapContainer, Marker, TileLayer, useMapEvents } from "react-leaflet";
 import L from "leaflet";
+import { useI18n } from "../i18n/useI18n";
 
 const PICKER_ICON = L.divIcon({
   html: '<div style="width:14px;height:14px;border-radius:9999px;background:#2563eb;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>',
@@ -31,6 +32,7 @@ export default function LocationPicker({
   onChange: (coords: { lat: number; lng: number } | null) => void;
   defaultCenter?: { lat: number; lng: number };
 }) {
+  const { t } = useI18n();
   const center = value ?? defaultCenter;
   return (
     <div className="flex flex-col gap-1">
@@ -63,18 +65,14 @@ export default function LocationPicker({
         </MapContainer>
       </div>
       <div className="flex items-center justify-between gap-2 text-[11px] text-ink-muted">
-        <span>
-          {value
-            ? "לחצו על המפה כדי לשנות מיקום, או גררו את הסמן"
-            : "לחצו על המפה לבחירת מיקום מדויק, או השאירו ריק לאיתור אוטומטי"}
-        </span>
+        <span>{value ? t("locationPicker.set") : t("locationPicker.unset")}</span>
         {value && (
           <button
             type="button"
             onClick={() => onChange(null)}
             className="shrink-0 text-primary hover:text-primary-dark font-medium"
           >
-            ניקוי מיקום
+            {t("locationPicker.clear")}
           </button>
         )}
       </div>

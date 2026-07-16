@@ -16,6 +16,9 @@ import SharedAppPage from "./components/SharedAppPage";
 import type { Theme } from "./components/ThemeSelector";
 import { getApiKeys, getApiProvider } from "./services/apiKey";
 import { loadSharedTrip } from "./services/tripsStore";
+import { translate } from "./i18n/store";
+import { useI18n } from "./i18n/useI18n";
+import LanguageSwitcher from "./components/LanguageSwitcher";
 import "leaflet/dist/leaflet.css";
 
 // Present only on "?shared=<tripId>" links — those open straight into the
@@ -38,24 +41,24 @@ const isRateLimited = (err: unknown): boolean => err instanceof ApiError && err.
 // into a short, clean explanation a non-technical user can actually act on.
 const describeApiError = (err: unknown, fallback: string): string => {
   if (isRateLimited(err)) {
-    return "ספק ה-AI מגביל קצב בקשות כרגע — נסו שוב בעוד דקה, או הוסיפו מפתח API משלכם בהגדרות כדי להימנע מהגבלה משותפת.";
+    return translate("apiError.rateLimited");
   }
   if (err instanceof ApiError) {
     switch (err.status) {
       case 401:
-        return "לא הוגדר מפתח API ל-AI. הוסיפו מפתח משלכם בהגדרות (כפתור 'הגדרת מפתח API').";
+        return translate("apiError.noKey");
       case 413:
-        return "הבקשה גדולה מדי עבור ה-AI. נסו לפצל אותה לבקשות קצרות יותר.";
+        return translate("apiError.tooLarge");
       case 422:
-        return "התשובה שהתקבלה מה-AI לא הייתה תקינה. נסו לנסח את הבקשה מחדש או לנסות שוב.";
+        return translate("apiError.invalidResponse");
       // 409: our own truncation guard rejected an otherwise-successful response
       // (it dropped most of the itinerary) — distinct from an actual provider
       // failure, so it gets its own, more specific message.
       case 409:
-        return 'התשובה מה-AI נראתה כאילו מחקה את רוב הלו"ז, אז השארנו אותו כפי שהיה. נסו שוב, או פצלו את הבקשה לשלבים קטנים יותר.';
+        return translate("apiError.truncated");
       case 502:
       case 504:
-        return "ספק ה-AI לא הצליח להשיב כרגע (תקלה זמנית בשירות). נסו שוב בעוד רגע.";
+        return translate("apiError.providerDown");
       default:
         return fallback;
     }
@@ -76,9 +79,11 @@ const ALL_ENHANCE_OPTIONS: EnhanceOptions = {
 // Generic sample trip used as an offline demo / fallback when the backend is
 // unreachable (e.g. no GEMINI_API_KEY). Intentionally not tied to a specific
 // real destination; coordinates are clustered so the auto-fit map looks sensible.
-const DEMO_TRIP: TripData = {
-  title: "טיול לדוגמה ✨",
-  dates: "יום א׳ – יום ג׳",
+// Built lazily so the activity titles/descriptions render in the current UI
+// language.
+const buildDemoTrip = (): TripData => ({
+  title: translate("demo.title"),
+  dates: translate("demo.dates"),
   days: [
     {
       dayNum: 1,
@@ -86,8 +91,8 @@ const DEMO_TRIP: TripData = {
         {
           id: "d1-1",
           time: "09:00",
-          title: "צ׳ק-אין במלון",
-          desc: "השארת מזוודות והתארגנות.",
+          title: translate("demo.d1a1.title"),
+          desc: translate("demo.d1a1.desc"),
           type: "lodging",
           hasPodcast: false,
           map_coordinates: { lat: 40.416, lng: -3.703 },
@@ -95,8 +100,8 @@ const DEMO_TRIP: TripData = {
         {
           id: "d1-2",
           time: "11:00",
-          title: "אתר היסטורי מרכזי",
-          desc: "סיור בלב העיר העתיקה.",
+          title: translate("demo.d1a2.title"),
+          desc: translate("demo.d1a2.desc"),
           type: "attraction",
           hasPodcast: true,
           map_coordinates: { lat: 40.419, lng: -3.707 },
@@ -104,8 +109,8 @@ const DEMO_TRIP: TripData = {
         {
           id: "d1-3",
           time: "13:30",
-          title: "מסעדה מקומית",
-          desc: "ארוחת צהריים במרכז העיר.",
+          title: translate("demo.d1a3.title"),
+          desc: translate("demo.d1a3.desc"),
           type: "food",
           hasPodcast: false,
           map_coordinates: { lat: 40.414, lng: -3.7 },
@@ -118,8 +123,8 @@ const DEMO_TRIP: TripData = {
         {
           id: "d2-1",
           time: "10:00",
-          title: "מוזיאון העיר",
-          desc: "תערוכת קבע ותערוכה מתחלפת.",
+          title: translate("demo.d2a1.title"),
+          desc: translate("demo.d2a1.desc"),
           type: "attraction",
           hasPodcast: true,
           map_coordinates: { lat: 40.412, lng: -3.692 },
@@ -127,8 +132,8 @@ const DEMO_TRIP: TripData = {
         {
           id: "d2-2",
           time: "16:00",
-          title: "שוק מקומי",
-          desc: "קניות וטעימות רחוב.",
+          title: translate("demo.d2a2.title"),
+          desc: translate("demo.d2a2.desc"),
           type: "attraction",
           hasPodcast: false,
           map_coordinates: { lat: 40.421, lng: -3.698 },
@@ -136,10 +141,7 @@ const DEMO_TRIP: TripData = {
       ],
     },
   ],
-};
-
-const DEMO_AGENT_MESSAGE =
-  "טענתי טיול לדוגמה כדי שתוכלו לראות איך האפליקציה עובדת. כדי לפרסר טקסט אמיתי, הגדירו מפתח Gemini API משלכם (כפתור 'הגדרת מפתח API' למעלה) — או המשיכו לערוך ידנית.";
+});
 
 // Falls back to the wand icon until frontend/public/logo.png is committed.
 function AppLogo() {
@@ -158,10 +160,9 @@ function AppLogo() {
 // --- Main App Builder Component ---
 
 function TripBuilder() {
+  const { t, dir } = useI18n();
   const [step, setStep] = useState(1);
-  const [rawText, setRawText] = useState(
-    "היי, אנחנו טסים לרומא מחרתיים עד יום ראשון. ביום הראשון ננחת, ניסע למלון ליד המדרגות הספרדיות ואז נטייל באזור. ביום השני הקולוסיאום והפורום, ומלא קניות. ביום השלישי הוותיקן. צריכים גם למצוא איפה לאכול.",
-  );
+  const [rawText, setRawText] = useState(() => translate("step1.exampleRawText"));
   const [theme, setTheme] = useState<Theme>("blue");
   const [preferences, setPreferences] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -218,18 +219,14 @@ function TripBuilder() {
       setAgentMessages(
         res.initial_agent_message
           ? [{ role: "agent", text: res.initial_agent_message }]
-          : [{ role: "agent", text: 'זיהיתי את הטיול! עברו על הלו"ז ותקנו מה שצריך.' }],
+          : [{ role: "agent", text: t("agent.initial") }],
       );
       goToStep(2);
     } catch (err) {
       console.error(err);
-      setApiNotice(
-        isRateLimited(err)
-          ? "ספק ה-AI מגביל קצב בקשות כרגע — נסו שוב בעוד דקה. בינתיים נטען טיול לדוגמה."
-          : "לא הצלחנו להתחבר לשרת ה-AI — נטען טיול לדוגמה.",
-      );
-      setTripData(DEMO_TRIP);
-      setAgentMessages([{ role: "agent", text: DEMO_AGENT_MESSAGE }]);
+      setApiNotice(isRateLimited(err) ? t("notice.rateLimitedDemo") : t("notice.unreachableDemo"));
+      setTripData(buildDemoTrip());
+      setAgentMessages([{ role: "agent", text: t("agent.demo") }]);
       goToStep(2);
     } finally {
       setIsProcessing(false);
@@ -247,7 +244,7 @@ function TripBuilder() {
       setTripData(res.trip_data);
     } catch (err) {
       console.error(err);
-      setApiNotice('הוספת הפרטים הנוספים נכשלה — ממשיכים עם הלו"ז הנוכחי.');
+      setApiNotice(t("notice.enhanceFailed"));
     } finally {
       setIsEnhancing(false);
       goToStep(3);
@@ -318,7 +315,7 @@ function TripBuilder() {
       setAgentMessages((prev) => [...prev, { role: "agent", text: res.agent_reply }]);
     } catch (err) {
       console.error(err);
-      const message = describeApiError(err, 'העדכון נכשל — הלו"ז לא השתנה.');
+      const message = describeApiError(err, t("notice.updateFailed"));
       setApiNotice(message);
       setAgentMessages((prev) => [...prev, { role: "agent", text: message }]);
     } finally {
@@ -376,7 +373,7 @@ function TripBuilder() {
       setTripData(res.trip_data);
     } catch (err) {
       console.error(err);
-      setApiNotice("יצירת המדיה בשרת נכשלה — ממשיכים ללא קבצי אודיו.");
+      setApiNotice(t("notice.mediaFailed"));
     } finally {
       setIsGeneratingMedia(false);
       goToStep(4);
@@ -384,17 +381,18 @@ function TripBuilder() {
   };
 
   return (
-    <div className="min-h-screen bg-surface font-sans text-right" dir="rtl">
+    <div className="min-h-screen bg-surface font-sans" dir={dir}>
       {/* Top Navbar */}
       <nav className="bg-white shadow-card border-b border-outline/20 px-4 sm:px-6 py-4 flex flex-wrap justify-between items-center gap-3 sticky top-0 z-30">
         <div className="flex items-center gap-2">
           <AppLogo />
-          <h1 className="text-lg sm:text-xl font-bold text-ink">תכנון טיול באמצעות AI</h1>
+          <h1 className="text-lg sm:text-xl font-bold text-ink">{t("nav.title")}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="text-sm font-medium text-ink-muted bg-surface-container px-3 py-1 rounded-full">
-            שלב {step} מתוך 4
+            {t("nav.step", { step })}
           </div>
+          <LanguageSwitcher />
           <InstallAppButton />
           <ApiKeyMenu />
           <CloudMenu
@@ -406,14 +404,14 @@ function TripBuilder() {
               setTripData(trip);
               setTripId(loadedTripId);
               setTheme(loadedTheme);
-              setAgentMessages([{ role: "agent", text: "הטיול נטען. אפשר להמשיך לערוך." }]);
+              setAgentMessages([{ role: "agent", text: t("agent.loaded") }]);
               goToStep(3);
             }}
             onImportTrip={(trip, importedTheme) => {
               setTripData(trip);
               setTripId(null);
               setTheme(importedTheme);
-              setAgentMessages([{ role: "agent", text: "הטיול יובא מקובץ. אפשר להמשיך לערוך." }]);
+              setAgentMessages([{ role: "agent", text: t("agent.imported") }]);
               goToStep(3);
             }}
           />
@@ -514,6 +512,7 @@ function TripBuilder() {
 // app — no builder chrome, no AI chat — so it looks like the real
 // mobile/web app trip participants would actually use.
 function SharedTripViewer({ tripId }: { tripId: string }) {
+  const { t, dir } = useI18n();
   const [trip, setTrip] = useState<TripData | null>(null);
   const [theme, setTheme] = useState<Theme>("blue");
   const [error, setError] = useState<string | null>(null);
@@ -532,19 +531,14 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
       .then((result) => {
         setTrip(result.trip);
         setTheme(result.theme);
-        setAgentMessages([
-          {
-            role: "agent",
-            text: 'שלחו הודעה כדי לשנות את הלו"ז — שינויים כאן נשארים רק בדפדפן שלכם.',
-          },
-        ]);
+        setAgentMessages([{ role: "agent", text: translate("agent.sharedIntro") }]);
       })
       .catch((err) => {
         console.error(err);
         setError(
           err instanceof Error && err.message.includes("expired")
-            ? "קישור השיתוף הזה פג תוקף."
-            : "טעינת הטיול המשותף נכשלה. ייתכן שהקישור שגוי או שהטיול הוסר.",
+            ? translate("shared.expired")
+            : translate("shared.loadFailed"),
         );
       });
   }, [tripId]);
@@ -569,7 +563,7 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
       setAgentMessages((prev) => [...prev, { role: "agent", text: res.agent_reply }]);
     } catch (err) {
       console.error(err);
-      setChatNotice(describeApiError(err, 'העדכון נכשל — הלו"ז לא השתנה.'));
+      setChatNotice(describeApiError(err, t("notice.updateFailed")));
     } finally {
       setIsSendingMessage(false);
     }
@@ -633,7 +627,7 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
     return (
       <div
         className="min-h-screen flex items-center justify-center text-center text-ink-muted p-6"
-        dir="rtl"
+        dir={dir}
       >
         {error}
       </div>
@@ -642,8 +636,8 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
 
   if (!trip) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-ink-muted" dir="rtl">
-        טוען את הטיול...
+      <div className="min-h-screen flex items-center justify-center text-ink-muted" dir={dir}>
+        {t("shared.loading")}
       </div>
     );
   }

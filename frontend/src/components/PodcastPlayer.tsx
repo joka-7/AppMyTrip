@@ -1,5 +1,6 @@
 import { Volume2, X } from "lucide-react";
 import type { Activity } from "../api";
+import { useI18n } from "../i18n/useI18n";
 
 export default function PodcastPlayer({
   activity,
@@ -12,6 +13,7 @@ export default function PodcastPlayer({
   error?: string | null;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="absolute bottom-16 left-2 right-2 bg-white text-ink rounded-xl p-3 shadow-card border border-outline/20 flex flex-col gap-2 animate-slide-up z-10">
       <div className="flex justify-between items-center">
@@ -20,7 +22,7 @@ export default function PodcastPlayer({
             <Volume2 size={14} className="text-primary" />
           </div>
           <div className="truncate">
-            <p className="text-xs text-ink-muted">מאזינים כעת...</p>
+            <p className="text-xs text-ink-muted">{t("podcast.listeningNow")}</p>
             <p className="text-sm font-bold truncate">{activity.title}</p>
           </div>
         </div>

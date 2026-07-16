@@ -14,7 +14,8 @@ import {
   Volume2,
 } from "lucide-react";
 import type { Activity } from "../api";
-import { ACTIVITY_TYPE_LABELS } from "../services/activityTypes";
+import { useI18n } from "../i18n/useI18n";
+import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABEL_KEYS } from "../services/activityTypes";
 import { newActivityId } from "../services/id";
 import LocationPicker from "./LocationPicker";
 
@@ -55,6 +56,7 @@ export default function ItineraryList({
   onShowOnMap?: (activityId: string) => void;
   isLocalOnly?: boolean;
 }) {
+  const { t } = useI18n();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<Activity>>({});
   const [isAdding, setIsAdding] = useState(false);
@@ -146,15 +148,15 @@ export default function ItineraryList({
                     }
                     className="border border-outline/40 rounded-lg p-1.5 text-sm w-32"
                   >
-                    {Object.entries(ACTIVITY_TYPE_LABELS).map(([type, label]) => (
+                    {ACTIVITY_TYPES.map((type) => (
                       <option key={type} value={type}>
-                        {label}
+                        {t(ACTIVITY_TYPE_LABEL_KEYS[type])}
                       </option>
                     ))}
                   </select>
                   <div className="flex gap-2 min-w-0">
                     <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
-                      מחיר
+                      {t("itinerary.priceLabel")}
                       <input
                         type="number"
                         inputMode="decimal"
@@ -169,7 +171,7 @@ export default function ItineraryList({
                       />
                     </label>
                     <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
-                      קישור לאתר
+                      {t("itinerary.urlLabel")}
                       <input
                         type="url"
                         value={draft.url ?? ""}
@@ -188,7 +190,7 @@ export default function ItineraryList({
                       onClick={() => saveEdit(act.id)}
                       className="bg-primary hover:bg-primary-dark text-white text-xs px-3 py-1.5 rounded-lg"
                     >
-                      שמירה
+                      {t("common.save")}
                     </button>
                     <button
                       onClick={() => {
@@ -197,7 +199,7 @@ export default function ItineraryList({
                       }}
                       className="bg-surface-container hover:bg-surface-container-high text-ink-muted text-xs px-3 py-1.5 rounded-lg"
                     >
-                      ביטול
+                      {t("common.cancel")}
                     </button>
                     {onDeleteActivity && (
                       <button
@@ -209,11 +211,11 @@ export default function ItineraryList({
                         className="bg-red-50 hover:bg-red-100 text-red-600 text-xs px-3 py-1.5 rounded-lg flex items-center gap-1"
                       >
                         <Trash2 size={12} />
-                        מחיקה
+                        {t("common.delete")}
                       </button>
                     )}
                     {isLocalOnly && (
-                      <span className="text-[10px] text-amber-600">לא נשמר בשרת</span>
+                      <span className="text-[10px] text-amber-600">{t("itinerary.notSaved")}</span>
                     )}
                   </div>
                 </div>
@@ -230,7 +232,7 @@ export default function ItineraryList({
                           href={act.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          aria-label="קישור לאתר הפעילות"
+                          aria-label={t("itinerary.urlAria")}
                           className="text-sky-500 hover:text-sky-700 p-1"
                         >
                           <LinkIcon size={14} />
@@ -239,7 +241,7 @@ export default function ItineraryList({
                       {onShowOnMap && act.map_coordinates && (
                         <button
                           onClick={() => onShowOnMap(act.id)}
-                          aria-label="הצגת הפעילות על המפה"
+                          aria-label={t("itinerary.showOnMapAria")}
                           className="text-emerald-500 hover:text-emerald-700 p-1"
                         >
                           <MapPin size={14} />
@@ -247,7 +249,7 @@ export default function ItineraryList({
                       )}
                       <button
                         onClick={() => startEdit(act)}
-                        aria-label="עריכת פעילות"
+                        aria-label={t("itinerary.editAria")}
                         className="text-amber-500 hover:text-amber-700 p-1"
                       >
                         <Pencil size={14} />
@@ -255,7 +257,7 @@ export default function ItineraryList({
                       {onDeleteActivity && (
                         <button
                           onClick={() => onDeleteActivity(act.id)}
-                          aria-label="מחיקת פעילות"
+                          aria-label={t("itinerary.deleteAria")}
                           className="text-red-500 hover:text-red-700 p-1"
                         >
                           <Trash2 size={14} />
@@ -269,10 +271,10 @@ export default function ItineraryList({
                   <div className="flex items-center gap-2 mt-3 flex-wrap">
                     <button
                       onClick={() => startEdit(act)}
-                      aria-label="עריכת מחיר"
+                      aria-label={t("itinerary.editPriceAria")}
                       className={`rounded-full px-2.5 py-1 text-xs font-semibold ${accent.chip}`}
                     >
-                      {act.price != null ? `₪${act.price}` : "הוספת מחיר"}
+                      {act.price != null ? `₪${act.price}` : t("itinerary.addPrice")}
                     </button>
 
                     {act.hasPodcast && (
@@ -289,7 +291,9 @@ export default function ItineraryList({
                         ) : (
                           <Play size={13} fill="currentColor" />
                         )}
-                        {playingPodcast?.id === act.id ? "מתנגן כעת..." : "פודקאסט היסטורי"}
+                        {playingPodcast?.id === act.id
+                          ? t("itinerary.playingNow")
+                          : t("itinerary.historicalPodcast")}
                         {playingPodcast?.id === act.id && (
                           <Volume2 size={13} className="animate-pulse" />
                         )}
@@ -323,13 +327,13 @@ export default function ItineraryList({
                 type="text"
                 value={draft.title ?? ""}
                 onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
-                placeholder="שם הפעילות"
+                placeholder={t("itinerary.activityNamePlaceholder")}
                 className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm font-bold"
               />
               <textarea
                 value={draft.desc ?? ""}
                 onChange={(e) => setDraft((d) => ({ ...d, desc: e.target.value }))}
-                placeholder="תיאור קצר"
+                placeholder={t("itinerary.activityDescPlaceholder")}
                 className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
                 rows={2}
               />
@@ -340,15 +344,15 @@ export default function ItineraryList({
                 }
                 className="border border-outline/40 rounded-lg p-1.5 text-sm w-32"
               >
-                {Object.entries(ACTIVITY_TYPE_LABELS).map(([type, label]) => (
+                {ACTIVITY_TYPES.map((type) => (
                   <option key={type} value={type}>
-                    {label}
+                    {t(ACTIVITY_TYPE_LABEL_KEYS[type])}
                   </option>
                 ))}
               </select>
               <div className="flex gap-2 min-w-0">
                 <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
-                  מחיר
+                  {t("itinerary.priceLabel")}
                   <input
                     type="number"
                     inputMode="decimal"
@@ -363,7 +367,7 @@ export default function ItineraryList({
                   />
                 </label>
                 <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
-                  קישור לאתר
+                  {t("itinerary.urlLabel")}
                   <input
                     type="url"
                     value={draft.url ?? ""}
@@ -383,7 +387,7 @@ export default function ItineraryList({
                   disabled={!draft.title?.trim()}
                   className="bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-xs px-3 py-1.5 rounded-lg"
                 >
-                  הוספה
+                  {t("common.add")}
                 </button>
                 <button
                   onClick={() => {
@@ -392,9 +396,11 @@ export default function ItineraryList({
                   }}
                   className="bg-surface-container hover:bg-surface-container-high text-ink-muted text-xs px-3 py-1.5 rounded-lg"
                 >
-                  ביטול
+                  {t("common.cancel")}
                 </button>
-                {isLocalOnly && <span className="text-[10px] text-amber-600">לא נשמר בשרת</span>}
+                {isLocalOnly && (
+                  <span className="text-[10px] text-amber-600">{t("itinerary.notSaved")}</span>
+                )}
               </div>
             </div>
           ) : (
@@ -403,7 +409,7 @@ export default function ItineraryList({
               className="w-full flex items-center justify-center gap-2 text-sm font-semibold text-primary hover:text-primary-dark py-1"
             >
               <Plus size={16} />
-              הוספת פעילות ליום זה
+              {t("itinerary.addActivity")}
             </button>
           )}
         </div>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Globe } from "lucide-react";
+import { useI18n } from "../i18n/useI18n";
 import { languageLabel } from "../services/language";
 
 /**
@@ -8,6 +9,7 @@ import { languageLabel } from "../services/language";
  * a one-line explainer rather than navigating anywhere.
  */
 export default function LanguageIndicator({ language }: { language?: string | null }) {
+  const { t, lang } = useI18n();
   const [showInfo, setShowInfo] = useState(false);
 
   return (
@@ -17,13 +19,12 @@ export default function LanguageIndicator({ language }: { language?: string | nu
         className="flex items-center gap-1.5 text-xs font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-full transition-colors"
       >
         <Globe size={14} />
-        {languageLabel(language)}
+        {languageLabel(language, lang)}
       </button>
 
       {showInfo && (
-        <div className="absolute left-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-outline/20 p-3 z-40 text-right text-xs text-ink-muted">
-          שפת התשובות של הסוכן נקבעת לפי השפה השלטת בטקסט הטיול שהזנתם, ומתעדכנת אוטומטית אם תכתבו
-          לו בשפה אחרת.
+        <div className="absolute start-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-outline/20 p-3 z-40 text-start text-xs text-ink-muted">
+          {t("languageIndicator.explainer")}
         </div>
       )}
     </div>

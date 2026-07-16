@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Activity } from "../api";
+import { t } from "../i18n/store";
 
 /**
  * Voices load asynchronously in some browsers (notably Chrome): a
@@ -52,7 +53,7 @@ export function usePodcastPlayer() {
 
     const speakAloud = (): (() => void) => {
       if (!window.speechSynthesis) {
-        if (!stopped) setError("הדפדפן הזה לא תומך בהקראת טקסט.");
+        if (!stopped) setError(t("podcastPlayer.noTTS"));
         return () => {};
       }
       // Chrome silently drops a speak() issued in the same tick as a
@@ -76,7 +77,7 @@ export function usePodcastPlayer() {
           if (!stopped) setPlayingPodcast(null);
         };
         utterance.onerror = () => {
-          if (!stopped) setError("הקראת הפודקאסט נכשלה. ייתכן שלדפדפן הזה אין קול מתאים.");
+          if (!stopped) setError(t("podcastPlayer.ttsFailed"));
         };
         window.speechSynthesis.speak(utterance);
       });

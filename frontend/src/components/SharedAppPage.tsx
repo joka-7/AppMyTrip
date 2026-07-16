@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import type { RefObject } from "react";
 import { Download, Upload, UserPlus } from "lucide-react";
 import type { Activity, TripData } from "../api";
+import { useI18n } from "../i18n/useI18n";
 import { exportTripToFile, importTripFromFile } from "../services/tripFile";
 import { getCurrentSession, saveTrip, signInWithGoogle } from "../services/tripsStore";
 import ApiKeyMenu from "./ApiKeyMenu";
@@ -49,6 +50,7 @@ export default function SharedAppPage({
   onUpdateTrip: (patch: Partial<Pick<TripData, "title" | "dates" | "photo_album_url">>) => void;
   onImportTrip: (tripData: TripData, theme: Theme) => void;
 }) {
+  const { t, dir } = useI18n();
   const [saveStatus, setSaveStatus] = useState<"idle" | "working" | "done" | "error">("idle");
   const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -74,12 +76,12 @@ export default function SharedAppPage({
       const { tripData: imported, theme: importedTheme } = await importTripFromFile(file);
       onImportTrip(imported, importedTheme);
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : "ייבוא הקובץ נכשל.");
+      setImportError(err instanceof Error ? err.message : t("cloud.importFailed"));
     }
   };
 
   return (
-    <div className="h-dvh overflow-hidden bg-surface-container flex justify-center" dir="rtl">
+    <div className="h-dvh overflow-hidden bg-surface-container flex justify-center" dir={dir}>
       <div className="w-full max-w-md h-dvh bg-surface shadow-2xl flex flex-col overflow-hidden">
         <div className="flex flex-wrap items-center gap-2 p-2 bg-white border-b border-outline/20 text-xs">
           <button
@@ -87,14 +89,14 @@ export default function SharedAppPage({
             className="flex items-center gap-1 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg"
           >
             <Download size={14} />
-            ייצוא לקובץ
+            {t("sharedPage.export")}
           </button>
           <button
             onClick={() => fileInputRef.current?.click()}
             className="flex items-center gap-1 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg"
           >
             <Upload size={14} />
-            ייבוא מקובץ
+            {t("sharedPage.import")}
           </button>
           <input
             ref={fileInputRef}
@@ -109,19 +111,19 @@ export default function SharedAppPage({
             className="flex items-center gap-1 text-primary hover:text-primary-dark bg-primary/10 hover:bg-primary/20 disabled:opacity-60 px-2.5 py-1.5 rounded-lg"
           >
             <UserPlus size={14} />
-            {saveStatus === "working" ? "שומר..." : "שמירה לחשבון שלי"}
+            {saveStatus === "working" ? t("sharedPage.saving") : t("sharedPage.saveToAccount")}
           </button>
           <ApiKeyMenu />
           <InstallAppButton />
         </div>
         {saveStatus === "done" && (
           <p className="text-xs text-green-700 text-center py-1 bg-green-50 border-b border-green-200">
-            נשמר לחשבון שלך! אפשר למצוא אותו ב&quot;הטיולים שלי&quot;.
+            {t("sharedPage.savedNotice")}
           </p>
         )}
         {saveStatus === "error" && (
           <p className="text-xs text-red-700 text-center py-1 bg-red-50 border-b border-red-200">
-            השמירה לחשבון נכשלה. נסו שוב.
+            {t("sharedPage.saveFailed")}
           </p>
         )}
         {importError && (
@@ -145,7 +147,7 @@ export default function SharedAppPage({
             onDeleteActivity={onDeleteActivity}
             onUpdateTrip={onUpdateTrip}
             isLocalOnly
-            localOnlyNoticeText="שינויים שתבצעו כאן (כולל דרך הצ'אט) יישמרו רק בדפדפן הזה ולא יישלחו לשרת."
+            localOnlyNoticeText={t("sharedPage.localOnlyNotice")}
           />
         </div>
       </div>
