@@ -16,6 +16,7 @@ import { useI18n } from "../i18n/useI18n";
 import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABEL_KEYS } from "../services/activityTypes";
 import { newActivityId } from "../services/id";
 import { googleMapsPlaceUrl, googleMapsDirectionsUrl } from "../services/mapLinks";
+import { type MapTileStyle, MAP_TILE_URLS } from "../services/appDesign";
 import { sequenceLabel } from "../services/sequenceLabel";
 
 const MARKER_COLORS: Record<Activity["type"], string> = {
@@ -128,13 +129,18 @@ export default function MapView({
   onAddActivity,
   focusActivityId,
   onClearFocus,
+  mapTileStyle = "streets",
+  showRoutes = true,
+  routeColor = "#1a5276",
 }: {
   activities: Activity[];
   onUpdateActivity?: (activityId: string, patch: Partial<Activity>) => void;
   onAddActivity?: (activity: Activity) => void;
-  /** When set, show only this single activity's pin instead of the whole day. */
   focusActivityId?: string | null;
   onClearFocus?: () => void;
+  mapTileStyle?: MapTileStyle;
+  showRoutes?: boolean;
+  routeColor?: string;
 }) {
   const { t } = useI18n();
   const [pendingLocation, setPendingLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -147,6 +153,7 @@ export default function MapView({
     : undefined;
   const coordActs = focusedAct ? [focusedAct] : allCoordActs;
   const canAdd = Boolean(onAddActivity) && !focusedAct;
+  const tiles = MAP_TILE_URLS[mapTileStyle];
 
   if (coordActs.length === 0 && !onAddActivity) {
     return (
@@ -284,16 +291,13 @@ export default function MapView({
           doubleClickZoom
           style={{ height: "100%", width: "100%" }}
         >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
+          <TileLayer attribution={tiles.attribution} url={tiles.url} />
           <FitBounds activities={coordActs} />
           <ClickToAdd enabled={canAdd} onPick={setPendingLocation} />
-          {routePoints.length > 1 && (
+          {showRoutes && routePoints.length > 1 && (
             <Polyline
               positions={routePoints}
-              pathOptions={{ color: "#1a5276", weight: 3, opacity: 0.6, dashArray: "6 8" }}
+              pathOptions={{ color: routeColor, weight: 3, opacity: 0.6, dashArray: "6 8" }}
             />
           )}
           {coordActs.map((act, i) => (

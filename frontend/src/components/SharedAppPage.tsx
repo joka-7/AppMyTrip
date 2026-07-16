@@ -6,6 +6,7 @@ import { useI18n } from "../i18n/useI18n";
 import type { AppDesign } from "../services/appDesign";
 import { exportTripToFile, importTripFromFile } from "../services/tripFile";
 import { getCurrentSession, saveTrip, signInWithGoogle } from "../services/tripsStore";
+import { useTripBranding } from "../hooks/useTripBranding";
 import ApiKeyMenu from "./ApiKeyMenu";
 import AppFrame from "./AppFrame";
 import InstallAppButton from "./InstallAppButton";
@@ -53,6 +54,7 @@ export default function SharedAppPage({
   onImportTrip: (tripData: TripData, appDesign: AppDesign) => void;
 }) {
   const { t, dir } = useI18n();
+  useTripBranding(appDesign, tripData.title);
   const [saveStatus, setSaveStatus] = useState<"idle" | "working" | "done" | "error">("idle");
   const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);

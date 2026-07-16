@@ -11,6 +11,34 @@
   .hide-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
+  .bg-template-dots {
+    background-color: #fbf9f8;
+    background-image: radial-gradient(rgb(193 199 207 / 0.55) 1px, transparent 1px);
+    background-size: 14px 14px;
+  }
+
+  .bg-template-grid {
+    background-color: #fbf9f8;
+    background-image:
+      linear-gradient(rgb(193 199 207 / 0.35) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(193 199 207 / 0.35) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+
+  .bg-template-waves {
+    background-color: #f5f8fc;
+    background-image: radial-gradient(ellipse at 50% 0%, rgb(148 197 238 / 0.25), transparent 55%),
+      radial-gradient(ellipse at 80% 100%, rgb(254 126 79 / 0.12), transparent 50%);
+  }
+
+  .bg-template-warm {
+    background: linear-gradient(180deg, #fff8f3 0%, #fbf9f8 45%, #fff5eb 100%);
+  }
+
+  .bg-template-cool {
+    background: linear-gradient(180deg, #f3f8ff 0%, #fbf9f8 45%, #eef6ff 100%);
+  }
 }
 
 html,

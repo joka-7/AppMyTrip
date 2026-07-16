@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import type { Activity } from "../api";
 import { useI18n } from "../i18n/useI18n";
+import { type CardLayout, type CornerStyle, CORNER_CARD_CLASSES } from "../services/appDesign";
 import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABEL_KEYS } from "../services/activityTypes";
 import { newActivityId } from "../services/id";
 import LocationPicker from "./LocationPicker";
@@ -47,9 +48,14 @@ export default function ItineraryList({
   isLocalOnly,
   currency = "₪",
   cardPad = "p-4",
+  cardLayout = "list",
+  cornerStyle = "rounded",
+  showPodcasts = true,
+  accentColor,
 }: {
   activities: Activity[];
   themeClass: string;
+  accentColor?: string;
   playingPodcast: Activity | null;
   onPlayPodcast: (act: Activity) => void;
   onUpdateActivity: (activityId: string, patch: Partial<Activity>) => void;
@@ -59,6 +65,9 @@ export default function ItineraryList({
   isLocalOnly?: boolean;
   currency?: string;
   cardPad?: string;
+  cardLayout?: CardLayout;
+  cornerStyle?: CornerStyle;
+  showPodcasts?: boolean;
 }) {
   const { t } = useI18n();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -113,17 +122,24 @@ export default function ItineraryList({
     setDraft({});
   };
 
+  const cornerClass = CORNER_CARD_CLASSES[cornerStyle];
+  const listClass = cardLayout === "timeline" ? "relative border-s-2 border-outline/30 ps-4 ms-2" : "";
+
   return (
-    <div className="space-y-4">
-      {activities.map((act) => {
+    <div className={`space-y-4 ${listClass}`}>
+      {activities.map((act, index) => {
         const Icon = ACTIVITY_ICONS[act.type] ?? Landmark;
         const accent = ACTIVITY_ACCENT[act.type] ?? ACTIVITY_ACCENT.attraction;
         const isEditing = editingId === act.id;
+        const playingThis = playingPodcast?.id === act.id;
         return (
-          <div
-            key={act.id}
-            className={`bg-white ${cardPad} rounded-xl shadow-card border border-outline/20 border-s-4 ${accent.border} animate-fade-in`}
-          >
+          <div key={act.id} className={cardLayout === "timeline" ? "relative" : undefined}>
+            {cardLayout === "timeline" && (
+              <span className="absolute -start-[1.35rem] top-5 w-3 h-3 rounded-full bg-primary border-2 border-white shadow-sm" />
+            )}
+            <div
+              className={`bg-white ${cardPad} ${cornerClass} shadow-card border border-outline/20 border-s-4 ${accent.border} animate-fade-in`}
+            >
             <div className="flex-1 min-w-0">
               {isEditing ? (
                 <div className="flex flex-col gap-2 min-w-0">
@@ -281,24 +297,25 @@ export default function ItineraryList({
                       {act.price != null ? `${currency}${act.price}` : t("itinerary.addPrice")}
                     </button>
 
-                    {act.hasPodcast && (
+                    {showPodcasts && act.hasPodcast && (
                       <button
                         onClick={() => onPlayPodcast(act)}
                         className={`flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
-                          playingPodcast?.id === act.id
-                            ? `${themeClass} text-white`
+                          playingThis
+                            ? `${themeClass || ""} text-white`
                             : "bg-surface-container text-primary hover:bg-surface-container-high"
                         }`}
+                        style={playingThis && accentColor ? { backgroundColor: accentColor } : undefined}
                       >
-                        {playingPodcast?.id === act.id ? (
+                        {playingThis ? (
                           <Pause size={13} fill="currentColor" />
                         ) : (
                           <Play size={13} fill="currentColor" />
                         )}
-                        {playingPodcast?.id === act.id
+                        {playingThis
                           ? t("itinerary.playingNow")
                           : t("itinerary.historicalPodcast")}
-                        {playingPodcast?.id === act.id && (
+                        {playingThis && (
                           <Volume2 size={13} className="animate-pulse" />
                         )}
                       </button>
@@ -307,6 +324,7 @@ export default function ItineraryList({
                 </>
               )}
             </div>
+          </div>
           </div>
         );
       })}

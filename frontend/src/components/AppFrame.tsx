@@ -19,9 +19,15 @@ import { usePodcastPlayer } from "../hooks/usePodcastPlayer";
 import {
   type AppDesign,
   type AppTab,
+  BACKGROUND_TEMPLATE_CLASSES,
   DENSITY_CLASSES,
+  effectiveCurrency,
   FONT_CLASSES,
+  formatTripDates,
+  headerBackgroundStyle,
+  resolveAccentDark,
   resolveDefaultTab,
+  themeClassForDesign,
 } from "../services/appDesign";
 import { hebrewWeekdayLetter, tripStartWeekdayIndex } from "../services/hebrewDate";
 import type { AgentMessage } from "./ChatPanel";
@@ -30,13 +36,6 @@ import ItineraryList from "./ItineraryList";
 import MapView from "./MapView";
 import PodcastPlayer from "./PodcastPlayer";
 import PriceSummary from "./PriceSummary";
-import type { Theme } from "./ThemeSelector";
-
-const THEME_CLASSES: Record<Theme, string> = {
-  blue: "bg-primary",
-  green: "bg-emerald-700",
-  dark: "bg-[#12344d]",
-};
 
 const SCROLL_ARROW_THRESHOLD = 4;
 
@@ -117,14 +116,22 @@ export default function AppFrame({
   const { playingPodcast, progress, error: podcastError, togglePlay, stop } = usePodcastPlayer();
   const tabsRef = useRef<HTMLDivElement>(null);
 
-  const themeClass = THEME_CLASSES[appDesign.theme] ?? THEME_CLASSES.blue;
+  const themeClass = themeClassForDesign(appDesign);
+  const accentColor = resolveAccentDark(appDesign);
   const density = DENSITY_CLASSES[appDesign.density];
   const fontClass = FONT_CLASSES[appDesign.font];
+  const bgClass = BACKGROUND_TEMPLATE_CLASSES[appDesign.backgroundTemplate];
   const safeDayIdx = Math.min(activeDay, Math.max(0, days.length - 1));
   const day = days[safeDayIdx];
   const tripStartWeekday =
     tripData.startWeekday ?? tripStartWeekdayIndex(tripData.dates);
-  const visibleNavTabs = NAV_TABS.filter((tab) => appDesign.visibleTabs[tab.id]);
+  const navById = Object.fromEntries(NAV_TABS.map((tab) => [tab.id, tab]));
+  const visibleNavTabs = appDesign.tabOrder
+    .filter((id) => appDesign.visibleTabs[id])
+    .map((id) => navById[id])
+    .filter(Boolean);
+  const displayDates = formatTripDates(tripData.dates, appDesign.dateFormat);
+  const currency = effectiveCurrency(appDesign);
 
   useEffect(() => {
     setActiveDay(startDayIndex(days, appDesign.startDay));
@@ -192,18 +199,13 @@ export default function AppFrame({
     setActiveTab("map");
   };
 
-  const headerStyle = appDesign.headerImageUrl
-    ? {
-        backgroundImage: `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url(${appDesign.headerImageUrl})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-      }
-    : undefined;
+  const headerStyle = headerBackgroundStyle(appDesign);
+  const useCustomHeader = Boolean(headerStyle);
 
   return (
-    <div className={`w-full h-full flex flex-col bg-surface ${fontClass}`}>
+    <div className={`w-full h-full flex flex-col ${fontClass}`}>
       <div
-        className={`${appDesign.headerImageUrl ? "" : themeClass} shrink-0 text-white pt-10 pb-4 px-6 shadow-md transition-colors duration-300 relative`}
+        className={`${useCustomHeader ? "" : themeClass} shrink-0 text-white pt-10 pb-4 px-6 shadow-md transition-colors duration-300 relative`}
         style={headerStyle}
       >
         {isEditingHeader ? (
@@ -266,7 +268,7 @@ export default function AppFrame({
                 )}
               </div>
               <p className={`${density.headerSub} opacity-80`}>
-                {tripData.dates || t("appFrame.datesFallback")}
+                {displayDates || t("appFrame.datesFallback")}
               </p>
               {appDesign.organizerName && (
                 <p className={`${density.headerSub} opacity-90 mt-0.5`}>{appDesign.organizerName}</p>
@@ -327,9 +329,10 @@ export default function AppFrame({
                 }}
                 className={`px-4 py-1.5 rounded-full font-semibold text-sm whitespace-nowrap transition-colors ${
                   safeDayIdx === idx
-                    ? "bg-primary-dark text-white"
+                    ? "text-white"
                     : "bg-surface-container text-ink-muted hover:bg-surface-container-high"
                 }`}
+                style={safeDayIdx === idx ? { backgroundColor: accentColor } : undefined}
               >
                 {t("appFrame.day", { num: d.dayNum })}
                 {tripStartWeekday !== null && (
@@ -353,7 +356,7 @@ export default function AppFrame({
         </div>
       )}
 
-      <div className={`flex-1 overflow-y-auto ${density.contentPad} bg-surface pb-24`}>
+      <div className={`flex-1 overflow-y-auto ${density.contentPad} ${bgClass} pb-24`}>
         {!hasTrip && (
           <div className="h-full flex flex-col items-center justify-center text-center text-ink-muted gap-3 px-6">
             <Smartphone size={40} className="opacity-40" />
@@ -365,6 +368,7 @@ export default function AppFrame({
           <ItineraryList
             activities={day.activities}
             themeClass={themeClass}
+            accentColor={accentColor}
             playingPodcast={playingPodcast}
             onPlayPodcast={togglePlay}
             onUpdateActivity={handleUpdateActivity}
@@ -372,8 +376,11 @@ export default function AppFrame({
             onDeleteActivity={onDeleteActivity ? handleDeleteActivity : undefined}
             onShowOnMap={appDesign.visibleTabs.map ? handleShowOnMap : undefined}
             isLocalOnly={isLocalOnly}
-            currency={appDesign.currency}
+            currency={currency}
             cardPad={density.cardPad}
+            cardLayout={appDesign.cardLayout}
+            cornerStyle={appDesign.cornerStyle}
+            showPodcasts={appDesign.showPodcasts}
           />
         )}
 
@@ -385,13 +392,16 @@ export default function AppFrame({
               onAddActivity={onAddActivity ? handleAddActivity : undefined}
               focusActivityId={focusActivityId}
               onClearFocus={() => setFocusActivityId(null)}
+              mapTileStyle={appDesign.mapTileStyle}
+              showRoutes={appDesign.showMapRoutes}
+              routeColor={accentColor}
             />
           </div>
         )}
 
         {hasTrip && activeTab === "price" && appDesign.visibleTabs.price && (
           <div className="h-full animate-fade-in">
-            <PriceSummary tripData={tripData} currency={appDesign.currency} />
+            <PriceSummary tripData={tripData} currency={currency} />
           </div>
         )}
 
