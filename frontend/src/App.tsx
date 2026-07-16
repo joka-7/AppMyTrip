@@ -160,9 +160,20 @@ function AppLogo() {
 // --- Main App Builder Component ---
 
 function TripBuilder() {
-  const { t, dir } = useI18n();
+  const { t, dir, lang } = useI18n();
   const [step, setStep] = useState(1);
   const [rawText, setRawText] = useState(() => translate("step1.exampleRawText"));
+  // The example text is a placeholder, not real user input — if the user
+  // hasn't touched it yet, keep it in sync when they switch UI language
+  // instead of leaving it stuck in whatever language the app opened in.
+  const rawTextTouchedRef = useRef(false);
+  const handleChangeRawText = (text: string) => {
+    rawTextTouchedRef.current = true;
+    setRawText(text);
+  };
+  useEffect(() => {
+    if (!rawTextTouchedRef.current) setRawText(translate("step1.exampleRawText"));
+  }, [lang]);
   const [theme, setTheme] = useState<Theme>("blue");
   const [preferences, setPreferences] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -430,7 +441,7 @@ function TripBuilder() {
             {step === 1 && (
               <BuilderStep1
                 rawText={rawText}
-                onChangeRawText={setRawText}
+                onChangeRawText={handleChangeRawText}
                 preferences={preferences}
                 onChangePreferences={setPreferences}
                 onSubmit={handleProcessText}

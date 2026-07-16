@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Check,
   ChevronLeft,
@@ -32,8 +32,18 @@ export default function BuilderStep4({
   onSaved: (tripId: string, title: string) => void;
   onBack: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [tripName, setTripName] = useState(tripData.title || t("step4.defaultTripName"));
+  // Only the untitled-trip placeholder should track the UI language; a real
+  // trip title (typed or loaded) must never be overwritten by a language switch.
+  const tripNameTouchedRef = useRef(Boolean(tripData.title));
+  const handleChangeTripName = (value: string) => {
+    tripNameTouchedRef.current = true;
+    setTripName(value);
+  };
+  useEffect(() => {
+    if (!tripNameTouchedRef.current) setTripName(t("step4.defaultTripName"));
+  }, [lang, t]);
   const [status, setStatus] = useState<"idle" | "working" | "done" | "error">("idle");
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -79,7 +89,7 @@ export default function BuilderStep4({
           <input
             type="text"
             value={tripName}
-            onChange={(e) => setTripName(e.target.value)}
+            onChange={(e) => handleChangeTripName(e.target.value)}
             placeholder={t("step4.tripNamePlaceholder")}
             className="w-full border border-outline/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
           />

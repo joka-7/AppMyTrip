@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import App from "./App";
 import * as api from "./api";
 import type { TripData } from "./api";
+import { setLang } from "./i18n/store";
 
 vi.mock("./api");
 vi.mock("./services/tripsStore", () => ({
@@ -337,6 +338,44 @@ describe("App builder flow", () => {
     window.history.back();
     await waitFor(() => {
       expect(screen.getByText("שיפורים נוספים (אופציונלי)")).toBeInTheDocument();
+    });
+  });
+
+  describe("language switch", () => {
+    beforeEach(() => {
+      setLang("he");
+    });
+
+    afterEach(() => {
+      setLang("he");
+    });
+
+    it("updates the untouched Step 1 example text live, but never overwrites what the user typed", async () => {
+      render(<App />);
+
+      const hebrewExample = /היי, אנחנו טסים לרומא/;
+      const englishExample = /Hi, we're flying to Rome/;
+      expect(screen.getByDisplayValue(hebrewExample)).toBeInTheDocument();
+
+      // Untouched: switching language updates the example text in place.
+      await act(async () => {
+        fireEvent.change(screen.getByRole("combobox", { name: /שפת הממשק/ }), {
+          target: { value: "en" },
+        });
+      });
+      expect(screen.getByDisplayValue(englishExample)).toBeInTheDocument();
+
+      // Touched: once the user edits the field, further language switches
+      // must leave their text alone.
+      fireEvent.change(screen.getByDisplayValue(englishExample), {
+        target: { value: "My own trip notes" },
+      });
+      await act(async () => {
+        fireEvent.change(screen.getByRole("combobox", { name: /Interface language/ }), {
+          target: { value: "fr" },
+        });
+      });
+      expect(screen.getByDisplayValue("My own trip notes")).toBeInTheDocument();
     });
   });
 });
