@@ -62,7 +62,7 @@ can serve the same ASGI app as a function.
 
 | Model | Role | Notable fields |
 |-------|------|----------------|
-| `Activity` | one schedule item | `id`, `time`, `title`, `desc`, `type` (`Literal["attraction","food","lodging","transport"]`), `is_kosher`, `hasPodcast`, `podcast_url`, `podcast_brief`, `map_coordinates: dict[str,float] \| None`, `price`, `url`, `directions_car`, `directions_transit` |
+| `Activity` | one schedule item | `id`, `time`, `title`, `desc`, `type` (`Literal["attraction","food","lodging","transport"]`), `hasPodcast`, `podcast_url`, `podcast_brief`, `map_coordinates: dict[str,float] \| None`, `price`, `url`, `directions_car`, `directions_transit` |
 | `TripDay` | one day | `dayNum: int`, `activities: list[Activity]` |
 | `TripData` | whole trip | `title`, `dates`, `days`, `language` (ISO 639-1, default `"he"`), `photo_album_url` |
 | `ParseRequest` | Stage 1 input | `raw_text`, `preferences?`, `api_key?`, `provider?` |
@@ -84,7 +84,6 @@ is embedded in each prompt so the model returns a schema-conformant object.
 | `load_initial_text(text)` / `load_existing_trip(trip)` | seed state |
 | `set_preferences / set_api_key / set_provider` | per-request config |
 | `extract_with_llm()` | `await LLMService.parse_trip_text(...)` → sets `_trip` |
-| `analyze_missing_requirements()` | proactive nudge: if prefs mention "kosher" and no `food` activity exists, return a Hebrew suggestion (else `None`) |
 | `process_agent_update(msg)` | call agent LLM, apply truncation guard, replace `_trip`, return reply |
 | `enhance(options)` | `await LLMService.enhance_trip(...)` |
 | `generate_media()` | for each `hasPodcast and not podcast_url` activity, fill `podcast_url` via `TTSService` |
@@ -102,7 +101,7 @@ is embedded in each prompt so the model returns a schema-conformant object.
 
 | Route | Builds | Returns |
 |-------|--------|---------|
-| `/api/trip/parse` | new builder → set config → load text → `extract_with_llm` → `analyze_missing_requirements` | `{trip_data, initial_agent_message}` |
+| `/api/trip/parse` | new builder → set config → load text → `extract_with_llm` | `{trip_data, initial_agent_message: null}` |
 | `/api/trip/agent` | builder from `trip_data` → `process_agent_update` | `{trip_data, agent_reply}` |
 | `/api/trip/enhance` | builder from `trip_data` → `enhance(options)` | `{trip_data}` |
 | `/api/trip/generate-media` | builder from `trip_data` → `generate_media` | `{trip_data, status}` |
@@ -154,7 +153,7 @@ classDiagram
   - delays `[1,2,4,8,16]`.
   - `429` → honor `Retry-After` header if present else backoff; final attempt raises `HTTPException(429)`.
   - other `httpx` / `ValueError` / `JSONDecodeError` → backoff; final attempt raises `HTTPException(502)`.
-- `parse_trip_text(...)` — builds a planner system prompt (injects `preferences` if given; instructs to leave enrichment fields null; detect + set `language`), embeds `TripData` JSON schema, validates response into `TripData` (`422` on `ValidationError`).
+- `parse_trip_text(...)` — builds a planner system prompt (injects `preferences` as free text if given; instructs to leave enrichment fields null; detect + set `language`), embeds `TripData` JSON schema, validates response into `TripData` (`422` on `ValidationError`).
 - `agent_interaction(...)` — system prompt insists on **copying every activity through unchanged unless asked**, preserving `id` and enrichment fields, replying in `TripData.language` (or switching if the user clearly changed language), and reassigning `dayNum`/reordering `days` on structural changes; embeds `AgentResponse` schema; validates into `AgentResponse`.
 - **Enhancement** (`_ENHANCE_OPTION_SPECS`): a list of `(flag_name, instruction, editable_fields)` tuples. `enhance_trip` selects the checked specs, runs `_enhance_one` per spec **concurrently** via `asyncio.gather(..., return_exceptions=True)`, then deep-copies the current trip and merges each successful result **by activity `id`, only for that option's fields**. Raises the first error only if **every** option failed.
 
@@ -244,13 +243,13 @@ flowchart TB
 
 | Component | Purpose / key props | Notable behavior |
 |-----------|---------------------|------------------|
-| `AppFrame` | The generated-app UI (header, day tabs, 4 content tabs, bottom nav). Props: `tripData`, `theme`, chat props, `onUpdateActivity/onAddActivity/onUpdateTrip`, `isLocalOnly` | Owns `activeDay`, `activeTab`, `focusActivityId`, header edit drafts; uses `usePodcastPlayer`; empty-state safe; theme → header color; scroll arrows when `days>4` |
+| `AppFrame` | The generated-app UI (header, day tabs, 4 content tabs, bottom nav). Props: `tripData`, `theme`, chat props, `onUpdateActivity/onAddActivity/onUpdateTrip`, `isLocalOnly` | Owns `activeDay`, `activeTab`, `focusActivityId`, header edit drafts; uses `usePodcastPlayer`; empty-state safe; theme → header color; scroll arrows when `days>4`; Hebrew weekday letter on day tabs only when `parseTripStartDate` finds a start date in `dates` |
 | `PhonePreview` | Wraps `AppFrame` in a phone bezel for the builder's live preview | Pure presentational passthrough |
 | `SharedAppPage` | Full-screen `AppFrame` for `?shared` links + import | Adds local-only notice, import via `tripFile` |
 | `ItineraryList` | Renders/edits a day's activities. Props: `activities`, `onUpdateActivity`, `onAddActivity?`, `onShowOnMap?`, `playingPodcast`, `onPlayPodcast` | Inline edit/add drafts (time/title/desc/type/price/url/lat/lng); new pin defaults near an existing one; `newActivityId()` uses `crypto.randomUUID`; podcast play button when `hasPodcast` |
 | `MapView` | Leaflet/OpenStreetMap map of a day's activities (react-leaflet). Props: `activities`, `focusActivityId`, `onUpdateActivity`, `onClearFocus` | `FitBounds` child auto-fits/zooms; per-type `divIcon` markers, draggable when `onUpdateActivity` set (persist coords on `dragend`); dashed `Polyline` shows stop order (not a real route); focus mode shows one pin; external **Google Maps** place/directions links (no paid tiles/API) |
 | `ChatPanel` | Message list + input; reused by Step 3 and `AppFrame`'s chat tab | Exports `AgentMessage` type; typing indicator when `isSending`; shows `LanguageIndicator` |
-| `BuilderStep1` | Paste text + preferences; submit → parse | "continue without reprocessing" when a trip already exists |
+| `BuilderStep1` | Paste text + preferences (free text, e.g. dietary/accessibility); submit → parse | "continue without reprocessing" when a trip already exists |
 | `BuilderStep2` | Opt-in enhancement checkboxes → `EnhanceOptions` | Skip/back; select-all; loading state during enhance |
 | `BuilderStep3` | Chat step + edit trip dates | Continue → generate media; shows language |
 | `BuilderStep4` | Theme + share lifetime + deploy/save/share | Calls `getCurrentSession()`/`signInWithGoogle`, `saveTrip`, `shareTrip`; "update existing" vs "save as new copy"; copyable share link |
@@ -282,7 +281,7 @@ flowchart TB
 | `apiKey.ts` | `getApiKey`, `getApiKeyForProvider`, `getApiProvider`, `setApiKey`, `clearApiKey`, `PROVIDERS` | Per-provider keys in `localStorage` (`tripweaver_api_keys`); migrates a legacy single-key format |
 | `firebase.ts` | `firebaseApp`, `isFirebaseConfigured` | Initializes only when `VITE_FIREBASE_*` are set; else `null` (app still runs) |
 | `tripsStore.ts` | `onAuthChange`, `getCurrentSession`, `signInWithGoogle`, `signOutOfGoogle`, `listTrips`, `saveTrip`, `loadTrip`, `deleteTrip`, `shareTrip`, `loadSharedTrip`, `deleteSharedTrip` | Firestore CRUD under `users/{uid}/trips` + public `sharedTrips`; `shareTrip` optional `expiresInDays`; `loadSharedTrip` rejects expired links client-side |
-| `hebrewDate.ts` | `parseTripStartDate`, `hebrewWeekdayLetter` | Derives per-day Hebrew weekday letters for the day tabs |
+| `hebrewDate.ts` | `parseTripStartDate`, `hebrewWeekdayLetter` | Parses a start date from the freeform `dates` string (ISO or D/M/Y); returns `null` when none found (weekday omitted rather than guessed); derives per-day Hebrew weekday letters for day tabs |
 | `language.ts` | `languageLabel(code)` | ISO 639-1 → Hebrew language name |
 | `tripFile.ts` | `exportTripToFile(trip, theme)`, `importTripFromFile(file)` | JSON download/upload for client-side backup/transfer; import validates the trip shape before accepting |
 | `env.ts` | `cleanEnvVar` | Trims/normalizes `import.meta.env` values |
@@ -294,7 +293,7 @@ flowchart TB
 ```jsonc
 // POST /api/trip/parse
 // req:  { raw_text, preferences?, api_key?, provider? }
-// resp: { trip_data: TripData, initial_agent_message: string | null }
+// resp: { trip_data: TripData, initial_agent_message: null }   // always null; client shows default greeting
 
 // POST /api/trip/enhance
 // req:  { trip_data: TripData, options: EnhanceOptions, api_key?, provider? }
@@ -346,7 +345,9 @@ flowchart TD
 
 ### 5.3 Client fallback (resilience)
 
-- `parseTrip` fails → load `DEMO_TRIP` + demo agent message, still advance to Step 2.
+- `parseTrip` succeeds with `initial_agent_message: null` → client shows default
+  greeting (`'זיהיתי את הטיול! …'`); on failure → load `DEMO_TRIP` + demo agent
+  message, still advance to Step 2.
 - `agentInteract` fails → `mockAgentReply` (keyword-based local edit) + notice.
 - `enhanceTrip`/`generateMedia` fail → keep current trip + notice, continue.
 - Rate-limit (`(429)` in message) → distinct "provider is rate-limiting" notice.
@@ -357,6 +358,23 @@ flowchart TD
 (new doc if `tripId` null / "save as copy") → `shareTrip(uid, id, trip, theme, days?)`
 writes a public `sharedTrips/{id}` doc → returns `?shared=<id>` URL. Opening that
 URL routes `App` into `SharedTripViewer` → `loadSharedTrip` (expiry-checked).
+
+### 5.5 Re-apply Step 2 enhancements to new activities (client-side)
+
+```mermaid
+flowchart TD
+    A[Activity added — chat agent or + button] --> B{any enhanceOptions remembered?}
+    B -->|no| C[keep trip as-is]
+    B -->|yes| D[diff before/after by activity id]
+    D --> E{new ids?}
+    E -->|no| C
+    E -->|yes| F[POST /enhance with synthetic one-day trip of new activities only]
+    F --> G[merge enhanced fields back onto matching ids in full trip]
+```
+
+The frontend stores `enhanceOptions` from Step 2 and calls `enhanceNewActivities`
+after every agent turn (`handleSendMessage`) and manual add (`handleAddActivity`).
+Failures are logged and the unenhanced activity is kept.
 
 ---
 

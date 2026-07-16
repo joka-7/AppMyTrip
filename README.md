@@ -17,7 +17,7 @@ AppMyTrip/
 │   ├── api/index.py            Vercel serverless entrypoint (re-exports the ASGI app)
 │   ├── vercel.json             Vercel Python runtime config
 │   ├── models.py                Pydantic request/response models (Activity, TripData, ...)
-│   ├── services/                llm.py (Gemini), tts.py (Piper/mock TTS)
+│   ├── services/                llm.py (multi-provider), tts.py (Piper/mock TTS)
 │   ├── routers/                builder.py (/api/trip/*)
 │   ├── test_trip_api.py        offline tests (LLM mocked)
 │   ├── requirements.txt
@@ -28,6 +28,9 @@ AppMyTrip/
 │   ├── src/services/tripsStore.ts   save/load/share trips in Firestore
 │   ├── firestore.rules         Firestore security rules (per-user + public shares)
 │   └── e2e/                    Playwright end-to-end tests (real browser, backend mocked)
+├── docs/             design documentation
+│   ├── hld/hld.md              High-Level Design (architecture + flows)
+│   └── lld/lld.md              Low-Level Design (modules, classes, contracts)
 ├── .run/             shared PyCharm/WebStorm run configurations
 └── main.py           (legacy scaffold placeholder)
 ```
@@ -68,16 +71,21 @@ python trip_api_backend.py    # serves on http://0.0.0.0:8000, docs at /docs
 
 The backend is fully stateless — no database, no auth, no server-side persistence:
 - `POST /api/trip/parse` — raw text (+ optional `preferences`, `api_key`, `provider`) →
-  structured itinerary (LLM)
+  structured itinerary (LLM); always returns `initial_agent_message: null` (the
+  frontend shows a default greeting)
+- `POST /api/trip/enhance` — current itinerary + opt-in `options` (+ `api_key`,
+  `provider`) → itinerary with selected extras filled in (directions, prices,
+  podcast briefs, links) — one concurrent LLM call per checked option
 - `POST /api/trip/agent` — chat + current itinerary (+ optional `preferences`, `api_key`,
   `provider`) → updated itinerary (LLM)
 - `POST /api/trip/generate-media` — fill TTS podcast URLs for flagged sites
 
-`preferences` (e.g. "Vegan", "gluten-free") is a plain free-text field the frontend sends
-with each request — there's no hardcoded global assumption and no per-account storage
-on the backend. Saving/loading/sharing trips, and remembering a preferences string
-between sessions, is handled entirely client-side via Firestore (see "Frontend" →
-"Trip storage" below) — no database for us to run or back up.
+`preferences` (e.g. "Vegan", "gluten-free", "חלבי") is a plain free-text field the frontend sends
+with each request — there is no hardcoded dietary assumption, no special-cased
+logic (e.g. no `is_kosher` field), and no per-account storage on the backend.
+Saving/loading/sharing trips, and remembering a preferences string between sessions,
+is handled entirely client-side via Firestore (see "Frontend" → "Trip storage"
+below) — no database for us to run or back up.
 
 ### LLM provider — bring your own key
 
@@ -222,8 +230,14 @@ The frontend calls the backend through `frontend/src/api.ts`. The base URL is se
 by `VITE_API_URL` (see `frontend/.env.example`, default `http://localhost:8000`).
 
 - Step 1 "create app structure" → `POST /api/trip/parse`
+- Step 2 opt-in enhancements → `POST /api/trip/enhance`
 - Step 3 agent chat → `POST /api/trip/agent`
 - Step 3 → 4 "continue to design" → `POST /api/trip/generate-media`
+
+Activities added later in Step 3 (via the chat agent or the live preview's "+"
+button) automatically re-run the Step 2 enhancements the user checked, so new
+stops get the same directions/prices/podcast-briefs/links without revisiting
+Step 2.
 
 If the backend is unreachable (or the `parse`/`agent` calls fail because no API key
 is configured — either via the frontend's API key menu or a server-side env var),
@@ -248,11 +262,13 @@ frontend Node interpreter configured in the IDE's Node settings.
 
 ## Notes
 
+- Design docs: [`docs/hld/hld.md`](docs/hld/hld.md) (architecture) and
+  [`docs/lld/lld.md`](docs/lld/lld.md) (module-level detail).
 - The `parse` and `agent` endpoints need an LLM key — Gemini by default, or Groq (see
   "LLM provider" above). `generate-media` defaults to a mock TTS service (see
   "Text-to-speech provider" above for the free local Piper option).
 - Dietary/other preferences are entered as free text in the builder UI and sent with
-  each request — not a hardcoded assumption, and not stored server-side (see
+  each request — not a hardcoded assumption, not stored server-side (see
   "Backend" above and "Trip storage" under "Frontend").
 - Everything in this app is free to run, with no billing account anywhere: Gemini's
   free tier, local Piper TTS (or mock TTS on serverless), Vercel's Hobby tier for both

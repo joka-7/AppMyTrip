@@ -154,7 +154,8 @@ sequenceDiagram
     FE->>API: POST /parse {raw_text, preferences, api_key, provider}
     API->>LLM: system+user prompt (JSON mode, TripData schema)
     LLM-->>API: structured itinerary JSON
-    API-->>FE: {trip_data, initial_agent_message}
+    API-->>FE: {trip_data, initial_agent_message: null}
+    FE->>FE: show default greeting (backend no longer sends proactive nudges)
 
     Note over U,FE: Step 2 — opt-in enhancements (directions/prices/podcast/links)
     U->>FE: checks options
@@ -219,7 +220,6 @@ erDiagram
         string title
         string desc
         enum type "attraction|food|lodging|transport"
-        bool is_kosher
         bool hasPodcast
         string podcast_url
         string podcast_brief
@@ -264,14 +264,28 @@ Anthropic's Messages API). `LLMService` selects one per request and centralizes
 retry/backoff and schema validation. Adding a provider = adding one class + one
 registry entry. TTS uses the same shape (`TTSProvider` protocol → mock / Piper).
 
-### 6.4 Concurrent, per-option enhancement
+### 6.4 Generic free-text preferences (no special-cased dietary logic)
+`preferences` is an optional plain-text field (e.g. "Vegan", "gluten-free") sent
+with parse/agent requests and injected into the LLM prompt as-is. There is no
+`is_kosher` field on activities and no server-side proactive nudge after parse —
+the backend always returns `initial_agent_message: null`; the frontend shows a
+default greeting instead.
+
+### 6.5 Concurrent, per-option enhancement
 Step 2 fires **one small LLM call per checked option**, run concurrently
 (`asyncio.gather(..., return_exceptions=True)`), then merges results by activity
 `id`. Rationale: checking all five options stays about as fast as checking one,
 and a single failed/rate-limited option doesn't sink the others — only a total
 failure raises.
 
-### 6.5 Resilience guards
+### 6.6 Re-apply enhancements to newly added activities
+The frontend remembers the Step 2 checkbox selections (`enhanceOptions`) and
+re-runs them via `enhanceNewActivities` whenever activities are added later —
+whether by the Step 3 chat agent or manually via the live preview's "+" button.
+Only the new activity IDs are sent to `/enhance`, then results are merged back
+by `id`.
+
+### 6.7 Resilience guards
 - **Truncation guard** (`_looks_truncated`): a chat turn that silently drops
   more than half of a ≥4-activity itinerary is rejected with `502` (the itinerary
   is left unchanged) unless the user explicitly asked to delete things. This
@@ -281,14 +295,14 @@ failure raises.
 - **Client fallback**: any backend/LLM failure degrades to a local demo trip or
   local mock agent reply, plus a dismissible notice, so the prototype stays live.
 
-### 6.6 Persistence & sharing model (Firebase)
+### 6.8 Persistence & sharing model (Firebase)
 Private trips live at `users/{uid}/trips/{tripId}` (owner-only). Sharing copies
 the trip into a public, read-only `sharedTrips/{tripId}` doc and yields a
 `?shared=<id>` link. Optional `expiresAt` + a Firestore TTL policy handle
 expiry; the client also rejects expired links defensively. Deleting a private
 trip also deletes its share copy.
 
-### 6.7 Rich media without a media pipeline
+### 6.9 Rich media without a media pipeline
 TTS "podcasts" default to a **mock** provider (instant fake URL, no cost). Real
 audio is optional via local **Piper** (offline, no API key), written to
 `static/podcasts/` and served by the app's static mount. The browser
