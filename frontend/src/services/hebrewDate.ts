@@ -31,6 +31,19 @@ const ENGLISH_WEEKDAY_NAME_TO_INDEX: Record<string, number> = {
   saturday: 6,
 };
 
+// French weekday names → Sun=0..Sat=6. Only full names are listed: the common
+// 3-letter abbreviations collide with French month abbreviations (e.g. "mar" =
+// mardi/Tuesday but also mars/March), so matching them would misread date ranges.
+const FRENCH_WEEKDAY_NAME_TO_INDEX: Record<string, number> = {
+  dimanche: 0,
+  lundi: 1,
+  mardi: 2,
+  mercredi: 3,
+  jeudi: 4,
+  vendredi: 5,
+  samedi: 6,
+};
+
 /** Maps a Sun=0..Sat=6 weekday index to its single Hebrew letter (with wraparound). */
 export function hebrewWeekdayLetter(weekdayIndex: number): string {
   return HEBREW_WEEKDAY_LETTERS[((weekdayIndex % 7) + 7) % 7];
@@ -42,7 +55,8 @@ export function hebrewWeekdayLetter(weekdayIndex: number): string {
  * calendar date. Tries an explicit numeric date first (e.g.
  * "12/06/2025 - 18/06/2025" or "2025-06-12"), then falls back to a Hebrew
  * weekday name or letter right after "יום" (e.g. "יום א׳ – יום ג׳", "יום
- * ראשון"), then English weekday names (e.g. "Mon - Wed", "Thursday - Sunday").
+ * ראשון"), then English weekday names (e.g. "Mon - Wed", "Thursday - Sunday"),
+ * then French weekday names (e.g. "lundi au mercredi").
  * Returns null (omit the weekday) when none is found, rather than guessing.
  */
 export function tripStartWeekdayIndex(datesText: string): number | null {
@@ -70,6 +84,11 @@ export function tripStartWeekdayIndex(datesText: string): number | null {
   );
   if (englishMatch) {
     return ENGLISH_WEEKDAY_NAME_TO_INDEX[englishMatch[1].toLowerCase()] ?? null;
+  }
+
+  const frenchMatch = datesText.match(/\b(dimanche|lundi|mardi|mercredi|jeudi|vendredi|samedi)\b/i);
+  if (frenchMatch) {
+    return FRENCH_WEEKDAY_NAME_TO_INDEX[frenchMatch[1].toLowerCase()] ?? null;
   }
 
   return null;
