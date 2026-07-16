@@ -4,28 +4,54 @@ import {
   ChevronLeft,
   Copy,
   ExternalLink,
+  Layout,
   Loader2,
   PencilLine,
   Smartphone,
   Palette,
   Settings,
+  Sparkles,
+  User,
 } from "lucide-react";
 import type { TripData } from "../api";
 import { useI18n } from "../i18n/useI18n";
+import {
+  type AppDesign,
+  type AppDensity,
+  type AppFont,
+  type AppTab,
+  CURRENCIES,
+  type VisibleTabs,
+} from "../services/appDesign";
 import { getCurrentSession, saveTrip, shareTrip, signInWithGoogle } from "../services/tripsStore";
-import ThemeSelector, { type Theme } from "./ThemeSelector";
+import ThemeSelector from "./ThemeSelector";
+
+const FONTS: AppFont[] = ["sans", "rounded", "serif"];
+const DENSITIES: AppDensity[] = ["compact", "comfortable", "spacious"];
+const TABS: AppTab[] = ["itinerary", "map", "price", "chat"];
+const TAB_LABEL_KEYS = {
+  itinerary: "appFrame.tab.itinerary",
+  map: "appFrame.tab.map",
+  price: "appFrame.tab.price",
+  chat: "appFrame.tab.chat",
+} as const;
+
+const inputClass =
+  "w-full border border-outline/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50";
 
 export default function BuilderStep4({
-  theme,
-  onChangeTheme,
+  appDesign,
+  onChangeAppDesign,
   tripData,
+  onUpdateTrip,
   tripId,
   onSaved,
   onBack,
 }: {
-  theme: Theme;
-  onChangeTheme: (theme: Theme) => void;
+  appDesign: AppDesign;
+  onChangeAppDesign: (patch: Partial<AppDesign>) => void;
   tripData: TripData;
+  onUpdateTrip: (patch: Partial<Pick<TripData, "title" | "photo_album_url">>) => void;
   /** Id of the trip if it was already saved/loaded this session; null for a brand-new trip. */
   tripId: string | null;
   /** Called once a deploy succeeds, so the parent can track the (possibly new) trip id/name. */
@@ -34,8 +60,6 @@ export default function BuilderStep4({
 }) {
   const { t, lang } = useI18n();
   const [tripName, setTripName] = useState(tripData.title || t("step4.defaultTripName"));
-  // Only the untitled-trip placeholder should track the UI language; a real
-  // trip title (typed or loaded) must never be overwritten by a language switch.
   const tripNameTouchedRef = useRef(Boolean(tripData.title));
   const handleChangeTripName = (value: string) => {
     tripNameTouchedRef.current = true;
@@ -49,6 +73,16 @@ export default function BuilderStep4({
   const [copied, setCopied] = useState(false);
   const [shareDays, setShareDays] = useState(0);
 
+  const patchDesign = (patch: Partial<AppDesign>) => onChangeAppDesign(patch);
+
+  const patchVisibleTab = (tab: keyof VisibleTabs, visible: boolean) => {
+    const next = { ...appDesign.visibleTabs, [tab]: visible };
+    const anyVisible = Object.values(next).some(Boolean);
+    patchDesign({
+      visibleTabs: anyVisible ? next : { ...next, itinerary: true },
+    });
+  };
+
   const handleDeploy = async (asNewCopy: boolean) => {
     setStatus("working");
     setShareUrl(null);
@@ -56,10 +90,10 @@ export default function BuilderStep4({
       const namedTrip = { ...tripData, title: tripName.trim() || tripData.title };
       const session = getCurrentSession() ?? (await signInWithGoogle());
       const savedId = await saveTrip(session.uid, namedTrip, {
-        theme,
+        appDesign,
         tripId: asNewCopy ? undefined : (tripId ?? undefined),
       });
-      const url = await shareTrip(session.uid, savedId, namedTrip, theme, shareDays || undefined);
+      const url = await shareTrip(session.uid, savedId, namedTrip, appDesign, shareDays || undefined);
       setShareUrl(url);
       setStatus("done");
       onSaved(savedId, namedTrip.title);
@@ -84,22 +118,203 @@ export default function BuilderStep4({
       <div className="space-y-6">
         <div className="bg-surface-container p-5 rounded-xl border border-outline/20">
           <h3 className="text-sm font-bold text-ink mb-4 flex items-center gap-2">
-            <PencilLine size={18} className="text-primary" /> {t("step4.tripNameLabel")}
+            <User size={18} className="text-primary" /> {t("step4.sectionIdentity")}
           </h3>
-          <input
-            type="text"
-            value={tripName}
-            onChange={(e) => handleChangeTripName(e.target.value)}
-            placeholder={t("step4.tripNamePlaceholder")}
-            className="w-full border border-outline/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-          />
+          <div className="space-y-3">
+            <label className="block">
+              <span className="text-xs font-medium text-ink-muted">{t("step4.tripNameLabel")}</span>
+              <input
+                type="text"
+                value={tripName}
+                onChange={(e) => handleChangeTripName(e.target.value)}
+                placeholder={t("step4.tripNamePlaceholder")}
+                className={`${inputClass} mt-1`}
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-medium text-ink-muted">{t("step4.organizerLabel")}</span>
+              <input
+                type="text"
+                value={appDesign.organizerName}
+                onChange={(e) => patchDesign({ organizerName: e.target.value })}
+                placeholder={t("step4.organizerPlaceholder")}
+                className={`${inputClass} mt-1`}
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-medium text-ink-muted">{t("step4.taglineLabel")}</span>
+              <input
+                type="text"
+                value={appDesign.tagline}
+                onChange={(e) => patchDesign({ tagline: e.target.value })}
+                placeholder={t("step4.taglinePlaceholder")}
+                className={`${inputClass} mt-1`}
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-medium text-ink-muted">{t("step4.albumLabel")}</span>
+              <input
+                type="url"
+                value={tripData.photo_album_url ?? ""}
+                onChange={(e) =>
+                  onUpdateTrip({ photo_album_url: e.target.value.trim() || null })
+                }
+                placeholder={t("step4.albumPlaceholder")}
+                className={`${inputClass} mt-1`}
+                dir="ltr"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-medium text-ink-muted">{t("step4.currencyLabel")}</span>
+              <select
+                value={appDesign.currency}
+                onChange={(e) => patchDesign({ currency: e.target.value })}
+                className={`${inputClass} mt-1`}
+              >
+                {CURRENCIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
 
         <div className="bg-surface-container p-5 rounded-xl border border-outline/20">
           <h3 className="text-sm font-bold text-ink mb-4 flex items-center gap-2">
-            <Palette size={18} className="text-primary" /> {t("step4.themeLabel")}
+            <Palette size={18} className="text-primary" /> {t("step4.sectionLook")}
           </h3>
-          <ThemeSelector theme={theme} onChange={onChangeTheme} />
+          <div className="space-y-4">
+            <div>
+              <span className="text-xs font-medium text-ink-muted">{t("step4.themeLabel")}</span>
+              <div className="mt-2">
+                <ThemeSelector
+                  theme={appDesign.theme}
+                  onChange={(theme) => patchDesign({ theme })}
+                />
+              </div>
+            </div>
+            <div>
+              <span className="text-xs font-medium text-ink-muted">{t("step4.fontLabel")}</span>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {FONTS.map((font) => (
+                  <button
+                    key={font}
+                    type="button"
+                    onClick={() => patchDesign({ font })}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      appDesign.font === font
+                        ? "bg-primary text-white"
+                        : "bg-white border border-outline/40 text-ink-muted hover:bg-surface-container"
+                    }`}
+                  >
+                    {t(`step4.font.${font}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <span className="text-xs font-medium text-ink-muted">{t("step4.densityLabel")}</span>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {DENSITIES.map((density) => (
+                  <button
+                    key={density}
+                    type="button"
+                    onClick={() => patchDesign({ density })}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      appDesign.density === density
+                        ? "bg-primary text-white"
+                        : "bg-white border border-outline/40 text-ink-muted hover:bg-surface-container"
+                    }`}
+                  >
+                    {t(`step4.density.${density}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <label className="block">
+              <span className="text-xs font-medium text-ink-muted">{t("step4.headerImageLabel")}</span>
+              <input
+                type="url"
+                value={appDesign.headerImageUrl ?? ""}
+                onChange={(e) =>
+                  patchDesign({ headerImageUrl: e.target.value.trim() || null })
+                }
+                placeholder={t("step4.headerImagePlaceholder")}
+                className={`${inputClass} mt-1`}
+                dir="ltr"
+              />
+            </label>
+          </div>
+        </div>
+
+        <div className="bg-surface-container p-5 rounded-xl border border-outline/20">
+          <h3 className="text-sm font-bold text-ink mb-4 flex items-center gap-2">
+            <Layout size={18} className="text-primary" /> {t("step4.sectionBehavior")}
+          </h3>
+          <div className="space-y-3">
+            <label className="block">
+              <span className="text-xs font-medium text-ink-muted">{t("step4.defaultTabLabel")}</span>
+              <select
+                value={appDesign.defaultTab}
+                onChange={(e) => patchDesign({ defaultTab: e.target.value as AppTab })}
+                className={`${inputClass} mt-1`}
+              >
+                {TABS.map((tab) => (
+                  <option key={tab} value={tab}>
+                    {t(TAB_LABEL_KEYS[tab])}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs font-medium text-ink-muted">{t("step4.startDayLabel")}</span>
+              <select
+                value={appDesign.startDay}
+                onChange={(e) => patchDesign({ startDay: Number(e.target.value) })}
+                className={`${inputClass} mt-1`}
+              >
+                {(tripData.days ?? []).length > 0 ? (
+                  tripData.days.map((d) => (
+                    <option key={d.dayNum} value={d.dayNum}>
+                      {t("appFrame.day", { num: d.dayNum })}
+                    </option>
+                  ))
+                ) : (
+                  <option value={1}>{t("appFrame.day", { num: 1 })}</option>
+                )}
+              </select>
+            </label>
+            <div>
+              <span className="text-xs font-medium text-ink-muted">{t("step4.visibleTabsLabel")}</span>
+              <div className="flex flex-wrap gap-3 mt-2">
+                {TABS.map((tab) => (
+                  <label key={tab} className="flex items-center gap-2 text-sm text-ink">
+                    <input
+                      type="checkbox"
+                      checked={appDesign.visibleTabs[tab]}
+                      onChange={(e) => patchVisibleTab(tab, e.target.checked)}
+                      className="rounded border-outline/40 text-primary focus:ring-primary/50"
+                    />
+                    {t(TAB_LABEL_KEYS[tab])}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <label className="block">
+              <span className="text-xs font-medium text-ink-muted flex items-center gap-1">
+                <Sparkles size={14} /> {t("step4.welcomeLabel")}
+              </span>
+              <textarea
+                value={appDesign.welcomeMessage}
+                onChange={(e) => patchDesign({ welcomeMessage: e.target.value })}
+                placeholder={t("step4.welcomePlaceholder")}
+                rows={2}
+                className={`${inputClass} mt-1 resize-y`}
+              />
+            </label>
+          </div>
         </div>
 
         <div className="bg-surface-container p-5 rounded-xl border border-outline/20">
@@ -110,7 +325,7 @@ export default function BuilderStep4({
             value={shareDays}
             onChange={(e) => setShareDays(Number(e.target.value))}
             disabled={status === "working"}
-            className="w-full border border-outline/40 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            className={inputClass}
           >
             <option value={7}>{t("share.days7")}</option>
             <option value={30}>{t("share.days30")}</option>

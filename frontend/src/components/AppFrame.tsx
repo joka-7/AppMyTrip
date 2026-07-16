@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import {
   Calendar,
@@ -16,6 +16,13 @@ import {
 import type { Activity, TripData } from "../api";
 import { useI18n, type Lang } from "../i18n/useI18n";
 import { usePodcastPlayer } from "../hooks/usePodcastPlayer";
+import {
+  type AppDesign,
+  type AppTab,
+  DENSITY_CLASSES,
+  FONT_CLASSES,
+  resolveDefaultTab,
+} from "../services/appDesign";
 import { hebrewWeekdayLetter, tripStartWeekdayIndex } from "../services/hebrewDate";
 import type { AgentMessage } from "./ChatPanel";
 import ChatPanel from "./ChatPanel";
@@ -31,17 +38,25 @@ const THEME_CLASSES: Record<Theme, string> = {
   dark: "bg-[#12344d]",
 };
 
-// Above this many days, the tab strip can overflow its visible width, so we
-// add explicit scroll buttons rather than relying on a hidden scrollbar.
 const SCROLL_ARROW_THRESHOLD = 4;
 
-// Short weekday shown next to each day tab. Hebrew keeps its single-letter
-// geresh form (א'); English/French use the locale's short weekday name derived
-// from a known Sunday (2024-01-07) plus the day offset.
+const NAV_TABS: { id: AppTab; icon: typeof Calendar; labelKey: "appFrame.tab.itinerary" | "appFrame.tab.map" | "appFrame.tab.price" | "appFrame.tab.chat" }[] = [
+  { id: "itinerary", icon: Calendar, labelKey: "appFrame.tab.itinerary" },
+  { id: "map", icon: Map, labelKey: "appFrame.tab.map" },
+  { id: "price", icon: DollarSign, labelKey: "appFrame.tab.price" },
+  { id: "chat", icon: MessageCircle, labelKey: "appFrame.tab.chat" },
+];
+
 function weekdayLabel(index: number, lang: Lang): string {
   if (lang === "he") return `${hebrewWeekdayLetter(index)}'`;
   const date = new Date(2024, 0, 7 + (((index % 7) + 7) % 7));
   return new Intl.DateTimeFormat(lang, { weekday: "short" }).format(date);
+}
+
+function startDayIndex(days: TripData["days"], startDay: number): number {
+  if (!days.length) return 0;
+  const idx = days.findIndex((d) => d.dayNum === startDay);
+  return idx >= 0 ? idx : 0;
 }
 
 /**
@@ -52,7 +67,7 @@ function weekdayLabel(index: number, lang: Lang): string {
  */
 export default function AppFrame({
   tripData,
-  theme,
+  appDesign,
   agentMessages,
   chatInput,
   onChangeChatInput,
@@ -66,9 +81,10 @@ export default function AppFrame({
   onUpdateTrip,
   isLocalOnly,
   localOnlyNoticeText,
+  welcomeStorageKey,
 }: {
   tripData: TripData;
-  theme: Theme;
+  appDesign: AppDesign;
   agentMessages: AgentMessage[];
   chatInput: string;
   onChangeChatInput: (text: string) => void;
@@ -82,26 +98,63 @@ export default function AppFrame({
   onUpdateTrip: (patch: Partial<Pick<TripData, "title" | "dates" | "photo_album_url">>) => void;
   isLocalOnly?: boolean;
   localOnlyNoticeText?: string;
+  /** When set, a non-empty welcomeMessage is shown once until dismissed (shared-link flow). */
+  welcomeStorageKey?: string;
 }) {
   const { t, lang } = useI18n();
-  const [activeDay, setActiveDay] = useState(0);
-  const [activeTab, setActiveTab] = useState<"itinerary" | "map" | "price" | "chat">("itinerary");
+  const days = tripData.days ?? [];
+  const hasTrip = days.length > 0;
+  const [activeDay, setActiveDay] = useState(() => startDayIndex(days, appDesign.startDay));
+  const [activeTab, setActiveTab] = useState<AppTab>(() =>
+    resolveDefaultTab(appDesign.defaultTab, appDesign.visibleTabs),
+  );
   const [focusActivityId, setFocusActivityId] = useState<string | null>(null);
   const [isEditingHeader, setIsEditingHeader] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [datesDraft, setDatesDraft] = useState("");
   const [albumUrlDraft, setAlbumUrlDraft] = useState("");
+  const [showWelcome, setShowWelcome] = useState(false);
   const { playingPodcast, progress, error: podcastError, togglePlay, stop } = usePodcastPlayer();
   const tabsRef = useRef<HTMLDivElement>(null);
 
-  const themeClass = THEME_CLASSES[theme] ?? THEME_CLASSES.blue;
-
-  // Empty-state safe accessors: tripData may have no days yet (before parsing).
-  const days = tripData.days ?? [];
-  const hasTrip = days.length > 0;
+  const themeClass = THEME_CLASSES[appDesign.theme] ?? THEME_CLASSES.blue;
+  const density = DENSITY_CLASSES[appDesign.density];
+  const fontClass = FONT_CLASSES[appDesign.font];
   const safeDayIdx = Math.min(activeDay, Math.max(0, days.length - 1));
   const day = days[safeDayIdx];
-  const tripStartWeekday = tripStartWeekdayIndex(tripData.dates);
+  const tripStartWeekday =
+    tripData.startWeekday ?? tripStartWeekdayIndex(tripData.dates);
+  const visibleNavTabs = NAV_TABS.filter((tab) => appDesign.visibleTabs[tab.id]);
+
+  useEffect(() => {
+    setActiveDay(startDayIndex(days, appDesign.startDay));
+  }, [appDesign.startDay, days]);
+
+  useEffect(() => {
+    setActiveTab(resolveDefaultTab(appDesign.defaultTab, appDesign.visibleTabs));
+  }, [appDesign.defaultTab, appDesign.visibleTabs]);
+
+  useEffect(() => {
+    if (!appDesign.visibleTabs[activeTab]) {
+      setActiveTab(resolveDefaultTab(appDesign.defaultTab, appDesign.visibleTabs));
+    }
+  }, [appDesign.visibleTabs, activeTab, appDesign.defaultTab]);
+
+  useEffect(() => {
+    if (!welcomeStorageKey || !appDesign.welcomeMessage.trim()) {
+      setShowWelcome(false);
+      return;
+    }
+    const dismissed = localStorage.getItem(`welcome-dismissed-${welcomeStorageKey}`);
+    setShowWelcome(!dismissed);
+  }, [welcomeStorageKey, appDesign.welcomeMessage]);
+
+  const dismissWelcome = () => {
+    if (welcomeStorageKey) {
+      localStorage.setItem(`welcome-dismissed-${welcomeStorageKey}`, "1");
+    }
+    setShowWelcome(false);
+  };
 
   const startEditingHeader = () => {
     setTitleDraft(tripData.title);
@@ -119,9 +172,6 @@ export default function AppFrame({
     setIsEditingHeader(false);
   };
 
-  // The tab strip is RTL, so a forward (left-to-right in DOM order) scroll
-  // direction is the opposite sign of what scrollBy expects in an LTR
-  // container — flip it here rather than at each call site.
   const scrollTabs = (direction: 1 | -1) => {
     tabsRef.current?.scrollBy({ left: -direction * 140, behavior: "smooth" });
   };
@@ -137,35 +187,44 @@ export default function AppFrame({
   };
 
   const handleShowOnMap = (activityId: string) => {
+    if (!appDesign.visibleTabs.map) return;
     setFocusActivityId(activityId);
     setActiveTab("map");
   };
 
+  const headerStyle = appDesign.headerImageUrl
+    ? {
+        backgroundImage: `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url(${appDesign.headerImageUrl})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }
+    : undefined;
+
   return (
-    <div className="w-full h-full flex flex-col bg-surface">
-      {/* App Header */}
+    <div className={`w-full h-full flex flex-col bg-surface ${fontClass}`}>
       <div
-        className={`${themeClass} shrink-0 text-white pt-10 pb-4 px-6 shadow-md transition-colors duration-300`}
+        className={`${appDesign.headerImageUrl ? "" : themeClass} shrink-0 text-white pt-10 pb-4 px-6 shadow-md transition-colors duration-300 relative`}
+        style={headerStyle}
       >
         {isEditingHeader ? (
           <div className="flex flex-col gap-2">
             <input
               value={titleDraft}
               onChange={(e) => setTitleDraft(e.target.value)}
-              className="text-xl font-bold bg-white/10 placeholder-white/60 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-white/40"
+              className={`${density.headerTitle} font-bold bg-white/10 placeholder-white/60 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-white/40`}
               placeholder={t("appFrame.titlePlaceholder")}
             />
             <input
               value={datesDraft}
               onChange={(e) => setDatesDraft(e.target.value)}
-              className="text-sm bg-white/10 placeholder-white/60 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-white/40"
+              className={`${density.headerSub} bg-white/10 placeholder-white/60 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-white/40`}
               placeholder={t("appFrame.datesPlaceholder")}
             />
             <input
               type="url"
               value={albumUrlDraft}
               onChange={(e) => setAlbumUrlDraft(e.target.value)}
-              className="text-sm bg-white/10 placeholder-white/60 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-white/40"
+              className={`${density.headerSub} bg-white/10 placeholder-white/60 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-white/40`}
               placeholder={t("appFrame.albumPlaceholder")}
             />
             <div className="flex gap-2 mt-1">
@@ -191,7 +250,7 @@ export default function AppFrame({
           <div className="flex items-start justify-between gap-2">
             <div>
               <div className="flex items-center gap-1.5">
-                <h2 className="text-xl font-bold">
+                <h2 className={`${density.headerTitle} font-bold`}>
                   {tripData.title || t("appFrame.titleFallback")}
                 </h2>
                 {tripData.photo_album_url && (
@@ -206,7 +265,15 @@ export default function AppFrame({
                   </a>
                 )}
               </div>
-              <p className="text-sm opacity-80">{tripData.dates || t("appFrame.datesFallback")}</p>
+              <p className={`${density.headerSub} opacity-80`}>
+                {tripData.dates || t("appFrame.datesFallback")}
+              </p>
+              {appDesign.organizerName && (
+                <p className={`${density.headerSub} opacity-90 mt-0.5`}>{appDesign.organizerName}</p>
+              )}
+              {appDesign.tagline && (
+                <p className={`${density.headerSub} opacity-70 italic mt-0.5`}>{appDesign.tagline}</p>
+              )}
             </div>
             {hasTrip && (
               <button
@@ -221,13 +288,24 @@ export default function AppFrame({
         )}
       </div>
 
+      {showWelcome && (
+        <div className="shrink-0 bg-primary/10 border-b border-primary/20 px-4 py-3 flex items-start gap-3 animate-fade-in">
+          <p className="flex-1 text-sm text-ink">{appDesign.welcomeMessage}</p>
+          <button
+            onClick={dismissWelcome}
+            className="shrink-0 text-xs font-medium text-primary hover:text-primary-dark px-2 py-1 rounded-lg bg-white/80"
+          >
+            {t("step4.welcomeDismiss")}
+          </button>
+        </div>
+      )}
+
       {isLocalOnly && hasTrip && (
         <p className="shrink-0 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs text-center py-1.5 px-3">
           {localOnlyNoticeText ?? t("appFrame.localOnlyNotice")}
         </p>
       )}
 
-      {/* Days Tabs */}
       {hasTrip && (
         <div className="shrink-0 flex items-center gap-2 bg-white border-b border-outline/40 px-3 py-2.5">
           {days.length > SCROLL_ARROW_THRESHOLD && (
@@ -275,8 +353,7 @@ export default function AppFrame({
         </div>
       )}
 
-      {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto p-4 bg-surface pb-24">
+      <div className={`flex-1 overflow-y-auto ${density.contentPad} bg-surface pb-24`}>
         {!hasTrip && (
           <div className="h-full flex flex-col items-center justify-center text-center text-ink-muted gap-3 px-6">
             <Smartphone size={40} className="opacity-40" />
@@ -284,7 +361,7 @@ export default function AppFrame({
           </div>
         )}
 
-        {hasTrip && activeTab === "itinerary" && (
+        {hasTrip && activeTab === "itinerary" && appDesign.visibleTabs.itinerary && (
           <ItineraryList
             activities={day.activities}
             themeClass={themeClass}
@@ -293,12 +370,14 @@ export default function AppFrame({
             onUpdateActivity={handleUpdateActivity}
             onAddActivity={onAddActivity ? handleAddActivity : undefined}
             onDeleteActivity={onDeleteActivity ? handleDeleteActivity : undefined}
-            onShowOnMap={handleShowOnMap}
+            onShowOnMap={appDesign.visibleTabs.map ? handleShowOnMap : undefined}
             isLocalOnly={isLocalOnly}
+            currency={appDesign.currency}
+            cardPad={density.cardPad}
           />
         )}
 
-        {hasTrip && activeTab === "map" && (
+        {hasTrip && activeTab === "map" && appDesign.visibleTabs.map && (
           <div className="h-full w-full animate-fade-in">
             <MapView
               activities={day.activities}
@@ -310,13 +389,13 @@ export default function AppFrame({
           </div>
         )}
 
-        {hasTrip && activeTab === "price" && (
+        {hasTrip && activeTab === "price" && appDesign.visibleTabs.price && (
           <div className="h-full animate-fade-in">
-            <PriceSummary tripData={tripData} />
+            <PriceSummary tripData={tripData} currency={appDesign.currency} />
           </div>
         )}
 
-        {hasTrip && activeTab === "chat" && (
+        {hasTrip && activeTab === "chat" && appDesign.visibleTabs.chat && (
           <div className="h-full animate-fade-in">
             <ChatPanel
               agentMessages={agentMessages}
@@ -332,7 +411,6 @@ export default function AppFrame({
         )}
       </div>
 
-      {/* Floating Podcast Player (Global) */}
       {playingPodcast && (
         <PodcastPlayer
           activity={playingPodcast}
@@ -342,37 +420,20 @@ export default function AppFrame({
         />
       )}
 
-      {/* Bottom Navigation */}
-      <div className="shrink-0 bg-white border-t border-outline/40 flex justify-around p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 relative shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-        <button
-          onClick={() => setActiveTab("itinerary")}
-          className={`flex flex-col items-center gap-1 ${activeTab === "itinerary" ? "text-secondary-dark" : "text-ink-muted"}`}
-        >
-          <Calendar size={20} />
-          <span className="text-[10px]">{t("appFrame.tab.itinerary")}</span>
-        </button>
-        <button
-          onClick={() => setActiveTab("map")}
-          className={`flex flex-col items-center gap-1 ${activeTab === "map" ? "text-secondary-dark" : "text-ink-muted"}`}
-        >
-          <Map size={20} />
-          <span className="text-[10px]">{t("appFrame.tab.map")}</span>
-        </button>
-        <button
-          onClick={() => setActiveTab("price")}
-          className={`flex flex-col items-center gap-1 ${activeTab === "price" ? "text-secondary-dark" : "text-ink-muted"}`}
-        >
-          <DollarSign size={20} />
-          <span className="text-[10px]">{t("appFrame.tab.price")}</span>
-        </button>
-        <button
-          onClick={() => setActiveTab("chat")}
-          className={`flex flex-col items-center gap-1 ${activeTab === "chat" ? "text-secondary-dark" : "text-ink-muted"}`}
-        >
-          <MessageCircle size={20} />
-          <span className="text-[10px]">{t("appFrame.tab.chat")}</span>
-        </button>
-      </div>
+      {visibleNavTabs.length > 0 && (
+        <div className="shrink-0 bg-white border-t border-outline/40 flex justify-around p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 relative shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+          {visibleNavTabs.map(({ id, icon: Icon, labelKey }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              className={`flex flex-col items-center gap-1 ${activeTab === id ? "text-secondary-dark" : "text-ink-muted"}`}
+            >
+              <Icon size={20} />
+              <span className={density.navLabel}>{t(labelKey)}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

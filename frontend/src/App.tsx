@@ -13,8 +13,10 @@ import InstallAppButton from "./components/InstallAppButton";
 import PhonePreview from "./components/PhonePreview";
 import ProgressBar from "./components/ProgressBar";
 import SharedAppPage from "./components/SharedAppPage";
-import type { Theme } from "./components/ThemeSelector";
+import { DEFAULT_APP_DESIGN, type AppDesign } from "./services/appDesign";
 import { getApiKeys, getApiProvider } from "./services/apiKey";
+import { tripStartWeekdayIndex } from "./services/hebrewDate";
+import { normalizeTripForLoad } from "./services/normalizeTrip";
 import { loadSharedTrip } from "./services/tripsStore";
 import { translate } from "./i18n/store";
 import { useI18n } from "./i18n/useI18n";
@@ -174,7 +176,7 @@ function TripBuilder() {
   useEffect(() => {
     if (!rawTextTouchedRef.current) setRawText(translate("step1.exampleRawText"));
   }, [lang]);
-  const [theme, setTheme] = useState<Theme>("blue");
+  const [appDesign, setAppDesign] = useState<AppDesign>(DEFAULT_APP_DESIGN);
   const [preferences, setPreferences] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isEnhancing, setIsEnhancing] = useState(false);
@@ -225,7 +227,7 @@ function TripBuilder() {
     setApiNotice(null);
     try {
       const res = await parseTrip(rawText, preferences || null, getApiKeys(), getApiProvider());
-      setTripData(res.trip_data);
+      setTripData(normalizeTripForLoad(res.trip_data));
       setTripId(null);
       setAgentMessages(
         res.initial_agent_message
@@ -236,7 +238,7 @@ function TripBuilder() {
     } catch (err) {
       console.error(err);
       setApiNotice(isRateLimited(err) ? t("notice.rateLimitedDemo") : t("notice.unreachableDemo"));
-      setTripData(buildDemoTrip());
+      setTripData(normalizeTripForLoad(buildDemoTrip()));
       setAgentMessages([{ role: "agent", text: t("agent.demo") }]);
       goToStep(2);
     } finally {
@@ -252,7 +254,7 @@ function TripBuilder() {
     setIsEnhancing(true);
     try {
       const res = await enhanceTrip(tripData, options, getApiKeys(), getApiProvider());
-      setTripData(res.trip_data);
+      setTripData(normalizeTripForLoad(res.trip_data));
     } catch (err) {
       console.error(err);
       setApiNotice(t("notice.enhanceFailed"));
@@ -322,7 +324,7 @@ function TripBuilder() {
         getApiKeys(),
         getApiProvider(),
       );
-      setTripData(await enhanceNewActivities(tripData, res.trip_data));
+      setTripData(normalizeTripForLoad(await enhanceNewActivities(tripData, res.trip_data)));
       setAgentMessages((prev) => [...prev, { role: "agent", text: res.agent_reply }]);
     } catch (err) {
       console.error(err);
@@ -357,7 +359,7 @@ function TripBuilder() {
       ),
     };
     setTripData(after);
-    setTripData(await enhanceNewActivities(before, after));
+    setTripData(normalizeTripForLoad(await enhanceNewActivities(before, after)));
   };
 
   const handleDeleteActivity = (dayIndex: number, activityId: string) => {
@@ -374,14 +376,20 @@ function TripBuilder() {
   const handleUpdateTrip = (
     patch: Partial<Pick<TripData, "title" | "dates" | "photo_album_url">>,
   ) => {
-    setTripData((prev) => ({ ...prev, ...patch }));
+    setTripData((prev) => {
+      const next = { ...prev, ...patch };
+      if (patch.dates !== undefined) {
+        next.startWeekday = tripStartWeekdayIndex(patch.dates);
+      }
+      return next;
+    });
   };
 
   const handleContinueToDesign = async () => {
     setIsGeneratingMedia(true);
     try {
       const res = await generateMedia(tripData);
-      setTripData(res.trip_data);
+      setTripData(normalizeTripForLoad(res.trip_data));
     } catch (err) {
       console.error(err);
       setApiNotice(t("notice.mediaFailed"));
@@ -408,20 +416,20 @@ function TripBuilder() {
           <ApiKeyMenu />
           <CloudMenu
             tripData={tripData}
-            theme={theme}
+            appDesign={appDesign}
             tripId={tripId}
             onTripIdChange={setTripId}
-            onLoadTrip={(trip, loadedTripId, loadedTheme) => {
+            onLoadTrip={(trip, loadedTripId, loadedAppDesign) => {
               setTripData(trip);
               setTripId(loadedTripId);
-              setTheme(loadedTheme);
+              setAppDesign(loadedAppDesign);
               setAgentMessages([{ role: "agent", text: t("agent.loaded") }]);
               goToStep(3);
             }}
-            onImportTrip={(trip, importedTheme) => {
+            onImportTrip={(trip, importedAppDesign) => {
               setTripData(trip);
               setTripId(null);
-              setTheme(importedTheme);
+              setAppDesign(importedAppDesign);
               setAgentMessages([{ role: "agent", text: t("agent.imported") }]);
               goToStep(3);
             }}
@@ -472,16 +480,17 @@ function TripBuilder() {
                 onBack={() => goToStep(2)}
                 isGeneratingMedia={isGeneratingMedia}
                 tripDates={tripData.dates}
-                onChangeTripDates={(dates) => setTripData((prev) => ({ ...prev, dates }))}
+                onChangeTripDates={(dates) => handleUpdateTrip({ dates })}
                 language={tripData.language}
               />
             )}
 
             {step === 4 && (
               <BuilderStep4
-                theme={theme}
-                onChangeTheme={setTheme}
+                appDesign={appDesign}
+                onChangeAppDesign={(patch) => setAppDesign((prev) => ({ ...prev, ...patch }))}
                 tripData={tripData}
+                onUpdateTrip={(patch) => handleUpdateTrip(patch)}
                 tripId={tripId}
                 onSaved={(savedId, title) => {
                   setTripId(savedId);
@@ -501,7 +510,7 @@ function TripBuilder() {
           </div>
           <PhonePreview
             tripData={tripData}
-            theme={theme}
+            appDesign={appDesign}
             agentMessages={agentMessages}
             chatInput={chatInput}
             onChangeChatInput={setChatInput}
@@ -525,7 +534,7 @@ function TripBuilder() {
 function SharedTripViewer({ tripId }: { tripId: string }) {
   const { t, dir } = useI18n();
   const [trip, setTrip] = useState<TripData | null>(null);
-  const [theme, setTheme] = useState<Theme>("blue");
+  const [appDesign, setAppDesign] = useState<AppDesign>(DEFAULT_APP_DESIGN);
   const [error, setError] = useState<string | null>(null);
 
   // Strictly local-only state: a separate instance from TripBuilder's, never
@@ -541,7 +550,7 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
     loadSharedTrip(tripId)
       .then((result) => {
         setTrip(result.trip);
-        setTheme(result.theme);
+        setAppDesign(result.appDesign);
         setAgentMessages([{ role: "agent", text: translate("agent.sharedIntro") }]);
       })
       .catch((err) => {
@@ -656,7 +665,8 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
   return (
     <SharedAppPage
       tripData={trip}
-      theme={theme}
+      appDesign={appDesign}
+      tripId={tripId}
       agentMessages={agentMessages}
       chatInput={chatInput}
       onChangeChatInput={setChatInput}
@@ -668,9 +678,9 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
       onAddActivity={handleAddActivity}
       onDeleteActivity={handleDeleteActivity}
       onUpdateTrip={handleUpdateTrip}
-      onImportTrip={(importedTrip, importedTheme) => {
+      onImportTrip={(importedTrip, importedAppDesign) => {
         setTrip(importedTrip);
-        setTheme(importedTheme);
+        setAppDesign(importedAppDesign);
       }}
     />
   );

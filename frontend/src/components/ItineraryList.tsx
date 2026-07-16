@@ -45,6 +45,8 @@ export default function ItineraryList({
   onDeleteActivity,
   onShowOnMap,
   isLocalOnly,
+  currency = "₪",
+  cardPad = "p-4",
 }: {
   activities: Activity[];
   themeClass: string;
@@ -55,6 +57,8 @@ export default function ItineraryList({
   onDeleteActivity?: (activityId: string) => void;
   onShowOnMap?: (activityId: string) => void;
   isLocalOnly?: boolean;
+  currency?: string;
+  cardPad?: string;
 }) {
   const { t } = useI18n();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -118,7 +122,7 @@ export default function ItineraryList({
         return (
           <div
             key={act.id}
-            className={`bg-white p-4 rounded-xl shadow-card border border-outline/20 border-s-4 ${accent.border} animate-fade-in`}
+            className={`bg-white ${cardPad} rounded-xl shadow-card border border-outline/20 border-s-4 ${accent.border} animate-fade-in`}
           >
             <div className="flex-1 min-w-0">
               {isEditing ? (
@@ -274,7 +278,7 @@ export default function ItineraryList({
                       aria-label={t("itinerary.editPriceAria")}
                       className={`rounded-full px-2.5 py-1 text-xs font-semibold ${accent.chip}`}
                     >
-                      {act.price != null ? `₪${act.price}` : t("itinerary.addPrice")}
+                      {act.price != null ? `${currency}${act.price}` : t("itinerary.addPrice")}
                     </button>
 
                     {act.hasPodcast && (

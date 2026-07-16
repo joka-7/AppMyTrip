@@ -28,7 +28,8 @@ import {
 import { firebaseApp } from "../firebase";
 import type { TripData } from "../api";
 import type { Theme } from "../components/ThemeSelector";
-import { ensureActivityIds } from "./normalizeTrip";
+import { type AppDesign, DEFAULT_APP_DESIGN, normalizeAppDesign } from "./appDesign";
+import { ensureStartWeekday, normalizeTripForLoad } from "./normalizeTrip";
 
 // Only initialized when Firebase is configured (see README "Trip storage").
 const auth = firebaseApp ? getAuth(firebaseApp) : null;
@@ -97,27 +98,40 @@ export async function listTrips(uid: string): Promise<CloudTripSummary[]> {
   }));
 }
 
+type StoredTrip = TripData & { theme?: Theme; appDesign?: Partial<AppDesign> };
+
+function appDesignFromStored(data: StoredTrip): AppDesign {
+  return normalizeAppDesign(data.appDesign, data.theme);
+}
+
 /** Creates a new trip doc, or overwrites an existing one if tripId is given. */
 export async function saveTrip(
   uid: string,
   trip: TripData,
-  options?: { theme?: Theme; tripId?: string },
+  options?: { appDesign?: AppDesign; tripId?: string },
 ): Promise<string> {
   const ref = options?.tripId
     ? doc(tripsCollection(uid), options.tripId)
     : doc(tripsCollection(uid));
-  await setDoc(ref, { ...trip, theme: options?.theme ?? "blue", updatedAt: serverTimestamp() });
+  const tripToSave = ensureStartWeekday(trip);
+  const appDesign = options?.appDesign ?? DEFAULT_APP_DESIGN;
+  await setDoc(ref, {
+    ...tripToSave,
+    appDesign,
+    theme: appDesign.theme,
+    updatedAt: serverTimestamp(),
+  });
   return ref.id;
 }
 
 export async function loadTrip(
   uid: string,
   tripId: string,
-): Promise<{ trip: TripData; theme: Theme }> {
+): Promise<{ trip: TripData; appDesign: AppDesign }> {
   const snap = await getDoc(doc(tripsCollection(uid), tripId));
   if (!snap.exists()) throw new Error("Trip not found.");
-  const { title, dates, days, theme } = snap.data() as TripData & { theme?: Theme };
-  return { trip: ensureActivityIds({ title, dates, days }), theme: theme ?? "blue" };
+  const data = snap.data() as StoredTrip;
+  return { trip: normalizeTripForLoad(data), appDesign: appDesignFromStored(data) };
 }
 
 export async function deleteTrip(uid: string, tripId: string): Promise<void> {
@@ -135,13 +149,15 @@ export async function shareTrip(
   uid: string,
   tripId: string,
   trip: TripData,
-  theme?: Theme,
+  appDesign?: AppDesign,
   expiresInDays?: number,
 ): Promise<string> {
   if (!db) throw new Error("Firestore is not configured.");
+  const design = appDesign ?? DEFAULT_APP_DESIGN;
   await setDoc(doc(db, "sharedTrips", tripId), {
     ...trip,
-    theme: theme ?? "blue",
+    appDesign: design,
+    theme: design.theme,
     ownerId: uid,
     sharedAt: serverTimestamp(),
     ...(expiresInDays
@@ -158,18 +174,18 @@ export async function shareTrip(
  * Rejects expired links client-side even if Firestore's own TTL deletion (which can lag
  * up to ~24h after expiresAt) hasn't run yet.
  */
-export async function loadSharedTrip(tripId: string): Promise<{ trip: TripData; theme: Theme }> {
+export async function loadSharedTrip(
+  tripId: string,
+): Promise<{ trip: TripData; appDesign: AppDesign }> {
   if (!db) throw new Error("Firestore is not configured.");
   const snap = await getDoc(doc(db, "sharedTrips", tripId));
   if (!snap.exists()) throw new Error("Shared trip not found.");
-  const { title, dates, days, theme, expiresAt } = snap.data() as TripData & {
-    theme?: Theme;
-    expiresAt?: Timestamp;
-  };
+  const data = snap.data() as StoredTrip & { expiresAt?: Timestamp };
+  const { expiresAt } = data;
   if (expiresAt && expiresAt.toMillis() < Date.now()) {
     throw new Error("This shared trip link has expired.");
   }
-  return { trip: ensureActivityIds({ title, dates, days }), theme: theme ?? "blue" };
+  return { trip: normalizeTripForLoad(data), appDesign: appDesignFromStored(data) };
 }
 
 /** Revokes a public share link by deleting its sharedTrips doc (no-op if it was never shared). */

@@ -5,6 +5,8 @@ export default {
     extend: {
       fontFamily: {
         sans: ['"Be Vietnam Pro"', '"Noto Sans Hebrew"', "system-ui", "sans-serif"],
+        rounded: ['"Nunito"', '"Noto Sans Hebrew"', "system-ui", "sans-serif"],
+        serif: ['"Lora"', '"Noto Serif Hebrew"', "Georgia", "serif"],
       },
       colors: {
         // AppMyTrip design tokens (from the Google Stitch design system).

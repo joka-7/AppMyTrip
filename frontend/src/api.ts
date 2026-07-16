@@ -42,6 +42,8 @@ export interface TripData {
   language?: string;
   /** Link to a shared photo album for the whole trip. */
   photo_album_url?: string | null;
+  /** Sun=0..Sat=6 weekday of day 1 — persisted so saved/imported trips keep tab labels. */
+  startWeekday?: number | null;
 }
 
 /** Which optional, LLM-generated extras Step 2 should fill in. */
