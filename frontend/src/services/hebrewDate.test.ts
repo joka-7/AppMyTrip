@@ -25,6 +25,11 @@ describe("tripStartWeekdayIndex", () => {
     expect(tripStartWeekdayIndex("מיום שני הקרוב")).toBe(1);
   });
 
+  it("parses English weekday names", () => {
+    expect(tripStartWeekdayIndex("Mon - Wed")).toBe(1);
+    expect(tripStartWeekdayIndex("Thu - Sun")).toBe(4);
+  });
+
   it("returns null for a freeform string with no recognizable date", () => {
     expect(tripStartWeekdayIndex("12-19 ביולי")).toBeNull();
     expect(tripStartWeekdayIndex("בקרוב")).toBeNull();

@@ -10,6 +10,27 @@ const HEBREW_WEEKDAY_NAME_TO_INDEX: Record<string, number> = {
   שבת: 6,
 };
 
+const ENGLISH_WEEKDAY_NAME_TO_INDEX: Record<string, number> = {
+  sun: 0,
+  sunday: 0,
+  mon: 1,
+  monday: 1,
+  tue: 2,
+  tues: 2,
+  tuesday: 2,
+  wed: 3,
+  weds: 3,
+  wednesday: 3,
+  thu: 4,
+  thur: 4,
+  thurs: 4,
+  thursday: 4,
+  fri: 5,
+  friday: 5,
+  sat: 6,
+  saturday: 6,
+};
+
 /** Maps a Sun=0..Sat=6 weekday index to its single Hebrew letter (with wraparound). */
 export function hebrewWeekdayLetter(weekdayIndex: number): string {
   return HEBREW_WEEKDAY_LETTERS[((weekdayIndex % 7) + 7) % 7];
@@ -21,9 +42,8 @@ export function hebrewWeekdayLetter(weekdayIndex: number): string {
  * calendar date. Tries an explicit numeric date first (e.g.
  * "12/06/2025 - 18/06/2025" or "2025-06-12"), then falls back to a Hebrew
  * weekday name or letter right after "יום" (e.g. "יום א׳ – יום ג׳", "יום
- * ראשון") — the format the AI actually produces most of the time, since it
- * rarely knows (or states) real calendar dates. Returns null (omit the
- * weekday) when neither is found, rather than guessing.
+ * ראשון"), then English weekday names (e.g. "Mon - Wed", "Thursday - Sunday").
+ * Returns null (omit the weekday) when none is found, rather than guessing.
  */
 export function tripStartWeekdayIndex(datesText: string): number | null {
   const iso = datesText.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
@@ -44,6 +64,13 @@ export function tripStartWeekdayIndex(datesText: string): number | null {
 
   const letterMatch = datesText.match(/יום[ ]*([א-ו]|ש)['׳]/);
   if (letterMatch) return HEBREW_WEEKDAY_LETTERS.indexOf(letterMatch[1]);
+
+  const englishMatch = datesText.match(
+    /\b(Sun|Mon|Tue|Wed|Thu|Fri|Sat|Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\b/i,
+  );
+  if (englishMatch) {
+    return ENGLISH_WEEKDAY_NAME_TO_INDEX[englishMatch[1].toLowerCase()] ?? null;
+  }
 
   return null;
 }
