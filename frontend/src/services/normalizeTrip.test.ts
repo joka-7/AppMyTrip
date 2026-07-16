@@ -64,11 +64,8 @@ describe("ensureStartWeekday", () => {
 describe("normalizeTripForLoad", () => {
   it("assigns ids and weekday together on import", () => {
     const result = normalizeTripForLoad({
-      title: "T",
+      ...trip([{ title: "x" }]),
       dates: "יום א׳ – יום ג׳",
-      days: [
-        { dayNum: 1, activities: [{ time: "10:00", title: "x", desc: "", type: "attraction" }] },
-      ],
     });
     expect(result.days[0].activities[0].id).toBeTruthy();
     expect(result.startWeekday).toBe(0);
