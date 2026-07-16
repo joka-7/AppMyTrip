@@ -29,11 +29,7 @@ export function ensureActivityIds(trip: TripData): TripData {
 
 /** Fills `startWeekday` from `dates` when missing — keeps tab labels on import/save. */
 export function ensureStartWeekday(trip: TripData): TripData {
-  if (
-    trip.startWeekday != null &&
-    trip.startWeekday >= 0 &&
-    trip.startWeekday <= 6
-  ) {
+  if (trip.startWeekday != null && trip.startWeekday >= 0 && trip.startWeekday <= 6) {
     return trip;
   }
   const computed = tripStartWeekdayIndex(trip.dates ?? "");

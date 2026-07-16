@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  DEFAULT_APP_DESIGN,
-  normalizeAppDesign,
-  resolveDefaultTab,
-} from "./appDesign";
+import { DEFAULT_APP_DESIGN, normalizeAppDesign, resolveDefaultTab } from "./appDesign";
 
 describe("normalizeAppDesign", () => {
   it("returns defaults when given nothing", () => {

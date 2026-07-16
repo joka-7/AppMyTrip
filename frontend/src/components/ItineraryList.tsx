@@ -123,11 +123,12 @@ export default function ItineraryList({
   };
 
   const cornerClass = CORNER_CARD_CLASSES[cornerStyle];
-  const listClass = cardLayout === "timeline" ? "relative border-s-2 border-outline/30 ps-4 ms-2" : "";
+  const listClass =
+    cardLayout === "timeline" ? "relative border-s-2 border-outline/30 ps-4 ms-2" : "";
 
   return (
     <div className={`space-y-4 ${listClass}`}>
-      {activities.map((act, index) => {
+      {activities.map((act) => {
         const Icon = ACTIVITY_ICONS[act.type] ?? Landmark;
         const accent = ACTIVITY_ACCENT[act.type] ?? ACTIVITY_ACCENT.attraction;
         const isEditing = editingId === act.id;
@@ -140,191 +141,195 @@ export default function ItineraryList({
             <div
               className={`bg-white ${cardPad} ${cornerClass} shadow-card border border-outline/20 border-s-4 ${accent.border} animate-fade-in`}
             >
-            <div className="flex-1 min-w-0">
-              {isEditing ? (
-                <div className="flex flex-col gap-2 min-w-0">
-                  <input
-                    type="time"
-                    value={draft.time ?? ""}
-                    onChange={(e) => setDraft((d) => ({ ...d, time: e.target.value }))}
-                    className="border border-outline/40 rounded-lg p-1.5 text-xs w-32"
-                  />
-                  <input
-                    type="text"
-                    value={draft.title ?? ""}
-                    onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
-                    className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm font-bold"
-                  />
-                  <textarea
-                    value={draft.desc ?? ""}
-                    onChange={(e) => setDraft((d) => ({ ...d, desc: e.target.value }))}
-                    className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
-                    rows={2}
-                  />
-                  <select
-                    value={draft.type ?? act.type}
-                    onChange={(e) =>
-                      setDraft((d) => ({ ...d, type: e.target.value as Activity["type"] }))
-                    }
-                    className="border border-outline/40 rounded-lg p-1.5 text-sm w-32"
-                  >
-                    {ACTIVITY_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {t(ACTIVITY_TYPE_LABEL_KEYS[type])}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="flex gap-2 min-w-0">
-                    <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
-                      {t("itinerary.priceLabel")}
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        value={draft.price ?? ""}
-                        onChange={(e) =>
-                          setDraft((d) => ({
-                            ...d,
-                            price: e.target.value === "" ? null : Number(e.target.value),
-                          }))
-                        }
-                        className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
-                      />
-                    </label>
-                    <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
-                      {t("itinerary.urlLabel")}
-                      <input
-                        type="url"
-                        value={draft.url ?? ""}
-                        onChange={(e) => setDraft((d) => ({ ...d, url: e.target.value }))}
-                        className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
-                      />
-                    </label>
-                  </div>
-                  <LocationPicker
-                    value={draft.map_coordinates ?? null}
-                    onChange={(coords) => setDraft((d) => ({ ...d, map_coordinates: coords }))}
-                    defaultCenter={anchorCenter}
-                  />
-                  <div className="flex gap-2 items-center">
-                    <button
-                      onClick={() => saveEdit(act.id)}
-                      className="bg-primary hover:bg-primary-dark text-white text-xs px-3 py-1.5 rounded-lg"
+              <div className="flex-1 min-w-0">
+                {isEditing ? (
+                  <div className="flex flex-col gap-2 min-w-0">
+                    <input
+                      type="time"
+                      value={draft.time ?? ""}
+                      onChange={(e) => setDraft((d) => ({ ...d, time: e.target.value }))}
+                      className="border border-outline/40 rounded-lg p-1.5 text-xs w-32"
+                    />
+                    <input
+                      type="text"
+                      value={draft.title ?? ""}
+                      onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+                      className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm font-bold"
+                    />
+                    <textarea
+                      value={draft.desc ?? ""}
+                      onChange={(e) => setDraft((d) => ({ ...d, desc: e.target.value }))}
+                      className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
+                      rows={2}
+                    />
+                    <select
+                      value={draft.type ?? act.type}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, type: e.target.value as Activity["type"] }))
+                      }
+                      className="border border-outline/40 rounded-lg p-1.5 text-sm w-32"
                     >
-                      {t("common.save")}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditingId(null);
-                        setDraft({});
-                      }}
-                      className="bg-surface-container hover:bg-surface-container-high text-ink-muted text-xs px-3 py-1.5 rounded-lg"
-                    >
-                      {t("common.cancel")}
-                    </button>
-                    {onDeleteActivity && (
+                      {ACTIVITY_TYPES.map((type) => (
+                        <option key={type} value={type}>
+                          {t(ACTIVITY_TYPE_LABEL_KEYS[type])}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="flex gap-2 min-w-0">
+                      <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
+                        {t("itinerary.priceLabel")}
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          value={draft.price ?? ""}
+                          onChange={(e) =>
+                            setDraft((d) => ({
+                              ...d,
+                              price: e.target.value === "" ? null : Number(e.target.value),
+                            }))
+                          }
+                          className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
+                        />
+                      </label>
+                      <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
+                        {t("itinerary.urlLabel")}
+                        <input
+                          type="url"
+                          value={draft.url ?? ""}
+                          onChange={(e) => setDraft((d) => ({ ...d, url: e.target.value }))}
+                          className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
+                        />
+                      </label>
+                    </div>
+                    <LocationPicker
+                      value={draft.map_coordinates ?? null}
+                      onChange={(coords) => setDraft((d) => ({ ...d, map_coordinates: coords }))}
+                      defaultCenter={anchorCenter}
+                    />
+                    <div className="flex gap-2 items-center">
+                      <button
+                        onClick={() => saveEdit(act.id)}
+                        className="bg-primary hover:bg-primary-dark text-white text-xs px-3 py-1.5 rounded-lg"
+                      >
+                        {t("common.save")}
+                      </button>
                       <button
                         onClick={() => {
-                          onDeleteActivity(act.id);
                           setEditingId(null);
                           setDraft({});
                         }}
-                        className="bg-red-50 hover:bg-red-100 text-red-600 text-xs px-3 py-1.5 rounded-lg flex items-center gap-1"
+                        className="bg-surface-container hover:bg-surface-container-high text-ink-muted text-xs px-3 py-1.5 rounded-lg"
                       >
-                        <Trash2 size={12} />
-                        {t("common.delete")}
-                      </button>
-                    )}
-                    {isLocalOnly && (
-                      <span className="text-[10px] text-amber-600">{t("itinerary.notSaved")}</span>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-1.5 text-secondary-dark font-bold text-xs">
-                      <Icon size={14} />
-                      <span>{act.time}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {act.url && (
-                        <a
-                          href={act.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          aria-label={t("itinerary.urlAria")}
-                          className="text-sky-500 hover:text-sky-700 p-1"
-                        >
-                          <LinkIcon size={14} />
-                        </a>
-                      )}
-                      {onShowOnMap && act.map_coordinates && (
-                        <button
-                          onClick={() => onShowOnMap(act.id)}
-                          aria-label={t("itinerary.showOnMapAria")}
-                          className="text-emerald-500 hover:text-emerald-700 p-1"
-                        >
-                          <MapPin size={14} />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => startEdit(act)}
-                        aria-label={t("itinerary.editAria")}
-                        className="text-amber-500 hover:text-amber-700 p-1"
-                      >
-                        <Pencil size={14} />
+                        {t("common.cancel")}
                       </button>
                       {onDeleteActivity && (
                         <button
-                          onClick={() => onDeleteActivity(act.id)}
-                          aria-label={t("itinerary.deleteAria")}
-                          className="text-red-500 hover:text-red-700 p-1"
+                          onClick={() => {
+                            onDeleteActivity(act.id);
+                            setEditingId(null);
+                            setDraft({});
+                          }}
+                          className="bg-red-50 hover:bg-red-100 text-red-600 text-xs px-3 py-1.5 rounded-lg flex items-center gap-1"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={12} />
+                          {t("common.delete")}
                         </button>
+                      )}
+                      {isLocalOnly && (
+                        <span className="text-[10px] text-amber-600">
+                          {t("itinerary.notSaved")}
+                        </span>
                       )}
                     </div>
                   </div>
-                  <h4 className="font-bold text-ink mt-1">{act.title}</h4>
-                  <p className="text-sm text-ink-muted mt-1">{act.desc}</p>
+                ) : (
+                  <>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-1.5 text-secondary-dark font-bold text-xs">
+                        <Icon size={14} />
+                        <span>{act.time}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {act.url && (
+                          <a
+                            href={act.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={t("itinerary.urlAria")}
+                            className="text-sky-500 hover:text-sky-700 p-1"
+                          >
+                            <LinkIcon size={14} />
+                          </a>
+                        )}
+                        {onShowOnMap && act.map_coordinates && (
+                          <button
+                            onClick={() => onShowOnMap(act.id)}
+                            aria-label={t("itinerary.showOnMapAria")}
+                            className="text-emerald-500 hover:text-emerald-700 p-1"
+                          >
+                            <MapPin size={14} />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => startEdit(act)}
+                          aria-label={t("itinerary.editAria")}
+                          className="text-amber-500 hover:text-amber-700 p-1"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        {onDeleteActivity && (
+                          <button
+                            onClick={() => onDeleteActivity(act.id)}
+                            aria-label={t("itinerary.deleteAria")}
+                            className="text-red-500 hover:text-red-700 p-1"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <h4 className="font-bold text-ink mt-1">{act.title}</h4>
+                    <p className="text-sm text-ink-muted mt-1">{act.desc}</p>
 
-                  <div className="flex items-center gap-2 mt-3 flex-wrap">
-                    <button
-                      onClick={() => startEdit(act)}
-                      aria-label={t("itinerary.editPriceAria")}
-                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${accent.chip}`}
-                    >
-                      {act.price != null ? `${currency}${act.price}` : t("itinerary.addPrice")}
-                    </button>
-
-                    {showPodcasts && act.hasPodcast && (
+                    <div className="flex items-center gap-2 mt-3 flex-wrap">
                       <button
-                        onClick={() => onPlayPodcast(act)}
-                        className={`flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
-                          playingThis
-                            ? `${themeClass || ""} text-white`
-                            : "bg-surface-container text-primary hover:bg-surface-container-high"
-                        }`}
-                        style={playingThis && accentColor ? { backgroundColor: accentColor } : undefined}
+                        onClick={() => startEdit(act)}
+                        aria-label={t("itinerary.editPriceAria")}
+                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${accent.chip}`}
                       >
-                        {playingThis ? (
-                          <Pause size={13} fill="currentColor" />
-                        ) : (
-                          <Play size={13} fill="currentColor" />
-                        )}
-                        {playingThis
-                          ? t("itinerary.playingNow")
-                          : t("itinerary.historicalPodcast")}
-                        {playingThis && (
-                          <Volume2 size={13} className="animate-pulse" />
-                        )}
+                        {act.price != null ? `${currency}${act.price}` : t("itinerary.addPrice")}
                       </button>
-                    )}
-                  </div>
-                </>
-              )}
+
+                      {showPodcasts && act.hasPodcast && (
+                        <button
+                          onClick={() => onPlayPodcast(act)}
+                          className={`flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
+                            playingThis
+                              ? `${themeClass || ""} text-white`
+                              : "bg-surface-container text-primary hover:bg-surface-container-high"
+                          }`}
+                          style={
+                            playingThis && accentColor
+                              ? { backgroundColor: accentColor }
+                              : undefined
+                          }
+                        >
+                          {playingThis ? (
+                            <Pause size={13} fill="currentColor" />
+                          ) : (
+                            <Play size={13} fill="currentColor" />
+                          )}
+                          {playingThis
+                            ? t("itinerary.playingNow")
+                            : t("itinerary.historicalPodcast")}
+                          {playingThis && <Volume2 size={13} className="animate-pulse" />}
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
           </div>
         );
       })}

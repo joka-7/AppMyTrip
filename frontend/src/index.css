@@ -28,7 +28,8 @@
 
   .bg-template-waves {
     background-color: #f5f8fc;
-    background-image: radial-gradient(ellipse at 50% 0%, rgb(148 197 238 / 0.25), transparent 55%),
+    background-image:
+      radial-gradient(ellipse at 50% 0%, rgb(148 197 238 / 0.25), transparent 55%),
       radial-gradient(ellipse at 80% 100%, rgb(254 126 79 / 0.12), transparent 50%);
   }
 

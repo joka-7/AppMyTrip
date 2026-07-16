@@ -22,9 +22,7 @@ export default function ThemeSelector({
             type="button"
             onClick={() => onChange(value)}
             className={`w-10 h-10 rounded-full transition-all ${swatch.bg} ${
-              theme === value
-                ? `ring-4 ${swatch.ring} scale-110`
-                : "hover:scale-105"
+              theme === value ? `ring-4 ${swatch.ring} scale-110` : "hover:scale-105"
             }`}
           />
         );

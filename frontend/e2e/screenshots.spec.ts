@@ -66,7 +66,7 @@ async function mockBackend(page: import("@playwright/test").Page) {
   });
 }
 
-const BASE_URL = process.env.SCREENSHOT_BASE_URL ?? "http://localhost:5174";
+const BASE_URL = process.env.SCREENSHOT_BASE_URL;
 
 async function useEnglishUi(page: import("@playwright/test").Page) {
   await page.addInitScript((key) => {
@@ -75,7 +75,7 @@ async function useEnglishUi(page: import("@playwright/test").Page) {
 }
 
 async function goToStep4(page: import("@playwright/test").Page) {
-  await page.goto(`${BASE_URL}/`);
+  await page.goto(BASE_URL ? `${BASE_URL}/` : "/");
   await page.getByRole("button", { name: "Create initial app structure" }).click();
   await page.getByRole("button", { name: "Skip, continue to agent" }).click();
   await page.getByRole("button", { name: "Continue to app design" }).click();
@@ -83,6 +83,8 @@ async function goToStep4(page: import("@playwright/test").Page) {
 }
 
 test.describe("capture UI screenshots", () => {
+  test.skip(!!process.env.CI, "Run locally to regenerate README screenshots");
+
   test.beforeEach(async ({ page }) => {
     await useEnglishUi(page);
     await mockBackend(page);
@@ -117,9 +119,9 @@ test.describe("capture UI screenshots", () => {
     await page.getByRole("button", { name: "Spacious" }).click();
     await page.getByRole("button", { name: "Dots" }).click();
     await page.getByRole("button", { name: "Timeline" }).click();
-    await page.getByPlaceholder("For example: Welcome to the trip! Changes are saved locally.").fill(
-      "Welcome to Rome! All edits here are saved locally.",
-    );
+    await page
+      .getByPlaceholder("For example: Welcome to the trip! Changes are saved locally.")
+      .fill("Welcome to Rome! All edits here are saved locally.");
 
     await page.screenshot({
       path: path.join(OUT_DIR, "step4-customized.png"),

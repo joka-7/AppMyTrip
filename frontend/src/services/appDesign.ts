@@ -151,10 +151,7 @@ export function normalizeTabOrder(order?: AppTab[] | null): AppTab[] {
   return result;
 }
 
-export function resolveDefaultTab(
-  preferred: AppTab,
-  visibleTabs: VisibleTabs,
-): AppTab {
+export function resolveDefaultTab(preferred: AppTab, visibleTabs: VisibleTabs): AppTab {
   if (visibleTabs[preferred]) return preferred;
   return TAB_ORDER.find((tab) => visibleTabs[tab]) ?? "itinerary";
 }
@@ -259,9 +256,7 @@ export function headerBackgroundStyle(design: AppDesign): Record<string, string>
 export function formatTripDates(dates: string, format: DateFormatStyle): string {
   const text = dates.trim();
   if (!text || format === "short") return text;
-  const isoRange = text.match(
-    /(\d{4})-(\d{1,2})-(\d{1,2})\s*[-–]\s*(\d{4})-(\d{1,2})-(\d{1,2})/,
-  );
+  const isoRange = text.match(/(\d{4})-(\d{1,2})-(\d{1,2})\s*[-–]\s*(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (isoRange) {
     const [, , m1, d1, , m2, d2] = isoRange;
     const pad = (n: string) => n.padStart(2, "0");

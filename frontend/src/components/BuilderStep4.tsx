@@ -6,7 +6,6 @@ import {
   ExternalLink,
   Layout,
   Loader2,
-  PencilLine,
   Smartphone,
   Palette,
   Settings,
@@ -144,7 +143,13 @@ export default function BuilderStep4({
         appDesign,
         tripId: asNewCopy ? undefined : (tripId ?? undefined),
       });
-      const url = await shareTrip(session.uid, savedId, namedTrip, appDesign, shareDays || undefined);
+      const url = await shareTrip(
+        session.uid,
+        savedId,
+        namedTrip,
+        appDesign,
+        shareDays || undefined,
+      );
       setShareUrl(url);
       setStatus("done");
       onSaved(savedId, namedTrip.title);
@@ -183,7 +188,9 @@ export default function BuilderStep4({
               />
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-ink-muted">{t("step4.organizerLabel")}</span>
+              <span className="text-xs font-medium text-ink-muted">
+                {t("step4.organizerLabel")}
+              </span>
               <input
                 type="text"
                 value={appDesign.organizerName}
@@ -207,16 +214,16 @@ export default function BuilderStep4({
               <input
                 type="url"
                 value={tripData.photo_album_url ?? ""}
-                onChange={(e) =>
-                  onUpdateTrip({ photo_album_url: e.target.value.trim() || null })
-                }
+                onChange={(e) => onUpdateTrip({ photo_album_url: e.target.value.trim() || null })}
                 placeholder={t("step4.albumPlaceholder")}
                 className={`${inputClass} mt-1`}
                 dir="ltr"
               />
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-ink-muted">{t("step4.dateFormatLabel")}</span>
+              <span className="text-xs font-medium text-ink-muted">
+                {t("step4.dateFormatLabel")}
+              </span>
               <select
                 value={appDesign.dateFormat}
                 onChange={(e) => patchDesign({ dateFormat: e.target.value as DateFormatStyle })}
@@ -279,7 +286,9 @@ export default function BuilderStep4({
               </div>
             </div>
             <label className="block">
-              <span className="text-xs font-medium text-ink-muted">{t("step4.accentColorLabel")}</span>
+              <span className="text-xs font-medium text-ink-muted">
+                {t("step4.accentColorLabel")}
+              </span>
               <div className="flex gap-2 mt-2 items-center">
                 <input
                   type="color"
@@ -306,14 +315,22 @@ export default function BuilderStep4({
                 </button>
               </div>
             </label>
-            {toggleGroup(t("step4.headerStyleLabel"), HEADER_STYLES, appDesign.headerStyle, "step4.headerStyle", (v) =>
-              patchDesign({ headerStyle: v as HeaderStyle }),
+            {toggleGroup(
+              t("step4.headerStyleLabel"),
+              HEADER_STYLES,
+              appDesign.headerStyle,
+              "step4.headerStyle",
+              (v) => patchDesign({ headerStyle: v as HeaderStyle }),
             )}
             {toggleGroup(t("step4.fontLabel"), FONTS, appDesign.font, "step4.font", (v) =>
               patchDesign({ font: v as AppFont }),
             )}
-            {toggleGroup(t("step4.densityLabel"), DENSITIES, appDesign.density, "step4.density", (v) =>
-              patchDesign({ density: v as AppDensity }),
+            {toggleGroup(
+              t("step4.densityLabel"),
+              DENSITIES,
+              appDesign.density,
+              "step4.density",
+              (v) => patchDesign({ density: v as AppDensity }),
             )}
             {toggleGroup(
               t("step4.backgroundTemplateLabel"),
@@ -322,14 +339,24 @@ export default function BuilderStep4({
               "step4.backgroundTemplate",
               (v) => patchDesign({ backgroundTemplate: v as BackgroundTemplate }),
             )}
-            {toggleGroup(t("step4.cardLayoutLabel"), CARD_LAYOUTS, appDesign.cardLayout, "step4.cardLayout", (v) =>
-              patchDesign({ cardLayout: v as CardLayout }),
+            {toggleGroup(
+              t("step4.cardLayoutLabel"),
+              CARD_LAYOUTS,
+              appDesign.cardLayout,
+              "step4.cardLayout",
+              (v) => patchDesign({ cardLayout: v as CardLayout }),
             )}
-            {toggleGroup(t("step4.cornerStyleLabel"), CORNERS, appDesign.cornerStyle, "step4.cornerStyle", (v) =>
-              patchDesign({ cornerStyle: v as CornerStyle }),
+            {toggleGroup(
+              t("step4.cornerStyleLabel"),
+              CORNERS,
+              appDesign.cornerStyle,
+              "step4.cornerStyle",
+              (v) => patchDesign({ cornerStyle: v as CornerStyle }),
             )}
             <label className="block">
-              <span className="text-xs font-medium text-ink-muted">{t("step4.headerImageLabel")}</span>
+              <span className="text-xs font-medium text-ink-muted">
+                {t("step4.headerImageLabel")}
+              </span>
               <input
                 type="url"
                 value={appDesign.headerImageUrl ?? ""}
@@ -353,7 +380,9 @@ export default function BuilderStep4({
           </h3>
           <div className="space-y-3">
             <label className="block">
-              <span className="text-xs font-medium text-ink-muted">{t("step4.defaultTabLabel")}</span>
+              <span className="text-xs font-medium text-ink-muted">
+                {t("step4.defaultTabLabel")}
+              </span>
               <select
                 value={appDesign.defaultTab}
                 onChange={(e) => patchDesign({ defaultTab: e.target.value as AppTab })}
@@ -385,7 +414,9 @@ export default function BuilderStep4({
               </select>
             </label>
             <div>
-              <span className="text-xs font-medium text-ink-muted">{t("step4.visibleTabsLabel")}</span>
+              <span className="text-xs font-medium text-ink-muted">
+                {t("step4.visibleTabsLabel")}
+              </span>
               <div className="flex flex-wrap gap-3 mt-2">
                 {TABS.map((tab) => (
                   <label key={tab} className="flex items-center gap-2 text-sm text-ink">
@@ -431,8 +462,12 @@ export default function BuilderStep4({
                 ))}
               </ul>
             </div>
-            {toggleGroup(t("step4.mapTileLabel"), MAP_TILES, appDesign.mapTileStyle, "step4.mapTile", (v) =>
-              patchDesign({ mapTileStyle: v as MapTileStyle }),
+            {toggleGroup(
+              t("step4.mapTileLabel"),
+              MAP_TILES,
+              appDesign.mapTileStyle,
+              "step4.mapTile",
+              (v) => patchDesign({ mapTileStyle: v as MapTileStyle }),
             )}
             <label className="flex items-center gap-2 text-sm text-ink">
               <input
@@ -473,7 +508,9 @@ export default function BuilderStep4({
           </h3>
           <div className="space-y-3">
             <label className="block">
-              <span className="text-xs font-medium text-ink-muted">{t("step4.pwaShortNameLabel")}</span>
+              <span className="text-xs font-medium text-ink-muted">
+                {t("step4.pwaShortNameLabel")}
+              </span>
               <input
                 type="text"
                 value={appDesign.pwaShortName}

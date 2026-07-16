@@ -39,7 +39,15 @@ import PriceSummary from "./PriceSummary";
 
 const SCROLL_ARROW_THRESHOLD = 4;
 
-const NAV_TABS: { id: AppTab; icon: typeof Calendar; labelKey: "appFrame.tab.itinerary" | "appFrame.tab.map" | "appFrame.tab.price" | "appFrame.tab.chat" }[] = [
+const NAV_TABS: {
+  id: AppTab;
+  icon: typeof Calendar;
+  labelKey:
+    | "appFrame.tab.itinerary"
+    | "appFrame.tab.map"
+    | "appFrame.tab.price"
+    | "appFrame.tab.chat";
+}[] = [
   { id: "itinerary", icon: Calendar, labelKey: "appFrame.tab.itinerary" },
   { id: "map", icon: Map, labelKey: "appFrame.tab.map" },
   { id: "price", icon: DollarSign, labelKey: "appFrame.tab.price" },
@@ -123,8 +131,7 @@ export default function AppFrame({
   const bgClass = BACKGROUND_TEMPLATE_CLASSES[appDesign.backgroundTemplate];
   const safeDayIdx = Math.min(activeDay, Math.max(0, days.length - 1));
   const day = days[safeDayIdx];
-  const tripStartWeekday =
-    tripData.startWeekday ?? tripStartWeekdayIndex(tripData.dates);
+  const tripStartWeekday = tripData.startWeekday ?? tripStartWeekdayIndex(tripData.dates);
   const navById = Object.fromEntries(NAV_TABS.map((tab) => [tab.id, tab]));
   const visibleNavTabs = appDesign.tabOrder
     .filter((id) => appDesign.visibleTabs[id])
@@ -271,10 +278,14 @@ export default function AppFrame({
                 {displayDates || t("appFrame.datesFallback")}
               </p>
               {appDesign.organizerName && (
-                <p className={`${density.headerSub} opacity-90 mt-0.5`}>{appDesign.organizerName}</p>
+                <p className={`${density.headerSub} opacity-90 mt-0.5`}>
+                  {appDesign.organizerName}
+                </p>
               )}
               {appDesign.tagline && (
-                <p className={`${density.headerSub} opacity-70 italic mt-0.5`}>{appDesign.tagline}</p>
+                <p className={`${density.headerSub} opacity-70 italic mt-0.5`}>
+                  {appDesign.tagline}
+                </p>
               )}
             </div>
             {hasTrip && (
