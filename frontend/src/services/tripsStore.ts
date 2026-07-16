@@ -28,6 +28,7 @@ import {
 import { firebaseApp } from "../firebase";
 import type { TripData } from "../api";
 import type { Theme } from "../components/ThemeSelector";
+import { ensureActivityIds } from "./normalizeTrip";
 
 // Only initialized when Firebase is configured (see README "Trip storage").
 const auth = firebaseApp ? getAuth(firebaseApp) : null;
@@ -116,7 +117,7 @@ export async function loadTrip(
   const snap = await getDoc(doc(tripsCollection(uid), tripId));
   if (!snap.exists()) throw new Error("Trip not found.");
   const { title, dates, days, theme } = snap.data() as TripData & { theme?: Theme };
-  return { trip: { title, dates, days }, theme: theme ?? "blue" };
+  return { trip: ensureActivityIds({ title, dates, days }), theme: theme ?? "blue" };
 }
 
 export async function deleteTrip(uid: string, tripId: string): Promise<void> {
@@ -168,7 +169,7 @@ export async function loadSharedTrip(tripId: string): Promise<{ trip: TripData; 
   if (expiresAt && expiresAt.toMillis() < Date.now()) {
     throw new Error("This shared trip link has expired.");
   }
-  return { trip: { title, dates, days }, theme: theme ?? "blue" };
+  return { trip: ensureActivityIds({ title, dates, days }), theme: theme ?? "blue" };
 }
 
 /** Revokes a public share link by deleting its sharedTrips doc (no-op if it was never shared). */

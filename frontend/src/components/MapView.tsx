@@ -169,8 +169,10 @@ export default function MapView({
   ]);
 
   // A, B, C … labels keyed to each stop's position in the full day's order, so
-  // a focused single pin still shows its real letter (not always "A").
-  const labelByActId = new Map(allCoordActs.map((a, i) => [a.id, sequenceLabel(i)]));
+  // a focused single pin still shows its real letter (not always "A"). Keyed by
+  // the activity object (not its id) so it stays correct even if a loaded trip
+  // somehow has missing/duplicate ids — coordActs holds the same object refs.
+  const labelByAct = new Map(allCoordActs.map((a, i) => [a, sequenceLabel(i)]));
 
   const savePending = () => {
     if (!pendingLocation || !pendingTitle.trim() || !onAddActivity) return;
@@ -294,11 +296,11 @@ export default function MapView({
               pathOptions={{ color: "#1a5276", weight: 3, opacity: 0.6, dashArray: "6 8" }}
             />
           )}
-          {coordActs.map((act) => (
+          {coordActs.map((act, i) => (
             <Marker
-              key={act.id}
+              key={act.id || `stop-${i}`}
               position={[act.map_coordinates!.lat, act.map_coordinates!.lng]}
-              icon={markerIcon(act.type, labelByActId.get(act.id) ?? "")}
+              icon={markerIcon(act.type, labelByAct.get(act) ?? "")}
               draggable={Boolean(onUpdateActivity)}
               eventHandlers={
                 onUpdateActivity
@@ -314,7 +316,7 @@ export default function MapView({
               <Popup>
                 <div className="flex flex-col gap-1">
                   <span className="font-semibold">
-                    {labelByActId.get(act.id) ? `${labelByActId.get(act.id)}. ` : ""}
+                    {labelByAct.get(act) ? `${labelByAct.get(act)}. ` : ""}
                     {act.title}
                   </span>
                   <a
