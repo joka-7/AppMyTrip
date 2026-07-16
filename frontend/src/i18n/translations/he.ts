@@ -1,0 +1,265 @@
+// Hebrew is the source-of-truth dictionary: every UI string the app can show
+// lives here, and en.ts / fr.ts must provide the same keys (enforced by the
+// `Record<TranslationKey, string>` type). `{name}` placeholders are filled in
+// by translate()/t() at call time.
+export const he = {
+  // Document / navbar
+  "document.title": "תכנון טיול באמצעות AI — AppMyTrip",
+  "nav.title": "תכנון טיול באמצעות AI",
+  "nav.step": "שלב {step} מתוך 4",
+  "lang.label": "שפת הממשק",
+
+  // Progress bar
+  "progress.step1": "הזנת טקסט",
+  "progress.step2": "שיפורים נוספים",
+  "progress.step3": "סוכן השלמות",
+  "progress.step4": "עיצוב אפליקציה",
+
+  // Common
+  "common.back": "חזרה",
+  "common.save": "שמירה",
+  "common.cancel": "ביטול",
+  "common.add": "הוספה",
+  "common.delete": "מחיקה",
+
+  // Step 1 — text input
+  "step1.heading": "בוא נתחיל לבנות. ספרו לי על הטיול",
+  "step1.subtitle": "הדביקו הודעות ווצאפ, סיכומים או סתם שרבטו את הרעיונות שלכם.",
+  "step1.textareaPlaceholder": "למשל: ביום ראשון טסים ללונדון...",
+  "step1.preferencesLabel": "העדפות (אופציונלי) — למשל חלבי, טבעוני, נגישות",
+  "step1.preferencesPlaceholder": "למשל: רוצים אוכל חלבי",
+  "step1.continueWithoutReprocessing": "המשך לעריכה (ללא ניתוח מחדש)",
+  "step1.processing": "ה-AI מנתח את הטקסט...",
+  "step1.reprocess": "נתח מחדש (יחליף את הטיול הקיים)",
+  "step1.submit": "צור מבנה אפליקציה ראשוני",
+  "step1.exampleRawText":
+    "היי, אנחנו טסים לרומא מחרתיים עד יום ראשון. ביום הראשון ננחת, ניסע למלון ליד המדרגות הספרדיות ואז נטייל באזור. ביום השני הקולוסיאום והפורום, ומלא קניות. ביום השלישי הוותיקן. צריכים גם למצוא איפה לאכול.",
+
+  // Step 2 — enhancements
+  "step2.heading": "שיפורים נוספים (אופציונלי)",
+  "step2.subtitle":
+    'כל פירוט נוסף דורש פנייה נוספת לבינה המלאכותית, כך שהזמן שיקח תלוי בכמה תבחרו. אפשר גם לדלג ולהוסיף את אלה ידנית מאוחר יותר מתוך הלו"ז.',
+  "step2.selectAll": "בחר את כל האפשרויות",
+  "step2.skip": "דלג, המשך לסוכן",
+  "step2.submitting": "מוסיף את הפרטים...",
+  "step2.submit": "הוסף את הפרטים שנבחרו",
+  "step2.opt.directions_car": "הוספת הוראות הגעה ברכב",
+  "step2.opt.directions_transit": "הוספת הוראות הגעה בתחבורה ציבורית",
+  "step2.opt.prices": "הוספת מחירים משוערים",
+  "step2.opt.podcast": "הוספת פודקאסט היסטורי",
+  "step2.opt.links": "הוספת קישורים לאתרי האטרקציות/תחבורה",
+
+  // Step 3 — completion agent
+  "step3.heading": "סוכן השלמות AI",
+  "step3.subtitle": 'הבינה המלאכותית שלנו עוברת על הלו"ז ומוודאת שלא שכחתם כלום.',
+  "step3.datesLabel": "תאריכי הטיול",
+  "step3.datesPlaceholder": "לדוגמה: 12-19 ביולי",
+  "step3.generating": "מייצר מדיה (פודקאסטים)...",
+  "step3.continue": "המשך לעיצוב האפליקציה",
+
+  // Chat panel
+  "chat.inputPlaceholder": "ענה לסוכן (למשל: 'כן, תוסיף')",
+  "chat.send": "שלח",
+
+  // Step 4 — design & deploy
+  "step4.heading": "שלב אחרון: עיצוב האפליקציה שלך",
+  "step4.subtitle": "בחרו צבעים, פונטים ותצורה לפני שיתוף האפליקציה למשתתפי הטיול.",
+  "step4.tripNameLabel": "שם הטיול",
+  "step4.tripNamePlaceholder": "לדוגמה: טיול לרומא עם המשפחה",
+  "step4.defaultTripName": "הטיול שלי",
+  "step4.themeLabel": "בחירת צבע נושא",
+  "step4.shareValidityLabel": "תוקף קישור השיתוף",
+  "step4.updateExisting": "עדכון הטיול הקיים",
+  "step4.saveAsNew": "שמירה כעותק חדש",
+  "step4.deploying": "משגר...",
+  "step4.deploy": "שגר למכשיר! שמרו ושתפו את הטיול",
+  "step4.copied": "הועתק!",
+  "step4.copyLink": "העתק קישור",
+  "step4.openLink": "מעבר לקישור",
+  "step4.deployError": "משהו השתבש בעת השמירה והשיתוף. נסו שוב בעוד רגע.",
+  "step4.deployHint":
+    "השיגור שומר את הטיול בחשבון Google שלכם (תתבצע התחברות אם צריך) ומפיק קישור שניתן לשתף עם משתתפי הטיול.",
+
+  // Share-link durations
+  "share.days7": "7 ימים",
+  "share.days30": "30 יום",
+  "share.days90": "90 יום",
+  "share.forever": "לתמיד",
+
+  // Generated app frame
+  "appFrame.titlePlaceholder": "שם הטיול",
+  "appFrame.datesPlaceholder": "טווח תאריכים",
+  "appFrame.albumPlaceholder": "קישור לאלבום תמונות (אופציונלי)",
+  "appFrame.saveHeaderAria": "שמירת שם וטווח תאריכים",
+  "appFrame.cancelEditAria": "ביטול עריכה",
+  "appFrame.editHeaderAria": "עריכת שם וטווח תאריכים",
+  "appFrame.titleFallback": "האפליקציה שלך",
+  "appFrame.datesFallback": "התצוגה המקדימה תתעדכן לפי הטקסט",
+  "appFrame.albumAria": "אלבום תמונות הטיול",
+  "appFrame.localOnlyNotice": "שינויים שתבצעו כאן יישמרו רק בדפדפן הזה ולא יישלחו לשרת.",
+  "appFrame.scrollPrevAria": "גלילה לימים קודמים",
+  "appFrame.scrollNextAria": "גלילה לימים נוספים",
+  "appFrame.day": "יום {num}",
+  "appFrame.emptyState": "הזינו את תיאור הטיול כדי לראות כאן תצוגה מקדימה חיה של האפליקציה.",
+  "appFrame.tab.itinerary": 'לו"ז',
+  "appFrame.tab.map": "מפה",
+  "appFrame.tab.price": "תמחור",
+  "appFrame.tab.chat": "צ'אט AI",
+
+  // Itinerary list
+  "itinerary.priceLabel": "מחיר",
+  "itinerary.urlLabel": "קישור לאתר",
+  "itinerary.notSaved": "לא נשמר בשרת",
+  "itinerary.addPrice": "הוספת מחיר",
+  "itinerary.playingNow": "מתנגן כעת...",
+  "itinerary.historicalPodcast": "פודקאסט היסטורי",
+  "itinerary.activityNamePlaceholder": "שם הפעילות",
+  "itinerary.activityDescPlaceholder": "תיאור קצר",
+  "itinerary.addActivity": "הוספת פעילות ליום זה",
+  "itinerary.urlAria": "קישור לאתר הפעילות",
+  "itinerary.showOnMapAria": "הצגת הפעילות על המפה",
+  "itinerary.editAria": "עריכת פעילות",
+  "itinerary.deleteAria": "מחיקת פעילות",
+  "itinerary.editPriceAria": "עריכת מחיר",
+
+  // Activity type labels
+  "activityType.attraction": "אטרקציה",
+  "activityType.food": "אוכל",
+  "activityType.lodging": "לינה",
+  "activityType.transport": "תחבורה",
+
+  // Location picker
+  "locationPicker.set": "לחצו על המפה כדי לשנות מיקום, או גררו את הסמן",
+  "locationPicker.unset": "לחצו על המפה לבחירת מיקום מדויק, או השאירו ריק לאיתור אוטומטי",
+  "locationPicker.clear": "ניקוי מיקום",
+
+  // Map view
+  "map.noCoords": "אין קואורדינטות להצגה על המפה ביום זה.",
+  "map.backToFullDay": "חזרה למפת היום המלאה",
+  "map.openInGoogleMaps": "פתיחה ב-Google Maps",
+  "map.openRoute": "פתיחת מסלול והוראות הגעה ב-Google Maps",
+  "map.clickToAdd": "לחצו על המפה כדי להוסיף פעילות חדשה במיקום זה",
+
+  // Price summary
+  "price.empty": "עדיין לא הוזנו מחירים. ניתן להוסיף מחיר לכל פעילות מתוך לוח הזמנים.",
+  "price.byCategory": "פילוח לפי קטגוריה",
+  "price.total": 'סה"כ לטיול',
+
+  // Podcast player
+  "podcast.listeningNow": "מאזינים כעת...",
+
+  // API key menu
+  "apiKey.setKey": "הגדרת מפתח API",
+  "apiKey.configured": "מפתח API מוגדר",
+  "apiKey.configuredCount": "מפתח API מוגדר ({count})",
+  "apiKey.heading": "מפתחות API משלכם",
+  "apiKey.descriptionBefore": "בחרו ספק והדביקו מפתח API משלכם — חינמי ב-",
+  "apiKey.descriptionAfter":
+    ". אפשר להוסיף כמה מפתחות; כשאחד מגיע למגבלת הקצב נעבור אוטומטית לבא. הכול נשמר רק בדפדפן שלכם.",
+  "apiKey.removeAria": "הסרת מפתח {key}",
+  "apiKey.showAria": "הצגת המפתח",
+  "apiKey.hideAria": "הסתרת המפתח",
+  "apiKey.addKey": "הוספת מפתח",
+  "apiKey.close": "סגירה",
+  "apiKey.inputPlaceholder": "API Key...",
+
+  // Cloud menu (sign-in, save, share, my trips)
+  "cloud.importSuccess": "הטיול יובא מהקובץ.",
+  "cloud.importFailed": "ייבוא הקובץ נכשל.",
+  "cloud.signInFailed": "ההתחברות ל-Google נכשלה. נסו שוב.",
+  "cloud.saved": "הטיול נשמר בחשבונכם.",
+  "cloud.saveFailed": "שמירת הטיול נכשלה.",
+  "cloud.shareBeforeSave": "שמרו את הטיול לפני שיתופו.",
+  "cloud.shareCopied": "קישור השיתוף הועתק ללוח.",
+  "cloud.shareFailed": "שיתוף הטיול נכשל.",
+  "cloud.loadFailed": "טעינת הטיול נכשלה.",
+  "cloud.deleteFailed": "מחיקת הטיול נכשלה.",
+  "cloud.export": "ייצוא",
+  "cloud.import": "ייבוא",
+  "cloud.signingIn": "מתחבר...",
+  "cloud.signIn": "התחברות עם Google",
+  "cloud.shareValidity": "תוקף קישור השיתוף:",
+  "cloud.share": "שיתוף",
+  "cloud.myTrips": "הטיולים שלי",
+  "cloud.noTrips": "אין טיולים שמורים עדיין.",
+  "cloud.signOut": "התנתקות",
+
+  // Install app button
+  "install.button": "התקנת האפליקציה",
+  "install.iosTitle": "התקנה כאפליקציה ב-iPhone/iPad",
+  "install.iosStep1": "לחצו על כפתור השיתוף בסרגל הכלים של Safari",
+  "install.iosStep2": 'בחרו "הוספה למסך הבית" (Add to Home Screen)',
+
+  // Error boundary
+  "errorBoundary.title": "משהו השתבש",
+  "errorBoundary.subtitle":
+    "אירעה שגיאה בלתי צפויה והאפליקציה נעצרה. רענון הדף בדרך כלל פותר את זה.",
+  "errorBoundary.reload": "רענון הדף",
+  "errorBoundary.details": "פרטים טכניים (לדיווח)",
+
+  // Shared trip page
+  "sharedPage.export": "ייצוא לקובץ",
+  "sharedPage.import": "ייבוא מקובץ",
+  "sharedPage.saving": "שומר...",
+  "sharedPage.saveToAccount": "שמירה לחשבון שלי",
+  "sharedPage.savedNotice": 'נשמר לחשבון שלך! אפשר למצוא אותו ב"הטיולים שלי".',
+  "sharedPage.saveFailed": "השמירה לחשבון נכשלה. נסו שוב.",
+  "sharedPage.localOnlyNotice":
+    "שינויים שתבצעו כאן (כולל דרך הצ'אט) יישמרו רק בדפדפן הזה ולא יישלחו לשרת.",
+
+  // Trip file import/export
+  "tripFile.readFailed": "קריאת הקובץ נכשלה.",
+  "tripFile.invalid": "הקובץ אינו טיול תקין.",
+
+  // Podcast (browser TTS) errors
+  "podcastPlayer.noTTS": "הדפדפן הזה לא תומך בהקראת טקסט.",
+  "podcastPlayer.ttsFailed": "הקראת הפודקאסט נכשלה. ייתכן שלדפדפן הזה אין קול מתאים.",
+
+  // Language indicator (agent reply language)
+  "languageIndicator.explainer":
+    "שפת התשובות של הסוכן נקבעת לפי השפה השלטת בטקסט הטיול שהזנתם, ומתעדכנת אוטומטית אם תכתבו לו בשפה אחרת.",
+
+  // API error explanations (App.tsx describeApiError)
+  "apiError.rateLimited":
+    "ספק ה-AI מגביל קצב בקשות כרגע — נסו שוב בעוד דקה, או הוסיפו מפתח API משלכם בהגדרות כדי להימנע מהגבלה משותפת.",
+  "apiError.noKey": "לא הוגדר מפתח API ל-AI. הוסיפו מפתח משלכם בהגדרות (כפתור 'הגדרת מפתח API').",
+  "apiError.tooLarge": "הבקשה גדולה מדי עבור ה-AI. נסו לפצל אותה לבקשות קצרות יותר.",
+  "apiError.invalidResponse":
+    "התשובה שהתקבלה מה-AI לא הייתה תקינה. נסו לנסח את הבקשה מחדש או לנסות שוב.",
+  "apiError.truncated":
+    'התשובה מה-AI נראתה כאילו מחקה את רוב הלו"ז, אז השארנו אותו כפי שהיה. נסו שוב, או פצלו את הבקשה לשלבים קטנים יותר.',
+  "apiError.providerDown": "ספק ה-AI לא הצליח להשיב כרגע (תקלה זמנית בשירות). נסו שוב בעוד רגע.",
+
+  // App-level notices & agent messages
+  "notice.rateLimitedDemo":
+    "ספק ה-AI מגביל קצב בקשות כרגע — נסו שוב בעוד דקה. בינתיים נטען טיול לדוגמה.",
+  "notice.unreachableDemo": "לא הצלחנו להתחבר לשרת ה-AI — נטען טיול לדוגמה.",
+  "notice.enhanceFailed": 'הוספת הפרטים הנוספים נכשלה — ממשיכים עם הלו"ז הנוכחי.',
+  "notice.updateFailed": 'העדכון נכשל — הלו"ז לא השתנה.',
+  "notice.mediaFailed": "יצירת המדיה בשרת נכשלה — ממשיכים ללא קבצי אודיו.",
+  "agent.initial": 'זיהיתי את הטיול! עברו על הלו"ז ותקנו מה שצריך.',
+  "agent.demo":
+    "טענתי טיול לדוגמה כדי שתוכלו לראות איך האפליקציה עובדת. כדי לפרסר טקסט אמיתי, הגדירו מפתח Gemini API משלכם (כפתור 'הגדרת מפתח API' למעלה) — או המשיכו לערוך ידנית.",
+  "agent.loaded": "הטיול נטען. אפשר להמשיך לערוך.",
+  "agent.imported": "הטיול יובא מקובץ. אפשר להמשיך לערוך.",
+  "agent.sharedIntro": 'שלחו הודעה כדי לשנות את הלו"ז — שינויים כאן נשארים רק בדפדפן שלכם.',
+  "shared.expired": "קישור השיתוף הזה פג תוקף.",
+  "shared.loadFailed": "טעינת הטיול המשותף נכשלה. ייתכן שהקישור שגוי או שהטיול הוסר.",
+  "shared.loading": "טוען את הטיול...",
+
+  // Offline demo trip (shown when the backend is unreachable)
+  "demo.title": "טיול לדוגמה ✨",
+  "demo.dates": "יום א׳ – יום ג׳",
+  "demo.d1a1.title": "צ׳ק-אין במלון",
+  "demo.d1a1.desc": "השארת מזוודות והתארגנות.",
+  "demo.d1a2.title": "אתר היסטורי מרכזי",
+  "demo.d1a2.desc": "סיור בלב העיר העתיקה.",
+  "demo.d1a3.title": "מסעדה מקומית",
+  "demo.d1a3.desc": "ארוחת צהריים במרכז העיר.",
+  "demo.d2a1.title": "מוזיאון העיר",
+  "demo.d2a1.desc": "תערוכת קבע ותערוכה מתחלפת.",
+  "demo.d2a2.title": "שוק מקומי",
+  "demo.d2a2.desc": "קניות וטעימות רחוב.",
+};
+
+export type TranslationKey = keyof typeof he;

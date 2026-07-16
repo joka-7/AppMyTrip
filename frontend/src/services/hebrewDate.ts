@@ -10,8 +10,6 @@ const HEBREW_WEEKDAY_NAME_TO_INDEX: Record<string, number> = {
   שבת: 6,
 };
 
-const ENGLISH_WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
 const ENGLISH_WEEKDAY_NAME_TO_INDEX: Record<string, number> = {
   sun: 0,
   sunday: 0,
@@ -36,15 +34,6 @@ const ENGLISH_WEEKDAY_NAME_TO_INDEX: Record<string, number> = {
 /** Maps a Sun=0..Sat=6 weekday index to its single Hebrew letter (with wraparound). */
 export function hebrewWeekdayLetter(weekdayIndex: number): string {
   return HEBREW_WEEKDAY_LETTERS[((weekdayIndex % 7) + 7) % 7];
-}
-
-/** Tab label for a weekday: Hebrew א'/ב' by default, Sun/Mon when language is English. */
-export function weekdayTabLabel(weekdayIndex: number, language?: string): string {
-  const idx = ((weekdayIndex % 7) + 7) % 7;
-  if (language?.startsWith("en")) {
-    return ENGLISH_WEEKDAY_SHORT[idx];
-  }
-  return `${HEBREW_WEEKDAY_LETTERS[idx]}'`;
 }
 
 /**

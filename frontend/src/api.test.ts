@@ -33,7 +33,7 @@ describe("api client", () => {
         body: JSON.stringify({
           raw_text: "some trip text",
           preferences: null,
-          api_key: null,
+          api_keys: null,
           provider: null,
         }),
       }),
@@ -55,20 +55,20 @@ describe("api client", () => {
         body: JSON.stringify({
           raw_text: "some trip text",
           preferences: "Vegan",
-          api_key: null,
+          api_keys: null,
           provider: null,
         }),
       }),
     );
   });
 
-  it("parseTrip threads the caller's own API key + provider through to the request body", async () => {
+  it("parseTrip threads the caller's own API keys + provider through to the request body", async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       json: async () => ({ trip_data: sampleTrip, initial_agent_message: null }),
     } as Response);
 
-    await parseTrip("some trip text", null, "my-claude-key", "anthropic");
+    await parseTrip("some trip text", null, ["claude-key-a", "claude-key-b"], "anthropic");
 
     expect(fetch).toHaveBeenCalledWith(
       `${API_BASE_URL}/api/trip/parse`,
@@ -76,7 +76,7 @@ describe("api client", () => {
         body: JSON.stringify({
           raw_text: "some trip text",
           preferences: null,
-          api_key: "my-claude-key",
+          api_keys: ["claude-key-a", "claude-key-b"],
           provider: "anthropic",
         }),
       }),
@@ -100,7 +100,7 @@ describe("api client", () => {
           trip_data: sampleTrip,
           user_message: "add food",
           preferences: null,
-          api_key: null,
+          api_keys: null,
           provider: null,
         }),
       }),
@@ -134,6 +134,6 @@ describe("api client", () => {
       text: async () => "bad gateway",
     } as Response);
 
-    await expect(parseTrip("text")).rejects.toThrow(/API \/api\/trip\/parse failed \(502\)/);
+    await expect(parseTrip("text")).rejects.toThrow(/API request failed \(502\)/);
   });
 });

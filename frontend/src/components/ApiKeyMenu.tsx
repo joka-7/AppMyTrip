@@ -1,80 +1,113 @@
 import { useState } from "react";
-import { Check, Eye, EyeOff, KeyRound, Trash2 } from "lucide-react";
+import { Check, Eye, EyeOff, KeyRound, Plus, Trash2 } from "lucide-react";
+import { useI18n } from "../i18n/useI18n";
 import {
-  clearApiKey,
-  getApiKeyForProvider,
+  addApiKey,
+  getApiKeysForProvider,
   getApiProvider,
   PROVIDERS,
-  setApiKey,
+  removeApiKey,
+  setApiProvider,
   type LLMProvider,
 } from "../services/apiKey";
 
+/** Masks a key for display so it's recognizable without exposing the whole secret. */
+function maskKey(key: string): string {
+  if (key.length <= 8) return "••••";
+  return `${key.slice(0, 4)}…${key.slice(-4)}`;
+}
+
+/** A saved key chip with a remove button. */
+function KeyRow({ value, onRemove }: { value: string; onRemove: () => void }) {
+  const { t } = useI18n();
+  const masked = maskKey(value);
+  return (
+    <div className="flex items-center justify-between gap-2 bg-surface-container rounded-lg px-2.5 py-1.5">
+      <span className="text-xs font-mono text-ink-muted truncate" dir="ltr">
+        {masked}
+      </span>
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={t("apiKey.removeAria", { key: masked })}
+        className="text-ink-muted hover:text-red-600 shrink-0"
+      >
+        <Trash2 size={14} />
+      </button>
+    </div>
+  );
+}
+
 /**
- * Lets each user pick their preferred LLM provider (Gemini, OpenAI, Claude,
- * or Groq) and paste in their own API key for it, so the app calls the LLM
- * with their key/quota instead of sharing the developer's. Each provider's
- * key is stored separately in localStorage and sent with each builder
- * request; never touches our backend's env vars.
+ * Lets each user pick their preferred LLM provider (Gemini, OpenAI, Claude, or
+ * Groq) and store one or more of their own API keys for it. Multiple keys are
+ * sent to the backend and rotated through when one hits its rate limit, so a few
+ * free-tier keys together outlast any single key's quota. Every key is stored
+ * only in localStorage and never touches our backend's env vars.
  */
 export default function ApiKeyMenu() {
+  const { t } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const [provider, setProvider] = useState<LLMProvider>(getApiProvider());
-  const [draft, setDraft] = useState(getApiKeyForProvider(provider) ?? "");
-  const [savedKey, setSavedKey] = useState(getApiKeyForProvider(provider));
-  const [showKey, setShowKey] = useState(false);
+  const [llmKeys, setLlmKeys] = useState<string[]>(() => getApiKeysForProvider(provider));
+  const [llmDraft, setLlmDraft] = useState("");
+  const [showLlmDraft, setShowLlmDraft] = useState(false);
 
   const handleProviderChange = (next: LLMProvider) => {
     setProvider(next);
-    const existing = getApiKeyForProvider(next);
-    setDraft(existing ?? "");
-    setSavedKey(existing);
+    setApiProvider(next);
+    setLlmKeys(getApiKeysForProvider(next));
+    setLlmDraft("");
   };
 
-  const handleSave = () => {
-    const trimmed = draft.trim();
+  const handleAddLlmKey = () => {
+    const trimmed = llmDraft.trim();
     if (!trimmed) return;
-    setApiKey(trimmed, provider);
-    setSavedKey(trimmed);
-    setIsOpen(false);
+    addApiKey(trimmed, provider);
+    setLlmKeys(getApiKeysForProvider(provider));
+    setLlmDraft("");
   };
 
-  const handleClear = () => {
-    clearApiKey(provider);
-    setSavedKey(null);
-    setDraft("");
+  const handleRemoveLlmKey = (key: string) => {
+    removeApiKey(key, provider);
+    setLlmKeys(getApiKeysForProvider(provider));
   };
 
   const keyUrl = PROVIDERS.find((p) => p.value === provider)?.keyUrl ?? PROVIDERS[0].keyUrl;
+  const hasKeys = llmKeys.length > 0;
 
   return (
     <div className="relative">
       <button
         onClick={() => setIsOpen((v) => !v)}
         className={`flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-full transition-colors ${
-          savedKey
+          hasKeys
             ? "text-green-700 bg-green-50 hover:bg-green-100"
             : "text-amber-700 bg-amber-50 hover:bg-amber-100"
         }`}
       >
         <KeyRound size={16} />
-        {savedKey ? "מפתח API מוגדר" : "הגדרת מפתח API"}
+        {hasKeys
+          ? llmKeys.length > 1
+            ? t("apiKey.configuredCount", { count: llmKeys.length })
+            : t("apiKey.configured")
+          : t("apiKey.setKey")}
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 p-4 z-40 text-right">
-          <h3 className="text-sm font-bold text-gray-800 mb-1">מפתח API משלכם</h3>
-          <p className="text-xs text-gray-500 mb-3">
-            כדי שכל משתמש ישלם על השימוש שלו (ולא ישתמש במכסה של מפתח אחר), בחרו ספק והדביקו כאן
-            מפתח API משלכם — חינמי ב-
-            <a href={keyUrl} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+        <div className="absolute left-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-outline/20 p-4 z-40 text-start">
+          <h3 className="text-sm font-bold text-ink mb-1">{t("apiKey.heading")}</h3>
+          <p className="text-xs text-ink-muted mb-3">
+            {t("apiKey.descriptionBefore")}
+            <a href={keyUrl} target="_blank" rel="noreferrer" className="text-primary underline">
               {keyUrl.replace("https://", "")}
             </a>
-            . כל ספק שומר את המפתח שלו בנפרד, רק בדפדפן שלכם.
+            {t("apiKey.descriptionAfter")}
           </p>
           <select
             value={provider}
             onChange={(e) => handleProviderChange(e.target.value as LLMProvider)}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-outline/40 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
           >
             {PROVIDERS.map((p) => (
               <option key={p.value} value={p.value}>
@@ -82,42 +115,49 @@ export default function ApiKeyMenu() {
               </option>
             ))}
           </select>
-          <div className="relative mb-3">
+
+          {llmKeys.length > 0 && (
+            <div className="flex flex-col gap-1.5 mb-2">
+              {llmKeys.map((key) => (
+                <KeyRow key={key} value={key} onRemove={() => handleRemoveLlmKey(key)} />
+              ))}
+            </div>
+          )}
+
+          <div className="relative mb-2">
             <input
-              type={showKey ? "text" : "password"}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder="API Key..."
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 pl-9 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              type={showLlmDraft ? "text" : "password"}
+              value={llmDraft}
+              onChange={(e) => setLlmDraft(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleAddLlmKey()}
+              placeholder={t("apiKey.inputPlaceholder")}
+              className="w-full border border-outline/40 rounded-lg px-3 py-2 pl-9 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
             <button
               type="button"
-              onClick={() => setShowKey((v) => !v)}
-              aria-label={showKey ? "הסתרת המפתח" : "הצגת המפתח"}
-              className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              onClick={() => setShowLlmDraft((v) => !v)}
+              aria-label={showLlmDraft ? t("apiKey.hideAria") : t("apiKey.showAria")}
+              className="absolute left-2 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink"
             >
-              {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+              {showLlmDraft ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={handleSave}
-              disabled={!draft.trim()}
-              className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm px-3 py-2 rounded-lg"
-            >
-              <Check size={14} />
-              שמירה
-            </button>
-            {savedKey && (
-              <button
-                onClick={handleClear}
-                className="flex-1 flex items-center justify-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-3 py-2 rounded-lg"
-              >
-                <Trash2 size={14} />
-                הסרה
-              </button>
-            )}
-          </div>
+          <button
+            onClick={handleAddLlmKey}
+            disabled={!llmDraft.trim()}
+            className="w-full flex items-center justify-center gap-1.5 bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-sm px-3 py-2 rounded-lg"
+          >
+            <Plus size={14} />
+            {t("apiKey.addKey")}
+          </button>
+
+          <button
+            onClick={() => setIsOpen(false)}
+            className="w-full flex items-center justify-center gap-1.5 text-ink-muted hover:text-ink text-sm px-3 py-2 rounded-lg mt-3"
+          >
+            <Check size={14} />
+            {t("apiKey.close")}
+          </button>
         </div>
       )}
     </div>

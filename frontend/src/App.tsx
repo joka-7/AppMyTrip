@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Wand2 } from "lucide-react";
-import { parseTrip, agentInteract, generateMedia, enhanceTrip } from "./api";
+import { parseTrip, agentInteract, generateMedia, enhanceTrip, ApiError } from "./api";
 import type { Activity, EnhanceOptions, TripData } from "./api";
 import ApiKeyMenu from "./components/ApiKeyMenu";
 import ApiNotice from "./components/ApiNotice";
@@ -14,8 +14,11 @@ import PhonePreview from "./components/PhonePreview";
 import ProgressBar from "./components/ProgressBar";
 import SharedAppPage from "./components/SharedAppPage";
 import type { Theme } from "./components/ThemeSelector";
-import { getApiKey, getApiProvider } from "./services/apiKey";
+import { getApiKeys, getApiProvider } from "./services/apiKey";
 import { loadSharedTrip } from "./services/tripsStore";
+import { translate } from "./i18n/store";
+import { useI18n } from "./i18n/useI18n";
+import LanguageSwitcher from "./components/LanguageSwitcher";
 import "leaflet/dist/leaflet.css";
 
 // Present only on "?shared=<tripId>" links — those open straight into the
@@ -29,15 +32,58 @@ const EMPTY_TRIP: TripData = { title: "", dates: "", days: [] };
 // The backend surfaces a 429 status when the LLM provider is rate-limiting
 // the configured API key — worth telling the user apart from a generic
 // "server unreachable" failure, since it's transient and not a config issue.
-const isRateLimited = (err: unknown): boolean =>
-  err instanceof Error && err.message.includes("(429)");
+const isRateLimited = (err: unknown): boolean => err instanceof ApiError && err.status === 429;
+
+// Turns a failed API call into a specific, honest Hebrew explanation instead of a
+// generic "something went wrong" — but never shows the backend's raw `detail` text
+// verbatim, since that's a developer-facing string (sometimes an entire Pydantic
+// validation dump) that isn't fit for a chat bubble. Instead, classify by HTTP status
+// into a short, clean explanation a non-technical user can actually act on.
+const describeApiError = (err: unknown, fallback: string): string => {
+  if (isRateLimited(err)) {
+    return translate("apiError.rateLimited");
+  }
+  if (err instanceof ApiError) {
+    switch (err.status) {
+      case 401:
+        return translate("apiError.noKey");
+      case 413:
+        return translate("apiError.tooLarge");
+      case 422:
+        return translate("apiError.invalidResponse");
+      // 409: our own truncation guard rejected an otherwise-successful response
+      // (it dropped most of the itinerary) — distinct from an actual provider
+      // failure, so it gets its own, more specific message.
+      case 409:
+        return translate("apiError.truncated");
+      case 502:
+      case 504:
+        return translate("apiError.providerDown");
+      default:
+        return fallback;
+    }
+  }
+  return fallback;
+};
+
+// Fallback used to enrich activities added after Step 2 (via chat or the "+" button)
+// when the user skipped Step 2 entirely and so never chose any extras to remember.
+const ALL_ENHANCE_OPTIONS: EnhanceOptions = {
+  directions_car: true,
+  directions_transit: true,
+  prices: true,
+  podcast: true,
+  links: true,
+};
 
 // Generic sample trip used as an offline demo / fallback when the backend is
 // unreachable (e.g. no GEMINI_API_KEY). Intentionally not tied to a specific
 // real destination; coordinates are clustered so the auto-fit map looks sensible.
-const DEMO_TRIP: TripData = {
-  title: "טיול לדוגמה ✨",
-  dates: "יום א׳ – יום ג׳",
+// Built lazily so the activity titles/descriptions render in the current UI
+// language.
+const buildDemoTrip = (): TripData => ({
+  title: translate("demo.title"),
+  dates: translate("demo.dates"),
   days: [
     {
       dayNum: 1,
@@ -45,8 +91,8 @@ const DEMO_TRIP: TripData = {
         {
           id: "d1-1",
           time: "09:00",
-          title: "צ׳ק-אין במלון",
-          desc: "השארת מזוודות והתארגנות.",
+          title: translate("demo.d1a1.title"),
+          desc: translate("demo.d1a1.desc"),
           type: "lodging",
           hasPodcast: false,
           map_coordinates: { lat: 40.416, lng: -3.703 },
@@ -54,8 +100,8 @@ const DEMO_TRIP: TripData = {
         {
           id: "d1-2",
           time: "11:00",
-          title: "אתר היסטורי מרכזי",
-          desc: "סיור בלב העיר העתיקה.",
+          title: translate("demo.d1a2.title"),
+          desc: translate("demo.d1a2.desc"),
           type: "attraction",
           hasPodcast: true,
           map_coordinates: { lat: 40.419, lng: -3.707 },
@@ -63,8 +109,8 @@ const DEMO_TRIP: TripData = {
         {
           id: "d1-3",
           time: "13:30",
-          title: "מסעדה מקומית",
-          desc: "ארוחת צהריים במרכז העיר.",
+          title: translate("demo.d1a3.title"),
+          desc: translate("demo.d1a3.desc"),
           type: "food",
           hasPodcast: false,
           map_coordinates: { lat: 40.414, lng: -3.7 },
@@ -77,8 +123,8 @@ const DEMO_TRIP: TripData = {
         {
           id: "d2-1",
           time: "10:00",
-          title: "מוזיאון העיר",
-          desc: "תערוכת קבע ותערוכה מתחלפת.",
+          title: translate("demo.d2a1.title"),
+          desc: translate("demo.d2a1.desc"),
           type: "attraction",
           hasPodcast: true,
           map_coordinates: { lat: 40.412, lng: -3.692 },
@@ -86,8 +132,8 @@ const DEMO_TRIP: TripData = {
         {
           id: "d2-2",
           time: "16:00",
-          title: "שוק מקומי",
-          desc: "קניות וטעימות רחוב.",
+          title: translate("demo.d2a2.title"),
+          desc: translate("demo.d2a2.desc"),
           type: "attraction",
           hasPodcast: false,
           map_coordinates: { lat: 40.421, lng: -3.698 },
@@ -95,20 +141,17 @@ const DEMO_TRIP: TripData = {
       ],
     },
   ],
-};
-
-const DEMO_AGENT_MESSAGE =
-  "טענתי טיול לדוגמה כדי שתוכלו לראות איך האפליקציה עובדת. כדי לפרסר טקסט אמיתי, הגדירו מפתח Gemini API משלכם (כפתור 'הגדרת מפתח API' למעלה) — או המשיכו לערוך ידנית.";
+});
 
 // Falls back to the wand icon until frontend/public/logo.png is committed.
 function AppLogo() {
   const [failed, setFailed] = useState(false);
-  if (failed) return <Wand2 className="text-blue-600" />;
+  if (failed) return <Wand2 className="text-primary" />;
   return (
     <img
       src="/logo.png"
       alt="AppMyTrip"
-      className="w-8 h-8 rounded-lg"
+      className="w-12 h-12 rounded-xl"
       onError={() => setFailed(true)}
     />
   );
@@ -117,10 +160,20 @@ function AppLogo() {
 // --- Main App Builder Component ---
 
 function TripBuilder() {
+  const { t, dir, lang } = useI18n();
   const [step, setStep] = useState(1);
-  const [rawText, setRawText] = useState(
-    "היי, אנחנו טסים לרומא מחרתיים עד יום ראשון. ביום הראשון ננחת, ניסע למלון ליד המדרגות הספרדיות ואז נטייל באזור. ביום השני הקולוסיאום והפורום, ומלא קניות. ביום השלישי הוותיקן. צריכים גם למצוא איפה לאכול.",
-  );
+  const [rawText, setRawText] = useState(() => translate("step1.exampleRawText"));
+  // The example text is a placeholder, not real user input — if the user
+  // hasn't touched it yet, keep it in sync when they switch UI language
+  // instead of leaving it stuck in whatever language the app opened in.
+  const rawTextTouchedRef = useRef(false);
+  const handleChangeRawText = (text: string) => {
+    rawTextTouchedRef.current = true;
+    setRawText(text);
+  };
+  useEffect(() => {
+    if (!rawTextTouchedRef.current) setRawText(translate("step1.exampleRawText"));
+  }, [lang]);
   const [theme, setTheme] = useState<Theme>("blue");
   const [preferences, setPreferences] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -166,71 +219,25 @@ function TripBuilder() {
     window.history.pushState({ appStep: next }, "");
   };
 
-  // Local fallback used when the backend is unreachable, so the prototype
-  // remains demoable without a running API / Gemini key.
-  const mockAgentReply = (userText: string) => {
-    const wantsAdd =
-      userText.includes("כן") ||
-      userText.includes("תוסיף") ||
-      userText.includes("מסעדה") ||
-      userText.includes("אוכל") ||
-      userText.includes("חלבי");
-    if (wantsAdd) {
-      setTripData((prev) => {
-        if (prev.days.length === 0) return prev;
-        const next = {
-          ...prev,
-          days: prev.days.map((d) => ({ ...d, activities: [...d.activities] })),
-        };
-        const target = next.days[1] ?? next.days[0];
-        // place the new stop near an existing one so the auto-fit map stays sensible
-        const anchor = target.activities.find((a) => a.map_coordinates)?.map_coordinates;
-        target.activities.splice(1, 0, {
-          id: `food-${Date.now()}`,
-          time: "13:30",
-          title: "מסעדה מומלצת",
-          desc: "נוספה על ידי הסוכן לבקשתך.",
-          type: "food",
-          hasPodcast: false,
-          map_coordinates: anchor ? { lat: anchor.lat + 0.001, lng: anchor.lng + 0.001 } : null,
-        });
-        return next;
-      });
-      setAgentMessages((prev) => [
-        ...prev,
-        { role: "agent", text: 'מצוין! הוספתי מסעדה (בדקו בלו"ז ובמפה). נעבור לשלב העיצוב?' },
-      ]);
-    } else {
-      setAgentMessages((prev) => [
-        ...prev,
-        { role: "agent", text: "הבנתי. אם הכל מוכן, בואו נתקדם לשלב העיצוב!" },
-      ]);
-    }
-  };
-
   const handleProcessText = async () => {
     if (!rawText.trim()) return;
     setIsProcessing(true);
     setApiNotice(null);
     try {
-      const res = await parseTrip(rawText, preferences || null, getApiKey(), getApiProvider());
+      const res = await parseTrip(rawText, preferences || null, getApiKeys(), getApiProvider());
       setTripData(res.trip_data);
       setTripId(null);
       setAgentMessages(
         res.initial_agent_message
           ? [{ role: "agent", text: res.initial_agent_message }]
-          : [{ role: "agent", text: 'זיהיתי את הטיול! עברו על הלו"ז ותקנו מה שצריך.' }],
+          : [{ role: "agent", text: t("agent.initial") }],
       );
       goToStep(2);
     } catch (err) {
       console.error(err);
-      setApiNotice(
-        isRateLimited(err)
-          ? "ספק ה-AI מגביל קצב בקשות כרגע — נסו שוב בעוד דקה. בינתיים נטען טיול לדוגמה."
-          : "לא הצלחנו להתחבר לשרת ה-AI — נטען טיול לדוגמה.",
-      );
-      setTripData(DEMO_TRIP);
-      setAgentMessages([{ role: "agent", text: DEMO_AGENT_MESSAGE }]);
+      setApiNotice(isRateLimited(err) ? t("notice.rateLimitedDemo") : t("notice.unreachableDemo"));
+      setTripData(buildDemoTrip());
+      setAgentMessages([{ role: "agent", text: t("agent.demo") }]);
       goToStep(2);
     } finally {
       setIsProcessing(false);
@@ -244,27 +251,31 @@ function TripBuilder() {
     setEnhanceOptions(options);
     setIsEnhancing(true);
     try {
-      const res = await enhanceTrip(tripData, options, getApiKey(), getApiProvider());
+      const res = await enhanceTrip(tripData, options, getApiKeys(), getApiProvider());
       setTripData(res.trip_data);
     } catch (err) {
       console.error(err);
-      setApiNotice('הוספת הפרטים הנוספים נכשלה — ממשיכים עם הלו"ז הנוכחי.');
+      setApiNotice(t("notice.enhanceFailed"));
     } finally {
       setIsEnhancing(false);
       goToStep(3);
     }
   };
 
-  // Re-runs the remembered Step 2 enhancements on activities just added, whether by the
-  // chat agent or manually via the "+" button in the live preview.
+  // Re-runs the remembered Step 2 enhancements (or, if the user skipped Step 2 and so
+  // never chose any, every extra) on activities just added, whether by the chat agent
+  // or manually via the "+" button in the live preview — manual adds also have no real
+  // location yet, which the backend always fills in regardless of which options apply.
   const enhanceNewActivities = async (before: TripData, after: TripData): Promise<TripData> => {
-    if (!Object.values(enhanceOptions).some(Boolean)) return after;
-
     const priorIds = new Set(before.days.flatMap((d) => d.activities.map((a) => a.id)));
     const newActivities = after.days
       .flatMap((d) => d.activities)
       .filter((a) => !priorIds.has(a.id));
     if (newActivities.length === 0) return after;
+
+    const options = Object.values(enhanceOptions).some(Boolean)
+      ? enhanceOptions
+      : ALL_ENHANCE_OPTIONS;
 
     try {
       const res = await enhanceTrip(
@@ -274,8 +285,8 @@ function TripBuilder() {
           language: after.language,
           days: [{ dayNum: 1, activities: newActivities }],
         },
-        enhanceOptions,
-        getApiKey(),
+        options,
+        getApiKeys(),
         getApiProvider(),
       );
       const enhancedById = new Map(
@@ -308,19 +319,16 @@ function TripBuilder() {
         tripData,
         userText,
         preferences || null,
-        getApiKey(),
+        getApiKeys(),
         getApiProvider(),
       );
       setTripData(await enhanceNewActivities(tripData, res.trip_data));
       setAgentMessages((prev) => [...prev, { role: "agent", text: res.agent_reply }]);
     } catch (err) {
       console.error(err);
-      setApiNotice(
-        isRateLimited(err)
-          ? "ספק ה-AI מגביל קצב בקשות כרגע — נסו שוב בעוד דקה. בינתיים מגיב במצב דמו מקומי."
-          : "שרת ה-AI לא זמין — מגיב במצב דמו מקומי.",
-      );
-      mockAgentReply(userText);
+      const message = describeApiError(err, t("notice.updateFailed"));
+      setApiNotice(message);
+      setAgentMessages((prev) => [...prev, { role: "agent", text: message }]);
     } finally {
       setIsSendingMessage(false);
     }
@@ -352,6 +360,17 @@ function TripBuilder() {
     setTripData(await enhanceNewActivities(before, after));
   };
 
+  const handleDeleteActivity = (dayIndex: number, activityId: string) => {
+    setTripData((prev) => ({
+      ...prev,
+      days: prev.days.map((d, idx) =>
+        idx !== dayIndex
+          ? d
+          : { ...d, activities: d.activities.filter((a) => a.id !== activityId) },
+      ),
+    }));
+  };
+
   const handleUpdateTrip = (
     patch: Partial<Pick<TripData, "title" | "dates" | "photo_album_url">>,
   ) => {
@@ -365,7 +384,7 @@ function TripBuilder() {
       setTripData(res.trip_data);
     } catch (err) {
       console.error(err);
-      setApiNotice("יצירת המדיה בשרת נכשלה — ממשיכים ללא קבצי אודיו.");
+      setApiNotice(t("notice.mediaFailed"));
     } finally {
       setIsGeneratingMedia(false);
       goToStep(4);
@@ -373,17 +392,18 @@ function TripBuilder() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 font-sans text-right" dir="rtl">
+    <div className="min-h-screen bg-surface font-sans" dir={dir}>
       {/* Top Navbar */}
-      <nav className="bg-white shadow-sm px-4 sm:px-6 py-4 flex flex-wrap justify-between items-center gap-3 sticky top-0 z-30">
+      <nav className="bg-white shadow-card border-b border-outline/20 px-4 sm:px-6 py-4 flex flex-wrap justify-between items-center gap-3 sticky top-0 z-30">
         <div className="flex items-center gap-2">
           <AppLogo />
-          <h1 className="text-lg sm:text-xl font-bold text-gray-800">תכנון טיול באמצעות AI</h1>
+          <h1 className="text-lg sm:text-xl font-bold text-ink">{t("nav.title")}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <div className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-            שלב {step} מתוך 4
+          <div className="text-sm font-medium text-ink-muted bg-surface-container px-3 py-1 rounded-full">
+            {t("nav.step", { step })}
           </div>
+          <LanguageSwitcher />
           <InstallAppButton />
           <ApiKeyMenu />
           <CloudMenu
@@ -395,14 +415,14 @@ function TripBuilder() {
               setTripData(trip);
               setTripId(loadedTripId);
               setTheme(loadedTheme);
-              setAgentMessages([{ role: "agent", text: "הטיול נטען. אפשר להמשיך לערוך." }]);
+              setAgentMessages([{ role: "agent", text: t("agent.loaded") }]);
               goToStep(3);
             }}
             onImportTrip={(trip, importedTheme) => {
               setTripData(trip);
               setTripId(null);
               setTheme(importedTheme);
-              setAgentMessages([{ role: "agent", text: "הטיול יובא מקובץ. אפשר להמשיך לערוך." }]);
+              setAgentMessages([{ role: "agent", text: t("agent.imported") }]);
               goToStep(3);
             }}
           />
@@ -413,7 +433,7 @@ function TripBuilder() {
 
       <div className="max-w-7xl mx-auto p-6 flex flex-col lg:flex-row gap-8">
         {/* Left Side: Builder Interface */}
-        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-200 p-8 flex flex-col">
+        <div className="flex-1 bg-white rounded-2xl shadow-card border border-outline/20 p-8 flex flex-col">
           <ProgressBar step={step} />
 
           {/* Dynamic Content based on Step */}
@@ -421,7 +441,7 @@ function TripBuilder() {
             {step === 1 && (
               <BuilderStep1
                 rawText={rawText}
-                onChangeRawText={setRawText}
+                onChangeRawText={handleChangeRawText}
                 preferences={preferences}
                 onChangePreferences={setPreferences}
                 onSubmit={handleProcessText}
@@ -474,8 +494,8 @@ function TripBuilder() {
         </div>
 
         {/* Right Side: App Live Preview */}
-        <div className="flex-1 flex justify-center items-center bg-gray-200/50 rounded-2xl border border-gray-200 py-10 relative overflow-hidden">
-          <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-4 py-1.5 rounded-full text-xs font-bold text-gray-600 uppercase tracking-wider shadow-sm z-10 flex items-center gap-2 border border-gray-100">
+        <div className="flex-1 flex justify-center items-center bg-surface-container rounded-2xl border border-outline/20 py-10 relative overflow-hidden">
+          <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-4 py-1.5 rounded-full text-xs font-bold text-ink-muted uppercase tracking-wider shadow-sm z-10 flex items-center gap-2 border border-outline/20">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
             Live Preview
           </div>
@@ -490,6 +510,7 @@ function TripBuilder() {
             isSendingMessage={isSendingMessage}
             onUpdateActivity={handleUpdateActivity}
             onAddActivity={handleAddActivity}
+            onDeleteActivity={handleDeleteActivity}
             onUpdateTrip={handleUpdateTrip}
           />
         </div>
@@ -502,6 +523,7 @@ function TripBuilder() {
 // app — no builder chrome, no AI chat — so it looks like the real
 // mobile/web app trip participants would actually use.
 function SharedTripViewer({ tripId }: { tripId: string }) {
+  const { t, dir } = useI18n();
   const [trip, setTrip] = useState<TripData | null>(null);
   const [theme, setTheme] = useState<Theme>("blue");
   const [error, setError] = useState<string | null>(null);
@@ -520,19 +542,14 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
       .then((result) => {
         setTrip(result.trip);
         setTheme(result.theme);
-        setAgentMessages([
-          {
-            role: "agent",
-            text: 'שלחו הודעה כדי לשנות את הלו"ז — שינויים כאן נשארים רק בדפדפן שלכם.',
-          },
-        ]);
+        setAgentMessages([{ role: "agent", text: translate("agent.sharedIntro") }]);
       })
       .catch((err) => {
         console.error(err);
         setError(
           err instanceof Error && err.message.includes("expired")
-            ? "קישור השיתוף הזה פג תוקף."
-            : "טעינת הטיול המשותף נכשלה. ייתכן שהקישור שגוי או שהטיול הוסר.",
+            ? translate("shared.expired")
+            : translate("shared.loadFailed"),
         );
       });
   }, [tripId]);
@@ -552,16 +569,12 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
     setChatNotice(null);
 
     try {
-      const res = await agentInteract(trip, userText, null, getApiKey(), getApiProvider());
+      const res = await agentInteract(trip, userText, null, getApiKeys(), getApiProvider());
       setTrip(res.trip_data);
       setAgentMessages((prev) => [...prev, { role: "agent", text: res.agent_reply }]);
     } catch (err) {
       console.error(err);
-      setChatNotice(
-        isRateLimited(err)
-          ? "ספק ה-AI מגביל קצב בקשות כרגע — נסו שוב בעוד דקה."
-          : "צ'אט ה-AI לא זמין כרגע. נסו שוב מאוחר יותר.",
-      );
+      setChatNotice(describeApiError(err, t("notice.updateFailed")));
     } finally {
       setIsSendingMessage(false);
     }
@@ -600,6 +613,21 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
     );
   };
 
+  const handleDeleteActivity = (dayIndex: number, activityId: string) => {
+    setTrip((prev) =>
+      prev
+        ? {
+            ...prev,
+            days: prev.days.map((d, idx) =>
+              idx !== dayIndex
+                ? d
+                : { ...d, activities: d.activities.filter((a) => a.id !== activityId) },
+            ),
+          }
+        : prev,
+    );
+  };
+
   const handleUpdateTrip = (
     patch: Partial<Pick<TripData, "title" | "dates" | "photo_album_url">>,
   ) => {
@@ -609,8 +637,8 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
   if (error) {
     return (
       <div
-        className="min-h-screen flex items-center justify-center text-center text-gray-500 p-6"
-        dir="rtl"
+        className="min-h-screen flex items-center justify-center text-center text-ink-muted p-6"
+        dir={dir}
       >
         {error}
       </div>
@@ -619,8 +647,8 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
 
   if (!trip) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-gray-400" dir="rtl">
-        טוען את הטיול...
+      <div className="min-h-screen flex items-center justify-center text-ink-muted" dir={dir}>
+        {t("shared.loading")}
       </div>
     );
   }
@@ -638,6 +666,7 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
       chatNotice={chatNotice}
       onUpdateActivity={handleUpdateActivity}
       onAddActivity={handleAddActivity}
+      onDeleteActivity={handleDeleteActivity}
       onUpdateTrip={handleUpdateTrip}
       onImportTrip={(importedTrip, importedTheme) => {
         setTrip(importedTrip);

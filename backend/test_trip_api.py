@@ -224,6 +224,75 @@ def test_execute_with_retry_raises_429_after_exhausting_retries(monkeypatch):
     assert exc_info.value.status_code == 429
 
 
+def test_resolve_key_list_merges_dedups_and_falls_back_to_env():
+    # Legacy single key + list are merged, blanks/dupes dropped, order preserved.
+    assert LLMService._resolve_key_list("a", ["b", "a", "  ", "c"]) == ["b", "a", "c"]
+    # No keys at all → [None] so the provider uses the server env var.
+    assert LLMService._resolve_key_list(None, None) == [None]
+    assert LLMService._resolve_key_list(None, []) == [None]
+    # A single legacy key still works on its own.
+    assert LLMService._resolve_key_list("solo", None) == ["solo"]
+
+
+def _rate_limit_error() -> httpx.HTTPStatusError:
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    response = httpx.Response(429, request=request, headers={"retry-after": "0"})
+    return httpx.HTTPStatusError("rate limited", request=request, response=response)
+
+
+def test_execute_with_retry_rotates_to_the_next_key_on_rate_limit(monkeypatch):
+    # First key is always rate-limited; second key works. The request should
+    # succeed by rotating, without exhausting retries on the first key.
+    error = _rate_limit_error()
+
+    class KeyedProvider:
+        def __init__(self, api_key=None, provider=None):
+            self.api_key = api_key
+
+        async def complete_json(self, system_prompt, user_content):
+            if self.api_key == "good-key":
+                return {"ok": True}
+            raise error
+
+    monkeypatch.setattr(
+        LLMService,
+        "_get_provider",
+        staticmethod(lambda api_key=None, provider=None: KeyedProvider(api_key)),
+    )
+
+    result = asyncio.run(
+        LLMService._execute_with_retry("sys", "user", api_keys=["bad-key", "good-key"])
+    )
+    assert result == {"ok": True}
+
+
+def test_execute_with_retry_raises_429_only_after_every_key_is_rate_limited(monkeypatch):
+    error = _rate_limit_error()
+    tried: list[str | None] = []
+
+    class RateLimitedProvider:
+        def __init__(self, api_key=None):
+            self.api_key = api_key
+
+        async def complete_json(self, system_prompt, user_content):
+            tried.append(self.api_key)
+            raise error
+
+    monkeypatch.setattr(
+        LLMService,
+        "_get_provider",
+        staticmethod(lambda api_key=None, provider=None: RateLimitedProvider(api_key)),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            LLMService._execute_with_retry("sys", "user", api_keys=["k1", "k2"], max_retries=2)
+        )
+    assert exc_info.value.status_code == 429
+    # Every key was attempted before giving up.
+    assert "k1" in tried and "k2" in tried
+
+
 # ---------------------------------------------------------------------------
 # Endpoints (LLM mocked)
 # ---------------------------------------------------------------------------
@@ -287,8 +356,8 @@ def _multi_day_trip(num_days: int) -> TripData:
 
 def test_agent_endpoint_rejects_legitimate_bulk_delete_request(monkeypatch):
     # The user explicitly asks to delete most of their trip (not a hallucinated
-    # truncation) — today the guard can't tell the two apart and blocks this
-    # with a 502, even though the AI did exactly what was asked.
+    # truncation) — the deletion-keyword allowlist should let this through
+    # instead of the guard blocking it with a 409.
     kept_only_day1 = _multi_day_trip(1)
     monkeypatch.setattr(
         LLMService,
@@ -322,7 +391,7 @@ def test_agent_endpoint_rejects_response_that_drops_most_of_the_trip(monkeypatch
             "user_message": "add a coffee stop on day 3",
         },
     )
-    assert resp.status_code == 502
+    assert resp.status_code == 409
     assert "incomplete" in resp.json()["detail"]
 
 
@@ -339,6 +408,85 @@ def test_agent_endpoint_allows_a_legitimate_partial_change(monkeypatch):
         json={"trip_data": _sample_trip().model_dump(), "user_message": "add a restaurant"},
     )
     assert resp.status_code == 200
+
+
+def test_agent_endpoint_allows_a_large_but_legitimate_restructure(monkeypatch):
+    # A big edit that isn't phrased with any deletion keyword (e.g. "shorten
+    # this trip") should still go through as long as it doesn't collapse
+    # past the (loosened) 65%-drop threshold.
+    trimmed = _multi_day_trip(4)  # 9 -> 4 activities: a 56% drop, over the old 50% bar
+    monkeypatch.setattr(
+        LLMService,
+        "agent_interaction",
+        AsyncMock(return_value=AgentResponse(updated_trip=trimmed, agent_reply="קיצרתי")),
+    )
+    resp = client.post(
+        "/api/trip/agent",
+        json={
+            "trip_data": _multi_day_trip(9).model_dump(),
+            "user_message": "trim this itinerary down, it's too packed",
+        },
+    )
+    assert resp.status_code == 200
+
+
+def test_agent_endpoint_recognizes_deletion_keywords_in_other_languages(monkeypatch):
+    # The deletion allowlist isn't limited to Hebrew/English anymore.
+    kept_only_day1 = _multi_day_trip(1)
+    monkeypatch.setattr(
+        LLMService,
+        "agent_interaction",
+        AsyncMock(return_value=AgentResponse(updated_trip=kept_only_day1, agent_reply="Supprimé")),
+    )
+    resp = client.post(
+        "/api/trip/agent",
+        json={
+            "trip_data": _multi_day_trip(9).model_dump(),
+            "user_message": "Supprime tous les jours sauf le premier",
+        },
+    )
+    assert resp.status_code == 200
+
+
+def test_agent_endpoint_retries_once_before_rejecting_a_truncated_response(monkeypatch):
+    # A truncated response is often a one-off hiccup — the backend should
+    # silently retry the agent call once before surfacing an error.
+    collapsed = _multi_day_trip(1)
+    recovered = _multi_day_trip(9)
+    mock = AsyncMock(
+        side_effect=[
+            AgentResponse(updated_trip=collapsed, agent_reply="עדכנתי"),
+            AgentResponse(updated_trip=recovered, agent_reply="עדכנתי בהצלחה"),
+        ]
+    )
+    monkeypatch.setattr(LLMService, "agent_interaction", mock)
+    resp = client.post(
+        "/api/trip/agent",
+        json={
+            "trip_data": _multi_day_trip(9).model_dump(),
+            "user_message": "add a coffee stop on day 3",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["agent_reply"] == "עדכנתי בהצלחה"
+    assert mock.await_count == 2
+
+
+def test_agent_endpoint_rejects_after_retry_still_looks_truncated(monkeypatch):
+    # If the retry also comes back truncated, the request should still fail
+    # rather than retry indefinitely.
+    collapsed = _multi_day_trip(1)
+    mock = AsyncMock(return_value=AgentResponse(updated_trip=collapsed, agent_reply="עדכנתי"))
+    monkeypatch.setattr(LLMService, "agent_interaction", mock)
+    resp = client.post(
+        "/api/trip/agent",
+        json={
+            "trip_data": _multi_day_trip(9).model_dump(),
+            "user_message": "add a coffee stop on day 3",
+        },
+    )
+    assert resp.status_code == 409
+    assert mock.await_count == 2
 
 
 def test_cors_headers_present():
@@ -372,7 +520,7 @@ def test_generate_media_endpoint():
 def test_parse_endpoint_passes_through_supplied_preferences(monkeypatch):
     captured = {}
 
-    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None):
+    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None, api_keys=None):
         captured["preferences"] = preferences
         return _sample_trip()
 
@@ -386,7 +534,7 @@ def test_parse_endpoint_passes_through_supplied_preferences(monkeypatch):
 def test_parse_endpoint_no_preferences_supplied(monkeypatch):
     captured = {}
 
-    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None):
+    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None, api_keys=None):
         captured["preferences"] = preferences
         return _sample_trip()
 
@@ -400,7 +548,7 @@ def test_parse_endpoint_no_preferences_supplied(monkeypatch):
 def test_parse_endpoint_passes_through_caller_api_key(monkeypatch):
     captured = {}
 
-    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None):
+    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None, api_keys=None):
         captured["api_key"] = api_key
         return _sample_trip()
 
@@ -411,10 +559,27 @@ def test_parse_endpoint_passes_through_caller_api_key(monkeypatch):
     assert captured["api_key"] == "user-supplied-key"
 
 
+def test_parse_endpoint_passes_through_caller_api_keys_list(monkeypatch):
+    captured = {}
+
+    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None, api_keys=None):
+        captured["api_keys"] = api_keys
+        return _sample_trip()
+
+    monkeypatch.setattr(LLMService, "parse_trip_text", fake_parse)
+
+    resp = client.post(
+        "/api/trip/parse",
+        json={"raw_text": "Rome", "api_keys": ["key-a", "key-b", "key-c"]},
+    )
+    assert resp.status_code == 200
+    assert captured["api_keys"] == ["key-a", "key-b", "key-c"]
+
+
 def test_parse_endpoint_passes_through_caller_provider(monkeypatch):
     captured = {}
 
-    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None):
+    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None, api_keys=None):
         captured["provider"] = provider
         return _sample_trip()
 
@@ -537,6 +702,37 @@ def test_agent_interaction_tolerates_unexpected_extra_fields(monkeypatch):
         monkeypatch, {"updated_trip": new_trip, "agent_reply": "עדכנתי"}
     )
     assert result.updated_trip.days[0].activities[0].title == "Spanish Steps"
+
+
+def test_agent_interaction_coerces_an_invalid_activity_type(monkeypatch):
+    # LLMs occasionally invent a plausible-but-off-schema 'type' (e.g.
+    # "sightseeing" instead of "attraction") — that shouldn't fail the
+    # whole response when the rest of it is fine.
+    new_trip = _sample_trip().model_dump()
+    new_trip["days"][0]["activities"][0]["type"] = "sightseeing"
+    result = _agent_interaction_with(
+        monkeypatch, {"updated_trip": new_trip, "agent_reply": "עדכנתי"}
+    )
+    assert result.updated_trip.days[0].activities[0].type == "attraction"
+
+
+def test_agent_interaction_falls_back_to_a_default_reply_when_agent_reply_is_missing(monkeypatch):
+    # A well-formed updated_trip but a forgotten agent_reply field is a formatting
+    # slip, not a failed edit — the itinerary update should still go through.
+    new_trip = _sample_trip().model_dump()
+    result = _agent_interaction_with(monkeypatch, {"updated_trip": new_trip})
+    assert result.agent_reply
+    assert result.updated_trip.days[0].activities[0].id == "a1"
+
+
+def test_agent_interaction_still_rejects_invalid_updated_trip_with_missing_reply(monkeypatch):
+    # The fallback only covers a missing agent_reply — a genuinely broken
+    # updated_trip alongside it should still raise.
+    new_trip = _sample_trip().model_dump()
+    new_trip["days"][0]["activities"][0].pop("title")
+    with pytest.raises(HTTPException) as exc_info:
+        _agent_interaction_with(monkeypatch, {"updated_trip": new_trip})
+    assert exc_info.value.status_code == 422
 
 
 def test_agent_interaction_handles_reordered_and_renumbered_days(monkeypatch):
@@ -681,6 +877,44 @@ def test_enhance_trip_applies_succeeding_options_when_another_option_fails(monke
         for act in day.activities:
             assert act.url == "https://example.com"
             assert act.price is None  # the failed option left this field untouched
+
+
+def test_enhance_trip_fills_missing_coordinates_even_with_no_options_selected(monkeypatch):
+    # An activity added manually via the live preview's "+" button has no real
+    # location yet (map_coordinates is None) — enhance_trip must always look one
+    # up for it, regardless of which (if any) Step 2 options were checked.
+    trip = _sample_trip()
+    trip.days[0].activities.append(
+        Activity(
+            id="new",
+            time="15:00",
+            title="Manually Added Spot",
+            desc="",
+            type="attraction",
+        )
+    )
+    assert trip.days[0].activities[1].map_coordinates is None
+
+    def _response_with_coordinates(system_prompt, user_content, **kwargs):
+        data = trip.model_dump()
+        for day in data["days"]:
+            for act in day["activities"]:
+                act["map_coordinates"] = {"lat": 1.0, "lng": 2.0}
+                act["title"] = "SHOULD NOT BE USED"
+        return data
+
+    mock_execute = AsyncMock(side_effect=_response_with_coordinates)
+    monkeypatch.setattr(LLMService, "_execute_with_retry", mock_execute)
+
+    result = asyncio.run(LLMService.enhance_trip(trip, EnhanceOptions()))
+
+    assert mock_execute.await_count == 1
+    new_act = next(a for day in result.days for a in day.activities if a.id == "new")
+    assert new_act.map_coordinates == {"lat": 1.0, "lng": 2.0}
+    # The merge must scope strictly to map_coordinates, ignoring noise in other fields.
+    assert new_act.title == "Manually Added Spot"
+    existing_act = next(a for day in result.days for a in day.activities if a.id == "a1")
+    assert existing_act.title == "Spanish Steps"
 
 
 def test_enhance_trip_raises_when_every_selected_option_fails(monkeypatch):

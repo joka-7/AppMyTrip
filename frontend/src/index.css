@@ -22,12 +22,14 @@ body,
 body {
   margin: 0;
   font-family:
+    "Be Vietnam Pro",
+    "Noto Sans Hebrew",
     system-ui,
     -apple-system,
     "Segoe UI",
     Roboto,
     "Helvetica Neue",
     Arial,
-    "Noto Sans Hebrew",
     sans-serif;
+  background-color: #fbf9f8;
 }

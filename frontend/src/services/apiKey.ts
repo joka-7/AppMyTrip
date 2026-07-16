@@ -1,7 +1,9 @@
-// Each user supplies their own LLM provider API key (e.g. Gemini, OpenAI, Claude,
-// or Groq) instead of the app sharing the developer's key/quota across everyone
-// who uses it. Stored only in the browser's localStorage — never sent anywhere
-// but our own backend.
+// Each user supplies their own LLM provider API key(s) (e.g. Gemini, OpenAI,
+// Claude, or Groq) instead of the app sharing the developer's key/quota across
+// everyone who uses it. Several keys can be stored per provider: they're sent to
+// the backend as a list and rotated through when one hits its rate limit, which
+// lets a few free-tier keys together outlast any single key's quota. Stored only
+// in the browser's localStorage — never sent anywhere but our own backend.
 
 export type LLMProvider = "gemini" | "openai" | "anthropic" | "groq";
 
@@ -19,23 +21,44 @@ const PROVIDER_STORAGE_KEY = "tripweaver_api_provider";
 // Pre-per-provider storage format; migrated into KEYS_STORAGE_KEY below.
 const LEGACY_KEY_STORAGE_KEY = "tripweaver_api_key";
 
-type KeyMap = Partial<Record<LLMProvider, string>>;
+type KeyMap = Partial<Record<LLMProvider, string[]>>;
+
+// Normalizes any historical shape into the current `{ provider: string[] }`:
+// the oldest format stored one bare string under LEGACY_KEY_STORAGE_KEY, and the
+// next stored `{ provider: string }` (a single key, not yet a list).
+function normalizeKeyMap(raw: unknown): KeyMap {
+  if (!raw || typeof raw !== "object") return {};
+  const map: KeyMap = {};
+  for (const [provider, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!PROVIDERS.some((p) => p.value === provider)) continue;
+    const keys = (Array.isArray(value) ? value : [value])
+      .filter((k): k is string => typeof k === "string")
+      .map((k) => k.trim())
+      .filter(Boolean);
+    if (keys.length > 0) map[provider as LLMProvider] = keys;
+  }
+  return map;
+}
 
 function loadKeyMap(): KeyMap {
   const legacyKey = localStorage.getItem(LEGACY_KEY_STORAGE_KEY);
   if (legacyKey) {
     const legacyProvider = localStorage.getItem(PROVIDER_STORAGE_KEY) as LLMProvider | null;
-    const map: KeyMap = { [legacyProvider ?? "gemini"]: legacyKey };
+    const map: KeyMap = { [legacyProvider ?? "gemini"]: [legacyKey] };
     localStorage.setItem(KEYS_STORAGE_KEY, JSON.stringify(map));
     localStorage.removeItem(LEGACY_KEY_STORAGE_KEY);
     return map;
   }
   try {
     const raw = localStorage.getItem(KEYS_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as KeyMap) : {};
+    return raw ? normalizeKeyMap(JSON.parse(raw)) : {};
   } catch {
     return {};
   }
+}
+
+function saveKeyMap(map: KeyMap): void {
+  localStorage.setItem(KEYS_STORAGE_KEY, JSON.stringify(map));
 }
 
 export function getApiProvider(): LLMProvider {
@@ -43,23 +66,42 @@ export function getApiProvider(): LLMProvider {
   return PROVIDERS.some((p) => p.value === stored) ? (stored as LLMProvider) : "gemini";
 }
 
-export function getApiKeyForProvider(provider: LLMProvider): string | null {
-  return loadKeyMap()[provider] ?? null;
-}
-
-export function getApiKey(): string | null {
-  return getApiKeyForProvider(getApiProvider());
-}
-
-export function setApiKey(key: string, provider: LLMProvider): void {
-  const map = loadKeyMap();
-  map[provider] = key;
-  localStorage.setItem(KEYS_STORAGE_KEY, JSON.stringify(map));
+export function setApiProvider(provider: LLMProvider): void {
   localStorage.setItem(PROVIDER_STORAGE_KEY, provider);
 }
 
-export function clearApiKey(provider: LLMProvider): void {
+export function getApiKeysForProvider(provider: LLMProvider): string[] {
+  return loadKeyMap()[provider] ?? [];
+}
+
+/** All keys for the currently-selected provider, sent to the backend to rotate through. */
+export function getApiKeys(): string[] {
+  return getApiKeysForProvider(getApiProvider());
+}
+
+/** Appends a key to a provider's list (ignoring blanks/exact duplicates) and
+ * makes that provider the active one. */
+export function addApiKey(key: string, provider: LLMProvider): void {
+  const trimmed = key.trim();
+  if (!trimmed) return;
   const map = loadKeyMap();
-  delete map[provider];
-  localStorage.setItem(KEYS_STORAGE_KEY, JSON.stringify(map));
+  const existing = map[provider] ?? [];
+  if (!existing.includes(trimmed)) {
+    map[provider] = [...existing, trimmed];
+    saveKeyMap(map);
+  }
+  setApiProvider(provider);
+}
+
+/** Removes a single key from a provider's list. */
+export function removeApiKey(key: string, provider: LLMProvider): void {
+  const map = loadKeyMap();
+  const existing = map[provider] ?? [];
+  const next = existing.filter((k) => k !== key);
+  if (next.length > 0) {
+    map[provider] = next;
+  } else {
+    delete map[provider];
+  }
+  saveKeyMap(map);
 }

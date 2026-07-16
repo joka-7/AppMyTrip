@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useI18n } from "../i18n/useI18n";
 
 export default function BuilderStep1({
   rawText,
@@ -20,49 +21,48 @@ export default function BuilderStep1({
   hasExistingTrip: boolean;
   onContinueWithoutReprocessing: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="animate-fade-in">
-      <h2 className="text-2xl font-bold mb-4">בוא נתחיל לבנות. ספרו לי על הטיול</h2>
-      <p className="text-gray-600 mb-6">
-        הדביקו הודעות ווצאפ, סיכומים או סתם שרבטו את הרעיונות שלכם.
-      </p>
+      <h2 className="text-2xl font-bold mb-4">{t("step1.heading")}</h2>
+      <p className="text-ink-muted mb-6">{t("step1.subtitle")}</p>
       <textarea
         value={rawText}
         onChange={(e) => onChangeRawText(e.target.value)}
-        className="w-full h-48 p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none mb-4 shadow-sm"
-        placeholder="למשל: ביום ראשון טסים ללונדון..."
+        className="w-full h-48 p-4 border border-outline/40 rounded-xl focus:ring-2 focus:ring-primary/50 outline-none resize-none mb-4 shadow-sm"
+        placeholder={t("step1.textareaPlaceholder")}
       />
-      <label className="block text-sm font-medium text-gray-600 mb-2">
-        העדפות (אופציונלי) — למשל חלבי, טבעוני, נגישות
+      <label className="block text-sm font-medium text-ink-muted mb-2">
+        {t("step1.preferencesLabel")}
       </label>
       <input
         type="text"
         value={preferences}
         onChange={(e) => onChangePreferences(e.target.value)}
-        className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none mb-6 shadow-sm"
-        placeholder="למשל: רוצים אוכל חלבי"
+        className="w-full p-3 border border-outline/40 rounded-xl focus:ring-2 focus:ring-primary/50 outline-none mb-6 shadow-sm"
+        placeholder={t("step1.preferencesPlaceholder")}
       />
       <div className="flex gap-3">
         {hasExistingTrip && (
           <button
             onClick={onContinueWithoutReprocessing}
             disabled={isProcessing}
-            className="bg-gray-100 hover:bg-gray-200 disabled:opacity-60 text-gray-700 px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-colors"
+            className="bg-surface-container hover:bg-surface-container-high disabled:opacity-60 text-ink-muted px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-colors"
           >
             <ChevronLeft size={20} />
-            המשך לעריכה (ללא ניתוח מחדש)
+            {t("step1.continueWithoutReprocessing")}
           </button>
         )}
         <button
           onClick={onSubmit}
           disabled={isProcessing}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-medium flex items-center gap-2 flex-1 justify-center transition-colors shadow-md"
+          className="bg-primary hover:bg-primary-dark text-white px-8 py-3 rounded-xl font-medium flex items-center gap-2 flex-1 justify-center transition-colors shadow-md"
         >
           {isProcessing
-            ? "ה-AI מנתח את הטקסט..."
+            ? t("step1.processing")
             : hasExistingTrip
-              ? "נתח מחדש (יחליף את הטיול הקיים)"
-              : "צור מבנה אפליקציה ראשוני"}
+              ? t("step1.reprocess")
+              : t("step1.submit")}
           {!isProcessing && <ChevronRight size={20} />}
         </button>
       </div>

@@ -2,88 +2,95 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import ApiKeyMenu from "./ApiKeyMenu";
 
+function openMenu() {
+  fireEvent.click(screen.getByRole("button", { name: /הגדרת מפתח API|מפתח API מוגדר/ }));
+}
+
 describe("ApiKeyMenu", () => {
   beforeEach(() => {
     localStorage.clear();
   });
 
-  it("shows an unconfigured state and saves a key + provider the user picks", () => {
+  it("shows an unconfigured state and adds a key for the provider the user picks", () => {
     render(<ApiKeyMenu />);
-
     expect(screen.getByRole("button", { name: /הגדרת מפתח API/ })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /הגדרת מפתח API/ }));
+    openMenu();
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "anthropic" } });
     fireEvent.change(screen.getByPlaceholderText("API Key..."), {
       target: { value: "my-test-key" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "שמירה" }));
+    fireEvent.click(screen.getByRole("button", { name: "הוספת מפתח" }));
 
     expect(screen.getByRole("button", { name: /מפתח API מוגדר/ })).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem("tripweaver_api_keys") ?? "{}")).toEqual({
-      anthropic: "my-test-key",
+      anthropic: ["my-test-key"],
     });
     expect(localStorage.getItem("tripweaver_api_provider")).toBe("anthropic");
   });
 
   it("defaults to the Gemini provider when none was previously chosen", () => {
     render(<ApiKeyMenu />);
-
-    fireEvent.click(screen.getByRole("button", { name: /הגדרת מפתח API/ }));
+    openMenu();
     fireEvent.change(screen.getByPlaceholderText("API Key..."), {
       target: { value: "my-gemini-key" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "שמירה" }));
+    fireEvent.click(screen.getByRole("button", { name: "הוספת מפתח" }));
 
     expect(localStorage.getItem("tripweaver_api_provider")).toBe("gemini");
   });
 
-  it("keeps each provider's key separate when switching providers", () => {
+  it("stores several keys for one provider and shows the count on the button", () => {
     render(<ApiKeyMenu />);
+    openMenu();
+    const input = screen.getByPlaceholderText("API Key...");
+    fireEvent.change(input, { target: { value: "key-1" } });
+    fireEvent.click(screen.getByRole("button", { name: "הוספת מפתח" }));
+    fireEvent.change(input, { target: { value: "key-2" } });
+    fireEvent.click(screen.getByRole("button", { name: "הוספת מפתח" }));
 
-    fireEvent.click(screen.getByRole("button", { name: /הגדרת מפתח API/ }));
+    expect(JSON.parse(localStorage.getItem("tripweaver_api_keys") ?? "{}")).toEqual({
+      gemini: ["key-1", "key-2"],
+    });
+    expect(screen.getByRole("button", { name: /מפתח API מוגדר \(2\)/ })).toBeInTheDocument();
+  });
+
+  it("keeps each provider's keys separate when switching providers", () => {
+    render(<ApiKeyMenu />);
+    openMenu();
     fireEvent.change(screen.getByPlaceholderText("API Key..."), {
       target: { value: "gemini-key" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "שמירה" }));
+    fireEvent.click(screen.getByRole("button", { name: "הוספת מפתח" }));
 
-    fireEvent.click(screen.getByRole("button", { name: /מפתח API מוגדר/ }));
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "groq" } });
-    // Switching provider shouldn't show the gemini key as if it belonged to groq.
-    expect(screen.getByPlaceholderText("API Key...")).toHaveValue("");
-    fireEvent.change(screen.getByPlaceholderText("API Key..."), {
-      target: { value: "groq-key" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "שמירה" }));
+    fireEvent.change(screen.getByPlaceholderText("API Key..."), { target: { value: "groq-key" } });
+    fireEvent.click(screen.getByRole("button", { name: "הוספת מפתח" }));
 
     expect(JSON.parse(localStorage.getItem("tripweaver_api_keys") ?? "{}")).toEqual({
-      gemini: "gemini-key",
-      groq: "groq-key",
+      gemini: ["gemini-key"],
+      groq: ["groq-key"],
     });
   });
 
-  it("clears a previously saved key", () => {
-    localStorage.setItem("tripweaver_api_keys", JSON.stringify({ groq: "existing-key" }));
-    localStorage.setItem("tripweaver_api_provider", "groq");
+  it("removes a saved key", () => {
+    localStorage.setItem("tripweaver_api_keys", JSON.stringify({ gemini: ["key-to-remove"] }));
     render(<ApiKeyMenu />);
+    openMenu();
 
-    fireEvent.click(screen.getByRole("button", { name: /מפתח API מוגדר/ }));
-    fireEvent.click(screen.getByRole("button", { name: /הסרה/ }));
-
+    fireEvent.click(screen.getByRole("button", { name: /הסרת מפתח/ }));
     expect(screen.getByRole("button", { name: /הגדרת מפתח API/ })).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem("tripweaver_api_keys") ?? "{}")).toEqual({});
   });
 
-  it("toggles key visibility", () => {
+  it("toggles LLM key visibility", () => {
     render(<ApiKeyMenu />);
-    fireEvent.click(screen.getByRole("button", { name: /הגדרת מפתח API/ }));
-
+    openMenu();
     const input = screen.getByPlaceholderText("API Key...");
     expect(input).toHaveAttribute("type", "password");
 
     fireEvent.click(screen.getByRole("button", { name: /הצגת המפתח/ }));
     expect(input).toHaveAttribute("type", "text");
-
     fireEvent.click(screen.getByRole("button", { name: /הסתרת המפתח/ }));
     expect(input).toHaveAttribute("type", "password");
   });

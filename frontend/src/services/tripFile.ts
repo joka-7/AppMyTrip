@@ -1,5 +1,7 @@
 import type { TripData } from "../api";
 import type { Theme } from "../components/ThemeSelector";
+import { t } from "../i18n/store";
+import { ensureActivityIds } from "./normalizeTrip";
 
 interface TripFilePayload {
   tripData: TripData;
@@ -41,16 +43,16 @@ function isValidTripData(value: unknown): value is TripData {
 export function importTripFromFile(file: File): Promise<{ tripData: TripData; theme: Theme }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = () => reject(new Error("קריאת הקובץ נכשלה."));
+    reader.onerror = () => reject(new Error(t("tripFile.readFailed")));
     reader.onload = () => {
       try {
         const parsed = JSON.parse(String(reader.result)) as Partial<TripFilePayload>;
         if (!isValidTripData(parsed.tripData)) {
           throw new Error("invalid shape");
         }
-        resolve({ tripData: parsed.tripData, theme: parsed.theme ?? "blue" });
+        resolve({ tripData: ensureActivityIds(parsed.tripData), theme: parsed.theme ?? "blue" });
       } catch {
-        reject(new Error("הקובץ אינו טיול תקין."));
+        reject(new Error(t("tripFile.invalid")));
       }
     };
     reader.readAsText(file);

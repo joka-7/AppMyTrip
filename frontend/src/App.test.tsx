@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import App from "./App";
 import * as api from "./api";
 import type { TripData } from "./api";
+import { setLang } from "./i18n/store";
 
 vi.mock("./api");
 vi.mock("./services/tripsStore", () => ({
@@ -115,7 +116,7 @@ describe("App builder flow", () => {
           podcast: true,
           links: true,
         },
-        null,
+        [],
         "gemini",
       );
     });
@@ -178,7 +179,7 @@ describe("App builder flow", () => {
     expect(api.enhanceTrip).toHaveBeenCalledTimes(1);
     const [tripArg] = vi.mocked(api.enhanceTrip).mock.calls[0];
     expect(tripArg.days[0].activities.map((a) => a.id)).toEqual(["a2"]);
-    expect(screen.getByText("20")).toBeInTheDocument();
+    expect(screen.getByText("₪20")).toBeInTheDocument();
   });
 
   it("re-applies the chosen Step 2 enhancements to an activity added manually via the '+' button", async () => {
@@ -211,7 +212,7 @@ describe("App builder flow", () => {
       },
     }));
 
-    fireEvent.click(screen.getByRole("button", { name: "הוספת פעילות" }));
+    fireEvent.click(screen.getByRole("button", { name: "הוספת פעילות ליום זה" }));
     fireEvent.change(screen.getByPlaceholderText("שם הפעילות"), {
       target: { value: "Manually Added Spot" },
     });
@@ -225,7 +226,64 @@ describe("App builder flow", () => {
     const [tripArg] = vi.mocked(api.enhanceTrip).mock.calls[0];
     expect(tripArg.days[0].activities.map((a) => a.title)).toEqual(["Manually Added Spot"]);
     await waitFor(() => {
-      expect(screen.getByText("15")).toBeInTheDocument();
+      expect(screen.getByText("₪15")).toBeInTheDocument();
+    });
+  });
+
+  it("still enriches a manually added activity with every extra after Step 2 was skipped", async () => {
+    vi.mocked(api.parseTrip).mockResolvedValue({
+      trip_data: sampleTrip,
+      initial_agent_message: "Welcome!",
+    });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /צור מבנה אפליקציה ראשוני/ }));
+    await waitFor(() => {
+      expect(screen.getByText("שיפורים נוספים (אופציונלי)")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /דלג, המשך לסוכן/ }));
+    await waitFor(() => {
+      expect(screen.getByText("סוכן השלמות AI")).toBeInTheDocument();
+    });
+
+    vi.mocked(api.enhanceTrip).mockImplementation(async (trip) => ({
+      trip_data: {
+        ...trip,
+        days: trip.days.map((d) => ({
+          ...d,
+          activities: d.activities.map((a) => ({
+            ...a,
+            price: 15,
+            url: "https://example.com",
+            map_coordinates: { lat: 1, lng: 2 },
+          })),
+        })),
+      },
+    }));
+
+    fireEvent.click(screen.getByRole("button", { name: "הוספת פעילות ליום זה" }));
+    fireEvent.change(screen.getByPlaceholderText("שם הפעילות"), {
+      target: { value: "Manually Added Spot" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "הוספה" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Manually Added Spot")).toBeInTheDocument();
+    });
+
+    expect(api.enhanceTrip).toHaveBeenCalledTimes(1);
+    const [, optionsArg] = vi.mocked(api.enhanceTrip).mock.calls[0];
+    expect(optionsArg).toEqual({
+      directions_car: true,
+      directions_transit: true,
+      prices: true,
+      podcast: true,
+      links: true,
+    });
+    await waitFor(() => {
+      expect(screen.getByText("₪15")).toBeInTheDocument();
     });
   });
 
@@ -280,6 +338,44 @@ describe("App builder flow", () => {
     window.history.back();
     await waitFor(() => {
       expect(screen.getByText("שיפורים נוספים (אופציונלי)")).toBeInTheDocument();
+    });
+  });
+
+  describe("language switch", () => {
+    beforeEach(() => {
+      setLang("he");
+    });
+
+    afterEach(() => {
+      setLang("he");
+    });
+
+    it("updates the untouched Step 1 example text live, but never overwrites what the user typed", async () => {
+      render(<App />);
+
+      const hebrewExample = /היי, אנחנו טסים לרומא/;
+      const englishExample = /Hi, we're flying to Rome/;
+      expect(screen.getByDisplayValue(hebrewExample)).toBeInTheDocument();
+
+      // Untouched: switching language updates the example text in place.
+      await act(async () => {
+        fireEvent.change(screen.getByRole("combobox", { name: /שפת הממשק/ }), {
+          target: { value: "en" },
+        });
+      });
+      expect(screen.getByDisplayValue(englishExample)).toBeInTheDocument();
+
+      // Touched: once the user edits the field, further language switches
+      // must leave their text alone.
+      fireEvent.change(screen.getByDisplayValue(englishExample), {
+        target: { value: "My own trip notes" },
+      });
+      await act(async () => {
+        fireEvent.change(screen.getByRole("combobox", { name: /Interface language/ }), {
+          target: { value: "fr" },
+        });
+      });
+      expect(screen.getByDisplayValue("My own trip notes")).toBeInTheDocument();
     });
   });
 });

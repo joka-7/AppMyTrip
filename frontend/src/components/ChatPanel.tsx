@@ -1,4 +1,5 @@
 import type { RefObject } from "react";
+import { useI18n } from "../i18n/useI18n";
 import LanguageIndicator from "./LanguageIndicator";
 
 export interface AgentMessage {
@@ -30,12 +31,13 @@ export default function ChatPanel({
   notice?: string | null;
   language?: string | null;
 }) {
+  const { t } = useI18n();
   return (
     <div className="flex flex-col h-full">
       <div className="flex justify-end mb-2">
         <LanguageIndicator language={language} />
       </div>
-      <div className="bg-gray-50 rounded-xl p-4 flex-1 min-h-[250px] overflow-y-auto mb-4 border border-gray-200 flex flex-col gap-4 shadow-inner">
+      <div className="bg-surface-container-low rounded-xl p-4 flex-1 min-h-[250px] overflow-y-auto mb-4 border border-outline/20 flex flex-col gap-4 shadow-inner">
         {agentMessages.map((msg, i) => (
           <div
             key={i}
@@ -44,8 +46,8 @@ export default function ChatPanel({
             <div
               className={`max-w-[80%] p-3 text-sm ${
                 msg.role === "user"
-                  ? "bg-blue-600 text-white rounded-2xl rounded-tr-sm shadow-md"
-                  : "bg-white border border-gray-200 text-gray-800 rounded-2xl rounded-tl-sm shadow-sm"
+                  ? "bg-primary text-white rounded-2xl rounded-tr-sm shadow-md"
+                  : "bg-white border border-outline/20 text-ink rounded-2xl rounded-tl-sm shadow-sm"
               }`}
             >
               {msg.text}
@@ -54,10 +56,10 @@ export default function ChatPanel({
         ))}
         {isSending && (
           <div className="flex justify-start animate-fade-in">
-            <div className="max-w-[80%] p-3 bg-white border border-gray-200 text-gray-800 rounded-2xl rounded-tl-sm shadow-sm flex items-center gap-1">
-              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
-              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
-              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" />
+            <div className="max-w-[80%] p-3 bg-white border border-outline/20 text-ink rounded-2xl rounded-tl-sm shadow-sm flex items-center gap-1">
+              <span className="w-1.5 h-1.5 bg-ink-muted/50 rounded-full animate-bounce [animation-delay:-0.3s]" />
+              <span className="w-1.5 h-1.5 bg-ink-muted/50 rounded-full animate-bounce [animation-delay:-0.15s]" />
+              <span className="w-1.5 h-1.5 bg-ink-muted/50 rounded-full animate-bounce" />
             </div>
           </div>
         )}
@@ -71,16 +73,16 @@ export default function ChatPanel({
           type="text"
           value={chatInput}
           onChange={(e) => onChangeChatInput(e.target.value)}
-          placeholder="ענה לסוכן (למשל: 'כן, תוסיף')"
+          placeholder={t("chat.inputPlaceholder")}
           disabled={isSending}
-          className="flex-1 border border-gray-300 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500 shadow-sm disabled:opacity-60"
+          className="flex-1 border border-outline/40 rounded-xl p-3 outline-none focus:ring-2 focus:ring-primary/50 shadow-sm disabled:opacity-60"
         />
         <button
           type="submit"
           disabled={isSending}
-          className="bg-gray-800 hover:bg-gray-900 disabled:opacity-60 text-white px-6 rounded-xl font-medium transition-colors shadow-sm"
+          className="bg-secondary hover:bg-secondary-dark disabled:opacity-60 text-white px-6 rounded-xl font-medium transition-colors shadow-sm"
         >
-          שלח
+          {t("chat.send")}
         </button>
       </form>
     </div>

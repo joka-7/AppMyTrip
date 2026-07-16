@@ -75,4 +75,35 @@ describe("CloudMenu", () => {
     });
     expect(trips.loadTrip).toHaveBeenCalledWith("uid-123", "trip-1");
   });
+
+  it("loads the trip list for an already-signed-in session without requiring a manual sign-in click", async () => {
+    vi.mocked(trips.listTrips).mockResolvedValue([
+      { id: "trip-1", name: "My Trip", modifiedTime: "2024-01-01" },
+    ]);
+    vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
+      callback({ uid: "uid-123", email: "user@example.com", displayName: "User" } as never);
+      return () => {};
+    });
+
+    render(
+      <CloudMenu
+        tripData={sampleTrip}
+        theme="blue"
+        tripId={null}
+        onTripIdChange={vi.fn()}
+        onLoadTrip={vi.fn()}
+        onImportTrip={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("user@example.com")).toBeInTheDocument();
+    });
+    expect(trips.listTrips).toHaveBeenCalledWith("uid-123");
+
+    fireEvent.click(screen.getByText("user@example.com"));
+    await waitFor(() => {
+      expect(screen.getByText("My Trip")).toBeInTheDocument();
+    });
+  });
 });

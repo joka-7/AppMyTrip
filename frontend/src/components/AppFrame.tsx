@@ -14,8 +14,9 @@ import {
   X,
 } from "lucide-react";
 import type { Activity, TripData } from "../api";
+import { useI18n, type Lang } from "../i18n/useI18n";
 import { usePodcastPlayer } from "../hooks/usePodcastPlayer";
-import { tripStartWeekdayIndex, weekdayTabLabel } from "../services/hebrewDate";
+import { hebrewWeekdayLetter, tripStartWeekdayIndex } from "../services/hebrewDate";
 import type { AgentMessage } from "./ChatPanel";
 import ChatPanel from "./ChatPanel";
 import ItineraryList from "./ItineraryList";
@@ -25,14 +26,23 @@ import PriceSummary from "./PriceSummary";
 import type { Theme } from "./ThemeSelector";
 
 const THEME_CLASSES: Record<Theme, string> = {
-  blue: "bg-blue-600",
-  green: "bg-emerald-600",
-  dark: "bg-slate-800",
+  blue: "bg-primary",
+  green: "bg-emerald-700",
+  dark: "bg-[#12344d]",
 };
 
 // Above this many days, the tab strip can overflow its visible width, so we
 // add explicit scroll buttons rather than relying on a hidden scrollbar.
 const SCROLL_ARROW_THRESHOLD = 4;
+
+// Short weekday shown next to each day tab. Hebrew keeps its single-letter
+// geresh form (א'); English/French use the locale's short weekday name derived
+// from a known Sunday (2024-01-07) plus the day offset.
+function weekdayLabel(index: number, lang: Lang): string {
+  if (lang === "he") return `${hebrewWeekdayLetter(index)}'`;
+  const date = new Date(2024, 0, 7 + (((index % 7) + 7) % 7));
+  return new Intl.DateTimeFormat(lang, { weekday: "short" }).format(date);
+}
 
 /**
  * The actual generated-app UI: header, day tabs, itinerary/map/chat content,
@@ -52,6 +62,7 @@ export default function AppFrame({
   chatNotice,
   onUpdateActivity,
   onAddActivity,
+  onDeleteActivity,
   onUpdateTrip,
   isLocalOnly,
   localOnlyNoticeText,
@@ -67,10 +78,12 @@ export default function AppFrame({
   chatNotice?: string | null;
   onUpdateActivity: (dayIndex: number, activityId: string, patch: Partial<Activity>) => void;
   onAddActivity?: (dayIndex: number, activity: Activity) => void;
+  onDeleteActivity?: (dayIndex: number, activityId: string) => void;
   onUpdateTrip: (patch: Partial<Pick<TripData, "title" | "dates" | "photo_album_url">>) => void;
   isLocalOnly?: boolean;
   localOnlyNoticeText?: string;
 }) {
+  const { t, lang } = useI18n();
   const [activeDay, setActiveDay] = useState(0);
   const [activeTab, setActiveTab] = useState<"itinerary" | "map" | "price" | "chat">("itinerary");
   const [focusActivityId, setFocusActivityId] = useState<string | null>(null);
@@ -118,13 +131,18 @@ export default function AppFrame({
 
   const handleAddActivity = (activity: Activity) => onAddActivity?.(safeDayIdx, activity);
 
+  const handleDeleteActivity = (activityId: string) => {
+    onDeleteActivity?.(safeDayIdx, activityId);
+    setFocusActivityId((prev) => (prev === activityId ? null : prev));
+  };
+
   const handleShowOnMap = (activityId: string) => {
     setFocusActivityId(activityId);
     setActiveTab("map");
   };
 
   return (
-    <div className="w-full h-full flex flex-col bg-gray-50">
+    <div className="w-full h-full flex flex-col bg-surface">
       {/* App Header */}
       <div
         className={`${themeClass} shrink-0 text-white pt-10 pb-4 px-6 shadow-md transition-colors duration-300`}
@@ -135,37 +153,37 @@ export default function AppFrame({
               value={titleDraft}
               onChange={(e) => setTitleDraft(e.target.value)}
               className="text-xl font-bold bg-white/10 placeholder-white/60 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-white/40"
-              placeholder="שם הטיול"
+              placeholder={t("appFrame.titlePlaceholder")}
             />
             <input
               value={datesDraft}
               onChange={(e) => setDatesDraft(e.target.value)}
               className="text-sm bg-white/10 placeholder-white/60 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-white/40"
-              placeholder="טווח תאריכים"
+              placeholder={t("appFrame.datesPlaceholder")}
             />
             <input
               type="url"
               value={albumUrlDraft}
               onChange={(e) => setAlbumUrlDraft(e.target.value)}
               className="text-sm bg-white/10 placeholder-white/60 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-white/40"
-              placeholder="קישור לאלבום תמונות (אופציונלי)"
+              placeholder={t("appFrame.albumPlaceholder")}
             />
             <div className="flex gap-2 mt-1">
               <button
                 onClick={saveHeaderEdit}
-                aria-label="שמירת שם וטווח תאריכים"
+                aria-label={t("appFrame.saveHeaderAria")}
                 className="flex items-center gap-1 text-xs bg-white/20 hover:bg-white/30 rounded-lg px-2 py-1"
               >
                 <Check size={12} />
-                שמירה
+                {t("common.save")}
               </button>
               <button
                 onClick={() => setIsEditingHeader(false)}
-                aria-label="ביטול עריכה"
+                aria-label={t("appFrame.cancelEditAria")}
                 className="flex items-center gap-1 text-xs bg-white/10 hover:bg-white/20 rounded-lg px-2 py-1"
               >
                 <X size={12} />
-                ביטול
+                {t("common.cancel")}
               </button>
             </div>
           </div>
@@ -173,27 +191,27 @@ export default function AppFrame({
           <div className="flex items-start justify-between gap-2">
             <div>
               <div className="flex items-center gap-1.5">
-                <h2 className="text-xl font-bold">{tripData.title || "האפליקציה שלך"}</h2>
+                <h2 className="text-xl font-bold">
+                  {tripData.title || t("appFrame.titleFallback")}
+                </h2>
                 {tripData.photo_album_url && (
                   <a
                     href={tripData.photo_album_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    aria-label="אלבום תמונות הטיול"
+                    aria-label={t("appFrame.albumAria")}
                     className="text-white/70 hover:text-white"
                   >
                     <ImageIcon size={16} />
                   </a>
                 )}
               </div>
-              <p className="text-sm opacity-80">
-                {tripData.dates || "התצוגה המקדימה תתעדכן לפי הטקסט"}
-              </p>
+              <p className="text-sm opacity-80">{tripData.dates || t("appFrame.datesFallback")}</p>
             </div>
             {hasTrip && (
               <button
                 onClick={startEditingHeader}
-                aria-label="עריכת שם וטווח תאריכים"
+                aria-label={t("appFrame.editHeaderAria")}
                 className="text-white/70 hover:text-white p-1"
               >
                 <Pencil size={14} />
@@ -205,23 +223,23 @@ export default function AppFrame({
 
       {isLocalOnly && hasTrip && (
         <p className="shrink-0 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs text-center py-1.5 px-3">
-          {localOnlyNoticeText ?? "שינויים שתבצעו כאן יישמרו רק בדפדפן הזה ולא יישלחו לשרת."}
+          {localOnlyNoticeText ?? t("appFrame.localOnlyNotice")}
         </p>
       )}
 
       {/* Days Tabs */}
       {hasTrip && (
-        <div className="shrink-0 flex items-center bg-white border-b">
+        <div className="shrink-0 flex items-center gap-2 bg-white border-b border-outline/40 px-3 py-2.5">
           {days.length > SCROLL_ARROW_THRESHOLD && (
             <button
               onClick={() => scrollTabs(-1)}
-              aria-label="גלילה לימים קודמים"
-              className="flex-shrink-0 px-2 py-3 text-gray-400 hover:text-blue-600"
+              aria-label={t("appFrame.scrollPrevAria")}
+              className="flex-shrink-0 p-1 text-ink-muted hover:text-primary"
             >
               <ChevronRight size={18} />
             </button>
           )}
-          <div ref={tabsRef} className="flex overflow-x-auto hide-scrollbar">
+          <div ref={tabsRef} className="flex gap-2 overflow-x-auto hide-scrollbar">
             {days.map((d, idx) => (
               <button
                 key={idx}
@@ -229,16 +247,17 @@ export default function AppFrame({
                   setActiveDay(idx);
                   setFocusActivityId(null);
                 }}
-                className={`px-6 py-3 font-medium whitespace-nowrap border-b-2 transition-colors ${
+                className={`px-4 py-1.5 rounded-full font-semibold text-sm whitespace-nowrap transition-colors ${
                   safeDayIdx === idx
-                    ? `border-blue-600 text-blue-600`
-                    : "border-transparent text-gray-500"
+                    ? "bg-primary-dark text-white"
+                    : "bg-surface-container text-ink-muted hover:bg-surface-container-high"
                 }`}
               >
-                יום {d.dayNum}
+                {t("appFrame.day", { num: d.dayNum })}
                 {tripStartWeekday !== null && (
-                  <span className="text-[10px] text-gray-400">
-                    ({weekdayTabLabel(tripStartWeekday + d.dayNum - 1, tripData.language)})
+                  <span className="text-[10px] opacity-70">
+                    {" "}
+                    ({weekdayLabel(tripStartWeekday + d.dayNum - 1, lang)})
                   </span>
                 )}
               </button>
@@ -247,8 +266,8 @@ export default function AppFrame({
           {days.length > SCROLL_ARROW_THRESHOLD && (
             <button
               onClick={() => scrollTabs(1)}
-              aria-label="גלילה לימים נוספים"
-              className="flex-shrink-0 px-2 py-3 text-gray-400 hover:text-blue-600"
+              aria-label={t("appFrame.scrollNextAria")}
+              className="flex-shrink-0 p-1 text-ink-muted hover:text-primary"
             >
               <ChevronLeft size={18} />
             </button>
@@ -257,13 +276,11 @@ export default function AppFrame({
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto p-4 bg-gray-50 pb-24">
+      <div className="flex-1 overflow-y-auto p-4 bg-surface pb-24">
         {!hasTrip && (
-          <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 gap-3 px-6">
+          <div className="h-full flex flex-col items-center justify-center text-center text-ink-muted gap-3 px-6">
             <Smartphone size={40} className="opacity-40" />
-            <p className="text-sm">
-              הזינו את תיאור הטיול כדי לראות כאן תצוגה מקדימה חיה של האפליקציה.
-            </p>
+            <p className="text-sm">{t("appFrame.emptyState")}</p>
           </div>
         )}
 
@@ -275,6 +292,7 @@ export default function AppFrame({
             onPlayPodcast={togglePlay}
             onUpdateActivity={handleUpdateActivity}
             onAddActivity={onAddActivity ? handleAddActivity : undefined}
+            onDeleteActivity={onDeleteActivity ? handleDeleteActivity : undefined}
             onShowOnMap={handleShowOnMap}
             isLocalOnly={isLocalOnly}
           />
@@ -285,6 +303,7 @@ export default function AppFrame({
             <MapView
               activities={day.activities}
               onUpdateActivity={handleUpdateActivity}
+              onAddActivity={onAddActivity ? handleAddActivity : undefined}
               focusActivityId={focusActivityId}
               onClearFocus={() => setFocusActivityId(null)}
             />
@@ -324,34 +343,34 @@ export default function AppFrame({
       )}
 
       {/* Bottom Navigation */}
-      <div className="shrink-0 bg-white border-t flex justify-around p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 relative shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+      <div className="shrink-0 bg-white border-t border-outline/40 flex justify-around p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 relative shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
         <button
           onClick={() => setActiveTab("itinerary")}
-          className={`flex flex-col items-center gap-1 ${activeTab === "itinerary" ? "text-blue-600" : "text-gray-400"}`}
+          className={`flex flex-col items-center gap-1 ${activeTab === "itinerary" ? "text-secondary-dark" : "text-ink-muted"}`}
         >
           <Calendar size={20} />
-          <span className="text-[10px]">לו"ז</span>
+          <span className="text-[10px]">{t("appFrame.tab.itinerary")}</span>
         </button>
         <button
           onClick={() => setActiveTab("map")}
-          className={`flex flex-col items-center gap-1 ${activeTab === "map" ? "text-blue-600" : "text-gray-400"}`}
+          className={`flex flex-col items-center gap-1 ${activeTab === "map" ? "text-secondary-dark" : "text-ink-muted"}`}
         >
           <Map size={20} />
-          <span className="text-[10px]">מפה</span>
+          <span className="text-[10px]">{t("appFrame.tab.map")}</span>
         </button>
         <button
           onClick={() => setActiveTab("price")}
-          className={`flex flex-col items-center gap-1 ${activeTab === "price" ? "text-blue-600" : "text-gray-400"}`}
+          className={`flex flex-col items-center gap-1 ${activeTab === "price" ? "text-secondary-dark" : "text-ink-muted"}`}
         >
           <DollarSign size={20} />
-          <span className="text-[10px]">תמחור</span>
+          <span className="text-[10px]">{t("appFrame.tab.price")}</span>
         </button>
         <button
           onClick={() => setActiveTab("chat")}
-          className={`flex flex-col items-center gap-1 ${activeTab === "chat" ? "text-blue-600" : "text-gray-400"}`}
+          className={`flex flex-col items-center gap-1 ${activeTab === "chat" ? "text-secondary-dark" : "text-ink-muted"}`}
         >
           <MessageCircle size={20} />
-          <span className="text-[10px]">צ'אט AI</span>
+          <span className="text-[10px]">{t("appFrame.tab.chat")}</span>
         </button>
       </div>
     </div>

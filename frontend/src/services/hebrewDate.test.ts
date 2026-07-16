@@ -1,23 +1,28 @@
-import { describe, expect, it } from "vitest";
-import { tripStartWeekdayIndex, weekdayTabLabel } from "./hebrewDate";
+import { describe, it, expect } from "vitest";
+import { hebrewWeekdayLetter, tripStartWeekdayIndex } from "./hebrewDate";
 
 describe("tripStartWeekdayIndex", () => {
-  it("parses ISO start dates", () => {
-    // 2025-06-12 is a Thursday (4)
+  it("parses an ISO date", () => {
+    // 2025-06-12 is a Thursday
     expect(tripStartWeekdayIndex("2025-06-12 - 2025-06-18")).toBe(4);
   });
 
-  it("parses D/M/Y start dates", () => {
+  it("parses a DD/MM/YYYY date", () => {
     expect(tripStartWeekdayIndex("12/06/2025 - 18/06/2025")).toBe(4);
   });
 
-  it("parses Hebrew weekday letters after יום", () => {
+  it("parses a DD.MM.YYYY date", () => {
+    expect(tripStartWeekdayIndex("12.06.2025 - 18.06.2025")).toBe(4);
+  });
+
+  it("falls back to a Hebrew weekday letter after 'יום'", () => {
     expect(tripStartWeekdayIndex("יום א׳ – יום ג׳")).toBe(0);
     expect(tripStartWeekdayIndex("יום ג' - יום ה'")).toBe(2);
   });
 
-  it("parses Hebrew weekday names after יום", () => {
-    expect(tripStartWeekdayIndex("יום ראשון - יום שלישי")).toBe(0);
+  it("falls back to a full Hebrew weekday name after 'יום'", () => {
+    expect(tripStartWeekdayIndex("יום ראשון עד יום שלישי")).toBe(0);
+    expect(tripStartWeekdayIndex("מיום שני הקרוב")).toBe(1);
   });
 
   it("parses English weekday names", () => {
@@ -25,20 +30,20 @@ describe("tripStartWeekdayIndex", () => {
     expect(tripStartWeekdayIndex("Thu - Sun")).toBe(4);
   });
 
-  it("returns null when no weekday can be inferred", () => {
-    expect(tripStartWeekdayIndex("15-20 ביוני")).toBeNull();
-    expect(tripStartWeekdayIndex("")).toBeNull();
+  it("returns null for a freeform string with no recognizable date", () => {
+    expect(tripStartWeekdayIndex("12-19 ביולי")).toBeNull();
+    expect(tripStartWeekdayIndex("בקרוב")).toBeNull();
   });
 });
 
-describe("weekdayTabLabel", () => {
-  it("returns Hebrew letters by default", () => {
-    expect(weekdayTabLabel(0)).toBe("א'");
-    expect(weekdayTabLabel(1)).toBe("ב'");
+describe("hebrewWeekdayLetter", () => {
+  it("maps 0-6 to the Hebrew weekday letters", () => {
+    expect(hebrewWeekdayLetter(0)).toBe("א");
+    expect(hebrewWeekdayLetter(6)).toBe("ש");
   });
 
-  it("returns English short names when language is en", () => {
-    expect(weekdayTabLabel(0, "en")).toBe("Sun");
-    expect(weekdayTabLabel(1, "en")).toBe("Mon");
+  it("wraps around past Saturday", () => {
+    expect(hebrewWeekdayLetter(7)).toBe("א");
+    expect(hebrewWeekdayLetter(8)).toBe("ב");
   });
 });

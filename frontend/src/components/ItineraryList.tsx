@@ -1,7 +1,6 @@
 import { useState } from "react";
 import {
   Bed,
-  DollarSign,
   Landmark,
   Link as LinkIcon,
   MapPin,
@@ -10,14 +9,15 @@ import {
   Plane,
   Play,
   Plus,
+  Trash2,
   Utensils,
   Volume2,
 } from "lucide-react";
 import type { Activity } from "../api";
-
-function newActivityId(): string {
-  return typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `act-${Date.now()}`;
-}
+import { useI18n } from "../i18n/useI18n";
+import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABEL_KEYS } from "../services/activityTypes";
+import { newActivityId } from "../services/id";
+import LocationPicker from "./LocationPicker";
 
 const ACTIVITY_ICONS: Record<Activity["type"], typeof Utensils> = {
   food: Utensils,
@@ -26,11 +26,13 @@ const ACTIVITY_ICONS: Record<Activity["type"], typeof Utensils> = {
   attraction: Landmark,
 };
 
-const ACTIVITY_TYPE_LABELS: Record<Activity["type"], string> = {
-  attraction: "אטרקציה",
-  food: "אוכל",
-  lodging: "לינה",
-  transport: "תחבורה",
+// Per-category accent used for the card's leading border and the price chip,
+// matching the Stitch design system's "status border" pattern.
+const ACTIVITY_ACCENT: Record<Activity["type"], { border: string; chip: string }> = {
+  attraction: { border: "border-s-emerald-500", chip: "bg-emerald-100 text-emerald-700" },
+  food: { border: "border-s-secondary", chip: "bg-secondary/10 text-secondary-dark" },
+  lodging: { border: "border-s-indigo-500", chip: "bg-indigo-100 text-indigo-700" },
+  transport: { border: "border-s-sky-500", chip: "bg-sky-100 text-sky-700" },
 };
 
 export default function ItineraryList({
@@ -40,6 +42,7 @@ export default function ItineraryList({
   onPlayPodcast,
   onUpdateActivity,
   onAddActivity,
+  onDeleteActivity,
   onShowOnMap,
   isLocalOnly,
 }: {
@@ -49,12 +52,18 @@ export default function ItineraryList({
   onPlayPodcast: (act: Activity) => void;
   onUpdateActivity: (activityId: string, patch: Partial<Activity>) => void;
   onAddActivity?: (activity: Activity) => void;
+  onDeleteActivity?: (activityId: string) => void;
   onShowOnMap?: (activityId: string) => void;
   isLocalOnly?: boolean;
 }) {
+  const { t } = useI18n();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<Activity>>({});
   const [isAdding, setIsAdding] = useState(false);
+
+  // Centers the location picker's mini map near the day's other stops instead of
+  // defaulting to a fixed spot halfway across the world.
+  const anchorCenter = activities.find((a) => a.map_coordinates)?.map_coordinates ?? undefined;
 
   const startEdit = (act: Activity) => {
     setEditingId(act.id);
@@ -82,17 +91,19 @@ export default function ItineraryList({
 
   const saveAdd = () => {
     if (!draft.title?.trim()) return;
-    // Default the new pin to an existing activity's spot (e.g. the day's first
-    // stop) so it's visible on the map right away instead of being silently
-    // dropped from it; the user can drag it to the right place afterwards.
-    const nearbyCoords = activities.find((a) => a.map_coordinates)?.map_coordinates ?? null;
+    // If the user left price/link/location blank, the backend always looks up a
+    // real location (and any other enabled extras) for activities missing them
+    // (see enhanceNewActivities in App.tsx), so leaving map_coordinates null here
+    // is safe — it gets filled in instead of reusing another activity's spot.
     onAddActivity?.({
       id: newActivityId(),
       time: draft.time ?? "",
       title: draft.title.trim(),
       desc: draft.desc ?? "",
       type: draft.type ?? "attraction",
-      map_coordinates: nearbyCoords,
+      price: draft.price ?? null,
+      url: draft.url ?? null,
+      map_coordinates: draft.map_coordinates ?? null,
     });
     setIsAdding(false);
     setDraft({});
@@ -100,43 +111,34 @@ export default function ItineraryList({
 
   return (
     <div className="space-y-4">
-      {activities.map((act, idx) => {
+      {activities.map((act) => {
         const Icon = ACTIVITY_ICONS[act.type] ?? Landmark;
+        const accent = ACTIVITY_ACCENT[act.type] ?? ACTIVITY_ACCENT.attraction;
         const isEditing = editingId === act.id;
         return (
           <div
             key={act.id}
-            className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex gap-4 animate-fade-in"
+            className={`bg-white p-4 rounded-xl shadow-card border border-outline/20 border-s-4 ${accent.border} animate-fade-in`}
           >
-            <div className="flex flex-col items-center">
-              <div
-                className={`p-2 rounded-full ${themeClass} text-white bg-opacity-10 text-opacity-90`}
-              >
-                <Icon size={18} />
-              </div>
-              {idx !== activities.length - 1 && (
-                <div className="w-0.5 h-full bg-gray-200 mt-2"></div>
-              )}
-            </div>
-            <div className="flex-1 min-w-0 pb-4">
+            <div className="flex-1 min-w-0">
               {isEditing ? (
                 <div className="flex flex-col gap-2 min-w-0">
                   <input
                     type="time"
                     value={draft.time ?? ""}
                     onChange={(e) => setDraft((d) => ({ ...d, time: e.target.value }))}
-                    className="border border-gray-300 rounded-lg p-1.5 text-xs w-32"
+                    className="border border-outline/40 rounded-lg p-1.5 text-xs w-32"
                   />
                   <input
                     type="text"
                     value={draft.title ?? ""}
                     onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
-                    className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm font-bold"
+                    className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm font-bold"
                   />
                   <textarea
                     value={draft.desc ?? ""}
                     onChange={(e) => setDraft((d) => ({ ...d, desc: e.target.value }))}
-                    className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
+                    className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
                     rows={2}
                   />
                   <select
@@ -144,17 +146,17 @@ export default function ItineraryList({
                     onChange={(e) =>
                       setDraft((d) => ({ ...d, type: e.target.value as Activity["type"] }))
                     }
-                    className="border border-gray-300 rounded-lg p-1.5 text-sm w-32"
+                    className="border border-outline/40 rounded-lg p-1.5 text-sm w-32"
                   >
-                    {Object.entries(ACTIVITY_TYPE_LABELS).map(([type, label]) => (
+                    {ACTIVITY_TYPES.map((type) => (
                       <option key={type} value={type}>
-                        {label}
+                        {t(ACTIVITY_TYPE_LABEL_KEYS[type])}
                       </option>
                     ))}
                   </select>
                   <div className="flex gap-2 min-w-0">
-                    <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-gray-500">
-                      מחיר
+                    <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
+                      {t("itinerary.priceLabel")}
                       <input
                         type="number"
                         inputMode="decimal"
@@ -165,86 +167,64 @@ export default function ItineraryList({
                             price: e.target.value === "" ? null : Number(e.target.value),
                           }))
                         }
-                        className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
+                        className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
                       />
                     </label>
-                    <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-gray-500">
-                      קישור לאתר
+                    <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
+                      {t("itinerary.urlLabel")}
                       <input
                         type="url"
                         value={draft.url ?? ""}
                         onChange={(e) => setDraft((d) => ({ ...d, url: e.target.value }))}
-                        className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
+                        className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
                       />
                     </label>
                   </div>
-                  <div className="flex gap-2 min-w-0">
-                    <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-gray-500">
-                      קו רוחב (lat)
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        value={draft.map_coordinates?.lat ?? ""}
-                        onChange={(e) =>
-                          setDraft((d) => ({
-                            ...d,
-                            map_coordinates:
-                              e.target.value === ""
-                                ? null
-                                : { lat: Number(e.target.value), lng: d.map_coordinates?.lng ?? 0 },
-                          }))
-                        }
-                        className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
-                      />
-                    </label>
-                    <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-gray-500">
-                      קו אורך (lng)
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        value={draft.map_coordinates?.lng ?? ""}
-                        onChange={(e) =>
-                          setDraft((d) => ({
-                            ...d,
-                            map_coordinates:
-                              e.target.value === ""
-                                ? null
-                                : { lat: d.map_coordinates?.lat ?? 0, lng: Number(e.target.value) },
-                          }))
-                        }
-                        className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
-                      />
-                    </label>
-                  </div>
+                  <LocationPicker
+                    value={draft.map_coordinates ?? null}
+                    onChange={(coords) => setDraft((d) => ({ ...d, map_coordinates: coords }))}
+                    defaultCenter={anchorCenter}
+                  />
                   <div className="flex gap-2 items-center">
                     <button
                       onClick={() => saveEdit(act.id)}
-                      className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-lg"
+                      className="bg-primary hover:bg-primary-dark text-white text-xs px-3 py-1.5 rounded-lg"
                     >
-                      שמירה
+                      {t("common.save")}
                     </button>
                     <button
                       onClick={() => {
                         setEditingId(null);
                         setDraft({});
                       }}
-                      className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-3 py-1.5 rounded-lg"
+                      className="bg-surface-container hover:bg-surface-container-high text-ink-muted text-xs px-3 py-1.5 rounded-lg"
                     >
-                      ביטול
+                      {t("common.cancel")}
                     </button>
+                    {onDeleteActivity && (
+                      <button
+                        onClick={() => {
+                          onDeleteActivity(act.id);
+                          setEditingId(null);
+                          setDraft({});
+                        }}
+                        className="bg-red-50 hover:bg-red-100 text-red-600 text-xs px-3 py-1.5 rounded-lg flex items-center gap-1"
+                      >
+                        <Trash2 size={12} />
+                        {t("common.delete")}
+                      </button>
+                    )}
                     {isLocalOnly && (
-                      <span className="text-[10px] text-amber-600">לא נשמר בשרת</span>
+                      <span className="text-[10px] text-amber-600">{t("itinerary.notSaved")}</span>
                     )}
                   </div>
                 </div>
               ) : (
                 <>
                   <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="text-xs text-gray-500 font-medium mb-1">{act.time}</div>
-                      <div className="flex items-center gap-1.5">
-                        <h4 className="font-bold text-gray-800">{act.title}</h4>
-                      </div>
+                    <div className="flex items-center gap-1.5 text-secondary-dark font-bold text-xs">
+                      <Icon size={14} />
+                      <span>{act.time}</span>
                     </div>
                     <div className="flex items-center gap-1">
                       {act.url && (
@@ -252,62 +232,74 @@ export default function ItineraryList({
                           href={act.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          aria-label="קישור לאתר הפעילות"
-                          className="text-gray-400 hover:text-blue-600 p-1"
+                          aria-label={t("itinerary.urlAria")}
+                          className="text-sky-500 hover:text-sky-700 p-1"
                         >
                           <LinkIcon size={14} />
                         </a>
                       )}
-                      <button
-                        onClick={() => startEdit(act)}
-                        aria-label="עריכת מחיר"
-                        className="flex items-center gap-0.5 text-gray-400 hover:text-blue-600 p-1"
-                      >
-                        <DollarSign size={14} />
-                        {act.price != null && <span className="text-[11px]">{act.price}</span>}
-                      </button>
                       {onShowOnMap && act.map_coordinates && (
                         <button
                           onClick={() => onShowOnMap(act.id)}
-                          aria-label="הצגת הפעילות על המפה"
-                          className="text-gray-400 hover:text-blue-600 p-1"
+                          aria-label={t("itinerary.showOnMapAria")}
+                          className="text-emerald-500 hover:text-emerald-700 p-1"
                         >
                           <MapPin size={14} />
                         </button>
                       )}
                       <button
                         onClick={() => startEdit(act)}
-                        aria-label="עריכת פעילות"
-                        className="text-gray-400 hover:text-blue-600 p-1"
+                        aria-label={t("itinerary.editAria")}
+                        className="text-amber-500 hover:text-amber-700 p-1"
                       >
                         <Pencil size={14} />
                       </button>
+                      {onDeleteActivity && (
+                        <button
+                          onClick={() => onDeleteActivity(act.id)}
+                          aria-label={t("itinerary.deleteAria")}
+                          className="text-red-500 hover:text-red-700 p-1"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <p className="text-sm text-gray-600 mt-1">{act.desc}</p>
+                  <h4 className="font-bold text-ink mt-1">{act.title}</h4>
+                  <p className="text-sm text-ink-muted mt-1">{act.desc}</p>
 
-                  {act.hasPodcast && (
-                    <div
-                      onClick={() => onPlayPodcast(act)}
-                      className={`mt-3 flex items-center gap-2 p-2 rounded-lg text-sm cursor-pointer transition-colors ${
-                        playingPodcast?.id === act.id
-                          ? "bg-blue-600 text-white"
-                          : "bg-blue-50 text-blue-700 hover:bg-blue-100"
-                      }`}
+                  <div className="flex items-center gap-2 mt-3 flex-wrap">
+                    <button
+                      onClick={() => startEdit(act)}
+                      aria-label={t("itinerary.editPriceAria")}
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${accent.chip}`}
                     >
-                      {playingPodcast?.id === act.id ? (
-                        <Pause size={16} fill="currentColor" />
-                      ) : (
-                        <Play size={16} fill="currentColor" />
-                      )}
-                      <span className="font-medium">
-                        {playingPodcast?.id === act.id ? "מתנגן כעת..." : "האזן לפודקאסט היסטורי"}
-                      </span>
-                      {playingPodcast?.id === act.id && (
-                        <Volume2 size={16} className="ml-auto animate-pulse" />
-                      )}
-                    </div>
-                  )}
+                      {act.price != null ? `₪${act.price}` : t("itinerary.addPrice")}
+                    </button>
+
+                    {act.hasPodcast && (
+                      <button
+                        onClick={() => onPlayPodcast(act)}
+                        className={`flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
+                          playingPodcast?.id === act.id
+                            ? `${themeClass} text-white`
+                            : "bg-surface-container text-primary hover:bg-surface-container-high"
+                        }`}
+                      >
+                        {playingPodcast?.id === act.id ? (
+                          <Pause size={13} fill="currentColor" />
+                        ) : (
+                          <Play size={13} fill="currentColor" />
+                        )}
+                        {playingPodcast?.id === act.id
+                          ? t("itinerary.playingNow")
+                          : t("itinerary.historicalPodcast")}
+                        {playingPodcast?.id === act.id && (
+                          <Volume2 size={13} className="animate-pulse" />
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </>
               )}
             </div>
@@ -316,27 +308,33 @@ export default function ItineraryList({
       })}
 
       {onAddActivity && (
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 animate-fade-in">
+        <div
+          className={`p-4 rounded-xl animate-fade-in ${
+            isAdding
+              ? "bg-white shadow-card border border-outline/20"
+              : "border-2 border-dashed border-outline bg-transparent"
+          }`}
+        >
           {isAdding ? (
             <div className="flex flex-col gap-2">
               <input
                 type="time"
                 value={draft.time ?? ""}
                 onChange={(e) => setDraft((d) => ({ ...d, time: e.target.value }))}
-                className="border border-gray-300 rounded-lg p-1.5 text-xs w-32"
+                className="border border-outline/40 rounded-lg p-1.5 text-xs w-32"
               />
               <input
                 type="text"
                 value={draft.title ?? ""}
                 onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
-                placeholder="שם הפעילות"
-                className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm font-bold"
+                placeholder={t("itinerary.activityNamePlaceholder")}
+                className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm font-bold"
               />
               <textarea
                 value={draft.desc ?? ""}
                 onChange={(e) => setDraft((d) => ({ ...d, desc: e.target.value }))}
-                placeholder="תיאור קצר"
-                className="w-full min-w-0 border border-gray-300 rounded-lg p-1.5 text-sm"
+                placeholder={t("itinerary.activityDescPlaceholder")}
+                className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
                 rows={2}
               />
               <select
@@ -344,41 +342,74 @@ export default function ItineraryList({
                 onChange={(e) =>
                   setDraft((d) => ({ ...d, type: e.target.value as Activity["type"] }))
                 }
-                className="border border-gray-300 rounded-lg p-1.5 text-sm w-32"
+                className="border border-outline/40 rounded-lg p-1.5 text-sm w-32"
               >
-                {Object.entries(ACTIVITY_TYPE_LABELS).map(([type, label]) => (
+                {ACTIVITY_TYPES.map((type) => (
                   <option key={type} value={type}>
-                    {label}
+                    {t(ACTIVITY_TYPE_LABEL_KEYS[type])}
                   </option>
                 ))}
               </select>
+              <div className="flex gap-2 min-w-0">
+                <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
+                  {t("itinerary.priceLabel")}
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={draft.price ?? ""}
+                    onChange={(e) =>
+                      setDraft((d) => ({
+                        ...d,
+                        price: e.target.value === "" ? null : Number(e.target.value),
+                      }))
+                    }
+                    className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
+                  />
+                </label>
+                <label className="flex-1 min-w-0 flex flex-col gap-1 text-[11px] text-ink-muted">
+                  {t("itinerary.urlLabel")}
+                  <input
+                    type="url"
+                    value={draft.url ?? ""}
+                    onChange={(e) => setDraft((d) => ({ ...d, url: e.target.value }))}
+                    className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
+                  />
+                </label>
+              </div>
+              <LocationPicker
+                value={draft.map_coordinates ?? null}
+                onChange={(coords) => setDraft((d) => ({ ...d, map_coordinates: coords }))}
+                defaultCenter={anchorCenter}
+              />
               <div className="flex gap-2 items-center">
                 <button
                   onClick={saveAdd}
                   disabled={!draft.title?.trim()}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs px-3 py-1.5 rounded-lg"
+                  className="bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-xs px-3 py-1.5 rounded-lg"
                 >
-                  הוספה
+                  {t("common.add")}
                 </button>
                 <button
                   onClick={() => {
                     setIsAdding(false);
                     setDraft({});
                   }}
-                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-3 py-1.5 rounded-lg"
+                  className="bg-surface-container hover:bg-surface-container-high text-ink-muted text-xs px-3 py-1.5 rounded-lg"
                 >
-                  ביטול
+                  {t("common.cancel")}
                 </button>
-                {isLocalOnly && <span className="text-[10px] text-amber-600">לא נשמר בשרת</span>}
+                {isLocalOnly && (
+                  <span className="text-[10px] text-amber-600">{t("itinerary.notSaved")}</span>
+                )}
               </div>
             </div>
           ) : (
             <button
               onClick={startAdd}
-              className="w-full flex items-center justify-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700 py-1"
+              className="w-full flex items-center justify-center gap-2 text-sm font-semibold text-primary hover:text-primary-dark py-1"
             >
               <Plus size={16} />
-              הוספת פעילות
+              {t("itinerary.addActivity")}
             </button>
           )}
         </div>
