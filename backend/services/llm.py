@@ -1,16 +1,17 @@
 """Communication with the external LLM provider, with exponential-backoff retries.
 
-Each request can pick its own provider (gemini / openai / anthropic / groq)
-and supply its own API key, so each user pays for/rate-limits their own
-usage instead of sharing the server operator's key. The LLM_PROVIDER env
-var and the GEMINI_API_KEY/OPENAI_API_KEY/ANTHROPIC_API_KEY/GROQ_API_KEY env
-vars are only a fallback, useful for local development when no per-request
-provider/key is supplied:
-- gemini    — Google Gemini (GEMINI_API_KEY), free tier — default
-- openai    — OpenAI GPT models (OPENAI_API_KEY)
-- anthropic — Anthropic Claude models (ANTHROPIC_API_KEY)
-- groq      — Groq's free, OpenAI-compatible API (GROQ_API_KEY) — see
-  https://console.groq.com/keys
+Each request can pick its own provider and supply its own API key(s), so each
+user pays for/rate-limits their own usage instead of sharing the server
+operator's key. Several keys can be sent per provider and are rotated through
+when one is rate-limited. The per-provider env vars are only a fallback for
+local development when no per-request key is supplied:
+- gemini     — Google Gemini (GEMINI_API_KEY), free tier — default
+- openai     — OpenAI GPT models (OPENAI_API_KEY)
+- anthropic  — Anthropic Claude models (ANTHROPIC_API_KEY)
+- groq       — Groq's free, OpenAI-compatible API (GROQ_API_KEY)
+- openrouter — OpenRouter (OPENROUTER_API_KEY), free models available
+- cerebras   — Cerebras (CEREBRAS_API_KEY), free + very fast
+- mistral    — Mistral La Plateforme (MISTRAL_API_KEY), free tier
 """
 
 import asyncio
@@ -124,6 +125,39 @@ class OpenAIProvider(_OpenAICompatibleProvider):
         self.url = "https://api.openai.com/v1/chat/completions"
 
 
+class OpenRouterProvider(_OpenAICompatibleProvider):
+    """OpenRouter — one key, many models incl. several free ones. OpenAI-compatible.
+    Get a key at https://openrouter.ai/keys. Override the model via OPENROUTER_MODEL
+    (default is a free model; free models come and go, so pick your own if needed)."""
+
+    def __init__(self, api_key: str | None = None) -> None:
+        super().__init__(
+            api_key,
+            "OPENROUTER_API_KEY",
+            "OPENROUTER_MODEL",
+            "deepseek/deepseek-chat-v3-0324:free",
+        )
+        self.url = "https://openrouter.ai/api/v1/chat/completions"
+
+
+class CerebrasProvider(_OpenAICompatibleProvider):
+    """Cerebras — free, very fast inference. OpenAI-compatible.
+    Get a key at https://cloud.cerebras.ai."""
+
+    def __init__(self, api_key: str | None = None) -> None:
+        super().__init__(api_key, "CEREBRAS_API_KEY", "CEREBRAS_MODEL", "llama-3.3-70b")
+        self.url = "https://api.cerebras.ai/v1/chat/completions"
+
+
+class MistralProvider(_OpenAICompatibleProvider):
+    """Mistral La Plateforme — has a free tier. OpenAI-compatible.
+    Get a key at https://console.mistral.ai/api-keys."""
+
+    def __init__(self, api_key: str | None = None) -> None:
+        super().__init__(api_key, "MISTRAL_API_KEY", "MISTRAL_MODEL", "mistral-small-latest")
+        self.url = "https://api.mistral.ai/v1/chat/completions"
+
+
 class AnthropicProvider:
     """Anthropic's Messages API (Claude models).
 
@@ -191,6 +225,9 @@ _PROVIDERS: dict[str, type] = {
     "openai": OpenAIProvider,
     "anthropic": AnthropicProvider,
     "groq": GroqProvider,
+    "openrouter": OpenRouterProvider,
+    "cerebras": CerebrasProvider,
+    "mistral": MistralProvider,
 }
 
 
