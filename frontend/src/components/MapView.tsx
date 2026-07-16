@@ -15,6 +15,7 @@ import type { Activity } from "../api";
 import { ACTIVITY_TYPE_LABELS } from "../services/activityTypes";
 import { newActivityId } from "../services/id";
 import { googleMapsPlaceUrl, googleMapsDirectionsUrl } from "../services/mapLinks";
+import { sequenceLabel } from "../services/sequenceLabel";
 
 const MARKER_COLORS: Record<Activity["type"], string> = {
   food: "bg-secondary",
@@ -30,14 +31,41 @@ const MARKER_ICONS: Record<Activity["type"], typeof Utensils> = {
   transport: Plane,
 };
 
-function markerIcon(type: Activity["type"]) {
+// Each stop's marker keeps its type colour + icon, plus an order badge (A, B,
+// C …) matching the sequence Google Maps shows when the "directions" link opens
+// the same stops — so the visit order is visible on the in-app map too.
+function markerIcon(type: Activity["type"], label: string) {
   const Icon = MARKER_ICONS[type] ?? Landmark;
   const html = renderToStaticMarkup(
-    <div
-      className={`p-1.5 rounded-full text-white shadow-lg ${MARKER_COLORS[type]}`}
-      style={{ display: "inline-flex" }}
-    >
-      <Icon size={14} />
+    <div style={{ position: "relative", display: "inline-flex" }}>
+      <div
+        className={`p-1.5 rounded-full text-white shadow-lg ${MARKER_COLORS[type]}`}
+        style={{ display: "inline-flex" }}
+      >
+        <Icon size={14} />
+      </div>
+      <span
+        style={{
+          position: "absolute",
+          top: -6,
+          right: -6,
+          minWidth: 16,
+          height: 16,
+          padding: "0 3px",
+          boxSizing: "border-box",
+          borderRadius: 9999,
+          background: "#ffffff",
+          color: "#1a1a1a",
+          fontSize: 10,
+          fontWeight: 700,
+          lineHeight: "14px",
+          textAlign: "center",
+          border: "1px solid rgba(0,0,0,0.15)",
+          boxShadow: "0 1px 2px rgba(0,0,0,0.3)",
+        }}
+      >
+        {label}
+      </span>
     </div>,
   );
   return L.divIcon({
@@ -137,6 +165,10 @@ export default function MapView({
     a.map_coordinates!.lat,
     a.map_coordinates!.lng,
   ]);
+
+  // A, B, C … labels keyed to each stop's position in the full day's order, so
+  // a focused single pin still shows its real letter (not always "A").
+  const labelByActId = new Map(allCoordActs.map((a, i) => [a.id, sequenceLabel(i)]));
 
   const savePending = () => {
     if (!pendingLocation || !pendingTitle.trim() || !onAddActivity) return;
@@ -264,7 +296,7 @@ export default function MapView({
             <Marker
               key={act.id}
               position={[act.map_coordinates!.lat, act.map_coordinates!.lng]}
-              icon={markerIcon(act.type)}
+              icon={markerIcon(act.type, labelByActId.get(act.id) ?? "")}
               draggable={Boolean(onUpdateActivity)}
               eventHandlers={
                 onUpdateActivity
@@ -279,7 +311,10 @@ export default function MapView({
             >
               <Popup>
                 <div className="flex flex-col gap-1">
-                  <span className="font-semibold">{act.title}</span>
+                  <span className="font-semibold">
+                    {labelByActId.get(act.id) ? `${labelByActId.get(act.id)}. ` : ""}
+                    {act.title}
+                  </span>
                   <a
                     href={googleMapsPlaceUrl(act)}
                     target="_blank"
