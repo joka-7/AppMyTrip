@@ -1,6 +1,7 @@
 import type { TripData } from "../api";
 import type { Theme } from "../components/ThemeSelector";
 import { t } from "../i18n/store";
+import { ensureActivityIds } from "./normalizeTrip";
 
 interface TripFilePayload {
   tripData: TripData;
@@ -49,7 +50,7 @@ export function importTripFromFile(file: File): Promise<{ tripData: TripData; th
         if (!isValidTripData(parsed.tripData)) {
           throw new Error("invalid shape");
         }
-        resolve({ tripData: parsed.tripData, theme: parsed.theme ?? "blue" });
+        resolve({ tripData: ensureActivityIds(parsed.tripData), theme: parsed.theme ?? "blue" });
       } catch {
         reject(new Error(t("tripFile.invalid")));
       }
