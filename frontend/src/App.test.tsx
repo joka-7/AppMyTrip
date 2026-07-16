@@ -118,6 +118,7 @@ describe("App builder flow", () => {
         },
         [],
         "gemini",
+        [],
       );
     });
   });

@@ -23,7 +23,7 @@ import httpx
 from fastapi import HTTPException
 from pydantic import ValidationError
 
-from models import AgentResponse, EnhanceOptions, TripData
+from models import AgentResponse, EnhanceOptions, ProviderCredentials, TripData
 
 
 class LLMProvider(Protocol):
@@ -326,6 +326,95 @@ class LLMService:
         )
 
     @classmethod
+    def _resolve_credential_groups(
+        cls,
+        credentials: list[ProviderCredentials] | None,
+        api_key: str | None,
+        api_keys: list[str] | None,
+        provider: str | None,
+    ) -> list[tuple[str | None, list[str | None]]]:
+        """Ordered list of (provider, keys) groups to try, in turn. Prefers the
+        multi-provider `credentials` list; otherwise builds a single group from the
+        legacy api_key/api_keys/provider fields. De-duplicates (provider, key) pairs
+        across groups so the same key isn't tried twice."""
+        groups: list[tuple[str | None, list[str | None]]] = []
+        seen: set[tuple[str | None, str | None]] = set()
+
+        def add(
+            prov: str | None, raw_keys: list[str] | None, legacy_key: str | None = None
+        ) -> None:
+            prov_norm = (prov or "").strip().lower() or None
+            keys: list[str | None] = []
+            for k in cls._resolve_key_list(legacy_key, raw_keys):
+                if k is None:
+                    continue
+                if (prov_norm, k) not in seen:
+                    seen.add((prov_norm, k))
+                    keys.append(k)
+            if keys:
+                groups.append((prov_norm, keys))
+
+        if credentials:
+            for cred in credentials:
+                add(cred.provider, cred.api_keys)
+        add(provider, api_keys, api_key)
+
+        if groups:
+            return groups
+        # No keys supplied anywhere → a single group that falls back to the env var.
+        return [((provider or "").strip().lower() or None, [None])]
+
+    @classmethod
+    async def _execute(
+        cls,
+        system_prompt: str,
+        user_content: str,
+        credentials: list[ProviderCredentials] | None = None,
+        api_key: str | None = None,
+        api_keys: list[str] | None = None,
+        provider: str | None = None,
+        max_retries: int = 5,
+    ) -> dict:
+        """Run the prompt against every saved provider/key in order, falling through
+        to the next provider when one fails, and only raising once all have failed —
+        so a single exhausted or invalid key/provider doesn't surface an error."""
+        groups = cls._resolve_credential_groups(credentials, api_key, api_keys, provider)
+        errors: list[HTTPException] = []
+        for prov, keys in groups:
+            try:
+                return await cls._execute_with_retry(
+                    system_prompt,
+                    user_content,
+                    api_keys=keys,
+                    provider=prov,
+                    max_retries=max_retries,
+                )
+            except HTTPException as e:
+                errors.append(e)
+                continue
+        raise cls._summarize_failures(errors)
+
+    @staticmethod
+    def _summarize_failures(errors: list[HTTPException]) -> HTTPException:
+        """Pick the most useful error to surface after every provider/key failed."""
+        if not errors:
+            return HTTPException(status_code=502, detail="No LLM provider was reachable.")
+        statuses = {e.status_code for e in errors}
+        if statuses == {429}:
+            return errors[0]  # already the friendly "all rate-limited" message
+        if statuses <= {401, 403}:
+            return HTTPException(
+                status_code=401,
+                detail="None of your saved API keys worked — check that they're valid and "
+                "have access, or add another key/provider in settings.",
+            )
+        # Prefer a concrete non-rate-limit failure over a generic one.
+        for e in errors:
+            if e.status_code not in (429, 401, 403):
+                return e
+        return errors[0]
+
+    @classmethod
     async def parse_trip_text(
         cls,
         raw_text: str,
@@ -333,6 +422,7 @@ class LLMService:
         api_key: str | None = None,
         provider: str | None = None,
         api_keys: list[str] | None = None,
+        credentials: list[ProviderCredentials] | None = None,
     ) -> TripData:
         """Calls the LLM to parse raw text into a structured TripData object.
 
@@ -363,10 +453,12 @@ class LLMService:
             f"{json.dumps(schema)}"
         )
 
-        json_data = await cls._execute_with_retry(
+        json_data = await cls._execute(
             system_prompt,
             user_content,
-            api_keys=cls._resolve_key_list(api_key, api_keys),
+            credentials=credentials,
+            api_key=api_key,
+            api_keys=api_keys,
             provider=provider,
         )
         _coerce_invalid_activity_types(json_data)
@@ -387,6 +479,7 @@ class LLMService:
         api_key: str | None = None,
         provider: str | None = None,
         api_keys: list[str] | None = None,
+        credentials: list[ProviderCredentials] | None = None,
     ) -> AgentResponse:
         """Calls the LLM to update the trip based on user chat and return a conversational reply."""
         preferences_fragment = f"IMPORTANT: {preferences} " if preferences else ""
@@ -424,10 +517,12 @@ class LLMService:
             f"{json.dumps(schema)}"
         )
 
-        json_data = await cls._execute_with_retry(
+        json_data = await cls._execute(
             system_prompt,
             user_content,
-            api_keys=cls._resolve_key_list(api_key, api_keys),
+            credentials=credentials,
+            api_key=api_key,
+            api_keys=api_keys,
             provider=provider,
         )
         if isinstance(json_data, dict):
@@ -505,7 +600,9 @@ class LLMService:
         cls,
         current_trip: TripData,
         instruction: str,
-        api_keys: list[str | None],
+        credentials: list[ProviderCredentials] | None,
+        api_key: str | None,
+        api_keys: list[str] | None,
         provider: str | None,
     ) -> TripData:
         system_prompt = (
@@ -520,8 +617,13 @@ class LLMService:
             f"Current Itinerary: {current_trip.model_dump_json()}\n\n"
             f"Output strict JSON matching this schema: {json.dumps(schema)}"
         )
-        json_data = await cls._execute_with_retry(
-            system_prompt, user_content, api_keys=api_keys, provider=provider
+        json_data = await cls._execute(
+            system_prompt,
+            user_content,
+            credentials=credentials,
+            api_key=api_key,
+            api_keys=api_keys,
+            provider=provider,
         )
         _coerce_invalid_activity_types(json_data)
         try:
@@ -547,6 +649,7 @@ class LLMService:
         api_key: str | None = None,
         provider: str | None = None,
         api_keys: list[str] | None = None,
+        credentials: list[ProviderCredentials] | None = None,
     ) -> TripData:
         """Fills in the optional extras the user opted into in Step 2 (directions, prices,
         podcast briefs, links), plus — always, regardless of `options` — real map
@@ -567,15 +670,15 @@ class LLMService:
         if not selected:
             return current_trip
 
-        resolved_keys = cls._resolve_key_list(api_key, api_keys)
-
         # return_exceptions=True: each piece is an independent LLM call, so one
         # rate-limited or malformed response (more likely now that checking every
         # box fires several calls at once) must not sink the others — apply
         # whichever pieces succeeded and only raise if every single one failed.
         results = await asyncio.gather(
             *(
-                cls._enhance_one(current_trip, instruction, resolved_keys, provider)
+                cls._enhance_one(
+                    current_trip, instruction, credentials, api_key, api_keys, provider
+                )
                 for _fields, instruction in selected
             ),
             return_exceptions=True,

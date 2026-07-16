@@ -14,7 +14,7 @@ import PhonePreview from "./components/PhonePreview";
 import ProgressBar from "./components/ProgressBar";
 import SharedAppPage from "./components/SharedAppPage";
 import { DEFAULT_APP_DESIGN, type AppDesign } from "./services/appDesign";
-import { getApiKeys, getApiProvider } from "./services/apiKey";
+import { getApiKeys, getApiProvider, getAllCredentials } from "./services/apiKey";
 import { tripStartWeekdayIndex } from "./services/hebrewDate";
 import { normalizeTripForLoad } from "./services/normalizeTrip";
 import { loadSharedTrip } from "./services/tripsStore";
@@ -226,7 +226,13 @@ function TripBuilder() {
     setIsProcessing(true);
     setApiNotice(null);
     try {
-      const res = await parseTrip(rawText, preferences || null, getApiKeys(), getApiProvider());
+      const res = await parseTrip(
+        rawText,
+        preferences || null,
+        getApiKeys(),
+        getApiProvider(),
+        getAllCredentials(),
+      );
       setTripData(normalizeTripForLoad(res.trip_data));
       setTripId(null);
       setAgentMessages(
@@ -253,7 +259,13 @@ function TripBuilder() {
     setEnhanceOptions(options);
     setIsEnhancing(true);
     try {
-      const res = await enhanceTrip(tripData, options, getApiKeys(), getApiProvider());
+      const res = await enhanceTrip(
+        tripData,
+        options,
+        getApiKeys(),
+        getApiProvider(),
+        getAllCredentials(),
+      );
       setTripData(normalizeTripForLoad(res.trip_data));
     } catch (err) {
       console.error(err);
@@ -290,6 +302,7 @@ function TripBuilder() {
         options,
         getApiKeys(),
         getApiProvider(),
+        getAllCredentials(),
       );
       const enhancedById = new Map(
         res.trip_data.days.flatMap((d) => d.activities).map((a) => [a.id, a]),
@@ -323,6 +336,7 @@ function TripBuilder() {
         preferences || null,
         getApiKeys(),
         getApiProvider(),
+        getAllCredentials(),
       );
       setTripData(normalizeTripForLoad(await enhanceNewActivities(tripData, res.trip_data)));
       setAgentMessages((prev) => [...prev, { role: "agent", text: res.agent_reply }]);
@@ -578,7 +592,14 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
     setChatNotice(null);
 
     try {
-      const res = await agentInteract(trip, userText, null, getApiKeys(), getApiProvider());
+      const res = await agentInteract(
+        trip,
+        userText,
+        null,
+        getApiKeys(),
+        getApiProvider(),
+        getAllCredentials(),
+      );
       setTrip(res.trip_data);
       setAgentMessages((prev) => [...prev, { role: "agent", text: res.agent_reply }]);
     } catch (err) {

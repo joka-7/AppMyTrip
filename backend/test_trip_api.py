@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 import services.tts as tts_module
-from models import Activity, AgentResponse, EnhanceOptions, TripData, TripDay
+from models import Activity, AgentResponse, EnhanceOptions, ProviderCredentials, TripData, TripDay
 from routers.builder import TripBuilder
 from services.llm import (
     AnthropicProvider,
@@ -322,6 +322,94 @@ def test_execute_with_retry_raises_429_only_after_every_key_is_rate_limited(monk
 
 
 # ---------------------------------------------------------------------------
+# Cross-provider "use all saved keys" fallback
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_credential_groups_prefers_credentials_and_dedups():
+    creds = [
+        ProviderCredentials(provider="Gemini", api_keys=["g1", "g2"]),
+        ProviderCredentials(provider="groq", api_keys=["q1"]),
+    ]
+    # The frontend mirrors the active provider into the legacy fields, so here they
+    # fully duplicate the first credential (gemini/g1). Every (provider, key) pair is
+    # already seen, so no redundant extra group is appended; providers are lowercased.
+    groups = LLMService._resolve_credential_groups(
+        creds, api_key="g1", api_keys=["g2"], provider="gemini"
+    )
+    assert groups == [
+        ("gemini", ["g1", "g2"]),
+        ("groq", ["q1"]),
+    ]
+
+
+def test_resolve_credential_groups_falls_back_to_legacy_and_env():
+    # No credentials → a single group from the legacy fields.
+    assert LLMService._resolve_credential_groups(None, "k", None, "anthropic") == [
+        ("anthropic", ["k"])
+    ]
+    # Nothing supplied anywhere → one group with [None] so the provider uses the env var.
+    assert LLMService._resolve_credential_groups(None, None, None, None) == [(None, [None])]
+
+
+def test_execute_falls_through_to_the_next_provider_when_one_fails(monkeypatch):
+    tried: list[tuple[str | None, list[str | None] | None]] = []
+
+    async def fake_retry(system_prompt, user_content, api_keys=None, provider=None, max_retries=5):
+        tried.append((provider, api_keys))
+        if provider == "gemini":
+            raise HTTPException(status_code=401, detail="bad gemini key")
+        return {"ok": provider}
+
+    monkeypatch.setattr(LLMService, "_execute_with_retry", staticmethod(fake_retry))
+
+    creds = [
+        ProviderCredentials(provider="gemini", api_keys=["g1"]),
+        ProviderCredentials(provider="groq", api_keys=["q1"]),
+    ]
+    result = asyncio.run(LLMService._execute("sys", "user", credentials=creds))
+    # Gemini failed, so the working groq group was used.
+    assert result == {"ok": "groq"}
+    assert tried == [("gemini", ["g1"]), ("groq", ["q1"])]
+
+
+def test_execute_raises_only_after_every_provider_fails(monkeypatch):
+    async def fake_retry(system_prompt, user_content, api_keys=None, provider=None, max_retries=5):
+        raise HTTPException(status_code=401, detail=f"bad {provider} key")
+
+    monkeypatch.setattr(LLMService, "_execute_with_retry", staticmethod(fake_retry))
+
+    creds = [
+        ProviderCredentials(provider="gemini", api_keys=["g1"]),
+        ProviderCredentials(provider="groq", api_keys=["q1"]),
+    ]
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(LLMService._execute("sys", "user", credentials=creds))
+    # All-auth-failure → a single friendly 401 rather than a raw provider error.
+    assert exc_info.value.status_code == 401
+    assert "saved API keys" in exc_info.value.detail
+
+
+def test_summarize_failures_prefers_a_concrete_error_over_rate_limits():
+    errors = [
+        HTTPException(status_code=429, detail="rate limited"),
+        HTTPException(status_code=502, detail="upstream boom"),
+    ]
+    summary = LLMService._summarize_failures(errors)
+    assert summary.status_code == 502
+    assert summary.detail == "upstream boom"
+
+
+def test_summarize_failures_keeps_the_429_when_everything_is_rate_limited():
+    errors = [
+        HTTPException(status_code=429, detail="all rate limited"),
+        HTTPException(status_code=429, detail="also rate limited"),
+    ]
+    summary = LLMService._summarize_failures(errors)
+    assert summary.status_code == 429
+
+
+# ---------------------------------------------------------------------------
 # Endpoints (LLM mocked)
 # ---------------------------------------------------------------------------
 
@@ -548,7 +636,9 @@ def test_generate_media_endpoint():
 def test_parse_endpoint_passes_through_supplied_preferences(monkeypatch):
     captured = {}
 
-    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None, api_keys=None):
+    async def fake_parse(
+        raw_text, preferences=None, api_key=None, provider=None, api_keys=None, credentials=None
+    ):
         captured["preferences"] = preferences
         return _sample_trip()
 
@@ -562,7 +652,9 @@ def test_parse_endpoint_passes_through_supplied_preferences(monkeypatch):
 def test_parse_endpoint_no_preferences_supplied(monkeypatch):
     captured = {}
 
-    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None, api_keys=None):
+    async def fake_parse(
+        raw_text, preferences=None, api_key=None, provider=None, api_keys=None, credentials=None
+    ):
         captured["preferences"] = preferences
         return _sample_trip()
 
@@ -576,7 +668,9 @@ def test_parse_endpoint_no_preferences_supplied(monkeypatch):
 def test_parse_endpoint_passes_through_caller_api_key(monkeypatch):
     captured = {}
 
-    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None, api_keys=None):
+    async def fake_parse(
+        raw_text, preferences=None, api_key=None, provider=None, api_keys=None, credentials=None
+    ):
         captured["api_key"] = api_key
         return _sample_trip()
 
@@ -590,7 +684,9 @@ def test_parse_endpoint_passes_through_caller_api_key(monkeypatch):
 def test_parse_endpoint_passes_through_caller_api_keys_list(monkeypatch):
     captured = {}
 
-    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None, api_keys=None):
+    async def fake_parse(
+        raw_text, preferences=None, api_key=None, provider=None, api_keys=None, credentials=None
+    ):
         captured["api_keys"] = api_keys
         return _sample_trip()
 
@@ -607,7 +703,9 @@ def test_parse_endpoint_passes_through_caller_api_keys_list(monkeypatch):
 def test_parse_endpoint_passes_through_caller_provider(monkeypatch):
     captured = {}
 
-    async def fake_parse(raw_text, preferences=None, api_key=None, provider=None, api_keys=None):
+    async def fake_parse(
+        raw_text, preferences=None, api_key=None, provider=None, api_keys=None, credentials=None
+    ):
         captured["provider"] = provider
         return _sample_trip()
 
@@ -619,6 +717,34 @@ def test_parse_endpoint_passes_through_caller_provider(monkeypatch):
     )
     assert resp.status_code == 200
     assert captured["provider"] == "anthropic"
+
+
+def test_parse_endpoint_passes_through_caller_credentials(monkeypatch):
+    captured = {}
+
+    async def fake_parse(
+        raw_text, preferences=None, api_key=None, provider=None, api_keys=None, credentials=None
+    ):
+        captured["credentials"] = credentials
+        return _sample_trip()
+
+    monkeypatch.setattr(LLMService, "parse_trip_text", fake_parse)
+
+    resp = client.post(
+        "/api/trip/parse",
+        json={
+            "raw_text": "Rome",
+            "credentials": [
+                {"provider": "gemini", "api_keys": ["g1", "g2"]},
+                {"provider": "groq", "api_keys": ["q1"]},
+            ],
+        },
+    )
+    assert resp.status_code == 200
+    assert [(c.provider, c.api_keys) for c in captured["credentials"]] == [
+        ("gemini", ["g1", "g2"]),
+        ("groq", ["q1"]),
+    ]
 
 
 def test_parse_endpoint_requires_api_key_when_none_configured(monkeypatch):

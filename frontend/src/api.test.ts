@@ -33,6 +33,7 @@ describe("api client", () => {
         body: JSON.stringify({
           raw_text: "some trip text",
           preferences: null,
+          credentials: null,
           api_keys: null,
           provider: null,
         }),
@@ -55,6 +56,7 @@ describe("api client", () => {
         body: JSON.stringify({
           raw_text: "some trip text",
           preferences: "Vegan",
+          credentials: null,
           api_keys: null,
           provider: null,
         }),
@@ -76,8 +78,37 @@ describe("api client", () => {
         body: JSON.stringify({
           raw_text: "some trip text",
           preferences: null,
+          credentials: null,
           api_keys: ["claude-key-a", "claude-key-b"],
           provider: "anthropic",
+        }),
+      }),
+    );
+  });
+
+  it("parseTrip threads multi-provider credentials through to the request body", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ trip_data: sampleTrip, initial_agent_message: null }),
+    } as Response);
+
+    await parseTrip("some trip text", null, ["key-a"], "gemini", [
+      { provider: "gemini", api_keys: ["key-a"] },
+      { provider: "groq", api_keys: ["key-b", "key-c"] },
+    ]);
+
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_BASE_URL}/api/trip/parse`,
+      expect.objectContaining({
+        body: JSON.stringify({
+          raw_text: "some trip text",
+          preferences: null,
+          credentials: [
+            { provider: "gemini", api_keys: ["key-a"] },
+            { provider: "groq", api_keys: ["key-b", "key-c"] },
+          ],
+          api_keys: ["key-a"],
+          provider: "gemini",
         }),
       }),
     );
@@ -100,6 +131,7 @@ describe("api client", () => {
           trip_data: sampleTrip,
           user_message: "add food",
           preferences: null,
+          credentials: null,
           api_keys: null,
           provider: null,
         }),

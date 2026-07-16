@@ -96,6 +96,24 @@ export function getApiKeys(): string[] {
   return getApiKeysForProvider(getApiProvider());
 }
 
+/** Every saved provider + its keys, active provider first, sent to the backend as
+ * `credentials` so it can fall through to another saved provider when one is
+ * exhausted/invalid — the request only errors once every one has failed. Providers
+ * with no saved keys are omitted. */
+export function getAllCredentials(): { provider: LLMProvider; api_keys: string[] }[] {
+  const map = loadKeyMap();
+  const active = getApiProvider();
+  // Active provider first so it's still the preferred one; then the rest in the
+  // PROVIDERS display order (free options ahead of paid), skipping empties.
+  const ordered: LLMProvider[] = [
+    active,
+    ...PROVIDERS.map((p) => p.value).filter((p) => p !== active),
+  ];
+  return ordered
+    .map((provider) => ({ provider, api_keys: map[provider] ?? [] }))
+    .filter((c) => c.api_keys.length > 0);
+}
+
 /** Appends a key to a provider's list (ignoring blanks/exact duplicates) and
  * makes that provider the active one. */
 export function addApiKey(key: string, provider: LLMProvider): void {

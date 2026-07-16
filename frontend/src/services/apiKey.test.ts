@@ -4,6 +4,7 @@ import {
   removeApiKey,
   getApiKeys,
   getApiKeysForProvider,
+  getAllCredentials,
   getApiProvider,
   setApiProvider,
 } from "./apiKey";
@@ -51,5 +52,33 @@ describe("apiKey storage (multiple keys per provider)", () => {
     expect(getApiKeysForProvider("groq")).toEqual(["very-old-key"]);
     // The legacy key is cleaned up after migration.
     expect(localStorage.getItem("tripweaver_api_key")).toBeNull();
+  });
+});
+
+describe("getAllCredentials", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("returns an empty list when no keys are saved", () => {
+    expect(getAllCredentials()).toEqual([]);
+  });
+
+  it("lists every saved provider with the active one first", () => {
+    addApiKey("gem", "gemini");
+    addApiKey("groq-1", "groq");
+    addApiKey("groq-2", "groq");
+    addApiKey("oai", "openai");
+    // The last-added provider (openai) is active, so it must come first.
+    expect(getApiProvider()).toBe("openai");
+    expect(getAllCredentials()).toEqual([
+      { provider: "openai", api_keys: ["oai"] },
+      { provider: "gemini", api_keys: ["gem"] },
+      { provider: "groq", api_keys: ["groq-1", "groq-2"] },
+    ]);
+  });
+
+  it("skips providers with no saved keys", () => {
+    addApiKey("gem", "gemini");
+    setApiProvider("gemini");
+    expect(getAllCredentials()).toEqual([{ provider: "gemini", api_keys: ["gem"] }]);
   });
 });
