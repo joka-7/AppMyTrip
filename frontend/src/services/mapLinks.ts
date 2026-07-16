@@ -12,15 +12,20 @@
 // resolves to the real listing nearest that point.
 
 import type { Activity } from "../api";
-import { sequenceLabel } from "./sequenceLabel";
 
 const PLACE_ZOOM = 15;
 
-function directionsStop(act: Activity, index: number): string {
+function directionsStop(act: Activity): string {
   const { lat, lng } = act.map_coordinates!;
   const name = act.title.trim();
-  const label = sequenceLabel(index);
-  if (name) return `${label}. ${name}`;
+  // Use the plain place name so Google resolves the real listing. Do NOT prefix
+  // it with the in-app A/B/C label: Google's directions URL treats origin/
+  // destination/waypoints as a literal search query, so "A. Colosseum" searches
+  // for that exact text and fails to find the place. Google's own directions UI
+  // already letters the stops A, B, C, D in route order, so the labels still line
+  // up with the in-app map without us corrupting the query. Untitled stops fall
+  // back to exact coordinates.
+  if (name) return name;
   return `${lat},${lng}`;
 }
 
@@ -43,13 +48,13 @@ export function googleMapsPlaceUrl(act: Activity): string {
 }
 
 /**
- * Directions through the day's stops in order. Prefixes each named stop with the
- * same A/B/C label shown on the in-app map so Google Maps' directions UI lists
- * stops with matching letters. Falls back to exact coordinates when a stop has
- * no title (Google cannot show custom labels on map pins via URL).
+ * Directions through the day's stops in order. Google's own directions UI letters
+ * the stops A, B, C, D in route order, matching the in-app map labels, so each
+ * stop is passed as its plain place name (biased nowhere — Google resolves it in
+ * the route's region). Falls back to exact coordinates when a stop has no title.
  */
 export function googleMapsDirectionsUrl(coordActs: Activity[]): string {
-  const points = coordActs.map((act, i) => directionsStop(act, i));
+  const points = coordActs.map((act) => directionsStop(act));
   const url = new URL("https://www.google.com/maps/dir/");
   url.searchParams.set("api", "1");
   url.searchParams.set("origin", points[0]);
