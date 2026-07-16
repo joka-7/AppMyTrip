@@ -30,7 +30,7 @@ describe("googleMapsPlaceUrl", () => {
 });
 
 describe("googleMapsDirectionsUrl", () => {
-  it("routes through every stop by exact coordinates with intermediate waypoints", () => {
+  it("routes through every stop with A/B/C labels on named stops", () => {
     const url = new URL(
       googleMapsDirectionsUrl([
         act("a1", "Start", 41.9, 12.5),
@@ -38,10 +38,18 @@ describe("googleMapsDirectionsUrl", () => {
         act("a3", "End", 41.92, 12.52),
       ]),
     );
-    expect(url.searchParams.get("origin")).toBe("41.9,12.5");
-    expect(url.searchParams.get("destination")).toBe("41.92,12.52");
-    expect(url.searchParams.get("waypoints")).toBe("41.91,12.51");
+    expect(url.searchParams.get("origin")).toBe("A. Start");
+    expect(url.searchParams.get("destination")).toBe("C. End");
+    expect(url.searchParams.get("waypoints")).toBe("B. Middle");
     expect(url.searchParams.get("travelmode")).toBe("walking");
+  });
+
+  it("falls back to coordinates for untitled stops", () => {
+    const url = new URL(
+      googleMapsDirectionsUrl([act("a1", "   ", 41.9, 12.5), act("a2", "End", 41.92, 12.52)]),
+    );
+    expect(url.searchParams.get("origin")).toBe("41.9,12.5");
+    expect(url.searchParams.get("destination")).toBe("B. End");
   });
 
   it("omits waypoints when there are only two stops", () => {
