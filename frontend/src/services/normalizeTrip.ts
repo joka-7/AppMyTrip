@@ -1,4 +1,5 @@
 import type { TripData } from "../api";
+import { tripStartWeekdayIndex } from "./hebrewDate";
 import { newActivityId } from "./id";
 
 /**
@@ -24,4 +25,19 @@ export function ensureActivityIds(trip: TripData): TripData {
       }),
     })),
   };
+}
+
+/** Fills `startWeekday` from `dates` when missing — keeps tab labels on import/save. */
+export function ensureStartWeekday(trip: TripData): TripData {
+  if (trip.startWeekday != null && trip.startWeekday >= 0 && trip.startWeekday <= 6) {
+    return trip;
+  }
+  const computed = tripStartWeekdayIndex(trip.dates ?? "");
+  if (computed == null) return trip;
+  return { ...trip, startWeekday: computed };
+}
+
+/** Normalize a trip loaded from JSON, Firestore, or the API before editing. */
+export function normalizeTripForLoad(trip: TripData): TripData {
+  return ensureStartWeekday(ensureActivityIds(trip));
 }

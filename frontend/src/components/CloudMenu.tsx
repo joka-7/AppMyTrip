@@ -23,24 +23,24 @@ const SHARE_DURATIONS: { labelKey: TranslationKey; days: number }[] = [
   { labelKey: "share.days90", days: 90 },
   { labelKey: "share.forever", days: 0 },
 ];
-import type { Theme } from "./ThemeSelector";
+import type { AppDesign } from "../services/appDesign";
 
 /** Sign-in + "My Trips" + Save/Share controls backed by Firestore. */
 export default function CloudMenu({
   tripData,
-  theme,
+  appDesign,
   tripId,
   onTripIdChange,
   onLoadTrip,
   onImportTrip,
 }: {
   tripData: TripData;
-  theme: Theme;
+  appDesign: AppDesign;
   /** Id of the trip currently being edited, shared with the step-4 deploy flow. */
   tripId: string | null;
   onTripIdChange: (tripId: string | null) => void;
-  onLoadTrip: (trip: TripData, tripId: string, theme: Theme) => void;
-  onImportTrip: (trip: TripData, theme: Theme) => void;
+  onLoadTrip: (trip: TripData, tripId: string, appDesign: AppDesign) => void;
+  onImportTrip: (trip: TripData, appDesign: AppDesign) => void;
 }) {
   const { t } = useI18n();
   const [email, setEmail] = useState<string | null>(null);
@@ -57,8 +57,8 @@ export default function CloudMenu({
     e.target.value = "";
     if (!file) return;
     try {
-      const { tripData: imported, theme: importedTheme } = await importTripFromFile(file);
-      onImportTrip(imported, importedTheme);
+      const { tripData: imported, appDesign: importedAppDesign } = await importTripFromFile(file);
+      onImportTrip(imported, importedAppDesign);
       setNotice(t("cloud.importSuccess"));
     } catch (err) {
       setNotice(err instanceof Error ? err.message : t("cloud.importFailed"));
@@ -113,7 +113,7 @@ export default function CloudMenu({
     setBusy(true);
     setNotice(null);
     try {
-      const savedId = await saveTrip(uid, tripData, { theme, tripId: tripId ?? undefined });
+      const savedId = await saveTrip(uid, tripData, { appDesign, tripId: tripId ?? undefined });
       onTripIdChange(savedId);
       await refreshTrips(uid);
       setNotice(t("cloud.saved"));
@@ -133,7 +133,7 @@ export default function CloudMenu({
     setBusy(true);
     setNotice(null);
     try {
-      const link = await shareTrip(uid, tripId, tripData, theme, shareDays || undefined);
+      const link = await shareTrip(uid, tripId, tripData, appDesign, shareDays || undefined);
       await navigator.clipboard.writeText(link).catch(() => {});
       setNotice(t("cloud.shareCopied"));
     } catch (err) {
@@ -149,8 +149,8 @@ export default function CloudMenu({
     setBusy(true);
     setNotice(null);
     try {
-      const { trip: loaded, theme: loadedTheme } = await loadTrip(uid, trip.id);
-      onLoadTrip(loaded, trip.id, loadedTheme);
+      const { trip: loaded, appDesign: loadedAppDesign } = await loadTrip(uid, trip.id);
+      onLoadTrip(loaded, trip.id, loadedAppDesign);
       setIsOpen(false);
     } catch (err) {
       console.error(err);
@@ -187,7 +187,7 @@ export default function CloudMenu({
         className="hidden"
       />
       <button
-        onClick={() => exportTripToFile(tripData, theme)}
+        onClick={() => exportTripToFile(tripData, appDesign)}
         className="flex items-center gap-1.5 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-full transition-colors"
       >
         <Download size={16} />

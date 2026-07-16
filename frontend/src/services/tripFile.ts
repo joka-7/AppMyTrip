@@ -1,11 +1,14 @@
 import type { TripData } from "../api";
 import type { Theme } from "../components/ThemeSelector";
+import { type AppDesign, normalizeAppDesign } from "./appDesign";
 import { t } from "../i18n/store";
-import { ensureActivityIds } from "./normalizeTrip";
+import { ensureStartWeekday, normalizeTripForLoad } from "./normalizeTrip";
 
 interface TripFilePayload {
   tripData: TripData;
-  theme: Theme;
+  appDesign?: Partial<AppDesign>;
+  /** Legacy export field — merged into appDesign on import. */
+  theme?: Theme;
   exportedAt: string;
 }
 
@@ -17,8 +20,12 @@ function slugify(title: string): string {
   return slug || "trip";
 }
 
-export function exportTripToFile(tripData: TripData, theme: Theme): void {
-  const payload: TripFilePayload = { tripData, theme, exportedAt: new Date().toISOString() };
+export function exportTripToFile(tripData: TripData, appDesign: AppDesign): void {
+  const payload: TripFilePayload = {
+    tripData: ensureStartWeekday(tripData),
+    appDesign,
+    exportedAt: new Date().toISOString(),
+  };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -40,7 +47,9 @@ function isValidTripData(value: unknown): value is TripData {
   );
 }
 
-export function importTripFromFile(file: File): Promise<{ tripData: TripData; theme: Theme }> {
+export function importTripFromFile(
+  file: File,
+): Promise<{ tripData: TripData; appDesign: AppDesign }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error(t("tripFile.readFailed")));
@@ -50,7 +59,10 @@ export function importTripFromFile(file: File): Promise<{ tripData: TripData; th
         if (!isValidTripData(parsed.tripData)) {
           throw new Error("invalid shape");
         }
-        resolve({ tripData: ensureActivityIds(parsed.tripData), theme: parsed.theme ?? "blue" });
+        resolve({
+          tripData: normalizeTripForLoad(parsed.tripData),
+          appDesign: normalizeAppDesign(parsed.appDesign, parsed.theme),
+        });
       } catch {
         reject(new Error(t("tripFile.invalid")));
       }

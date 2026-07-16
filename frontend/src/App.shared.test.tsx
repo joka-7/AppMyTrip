@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import { DEFAULT_APP_DESIGN } from "./services/appDesign";
 
 vi.mock("./api");
 vi.mock("./services/tripsStore", () => ({
@@ -28,7 +29,7 @@ describe("App shared-trip viewer", () => {
     const trips = await import("./services/tripsStore");
     vi.mocked(trips.loadSharedTrip).mockResolvedValue({
       trip: { title: "Shared Trip", dates: "Mon - Wed", days: [] },
-      theme: "green",
+      appDesign: { ...DEFAULT_APP_DESIGN, theme: "green" },
     });
 
     const { default: App } = await import("./App");

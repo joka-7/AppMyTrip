@@ -1,4 +1,5 @@
 const HEBREW_WEEKDAY_LETTERS = ["א", "ב", "ג", "ד", "ה", "ו", "ש"]; // Sun=0..Sat=6
+const APOSTROPHE = "[''\u05F3\u2019]";
 
 const HEBREW_WEEKDAY_NAME_TO_INDEX: Record<string, number> = {
   ראשון: 0,
@@ -60,26 +61,35 @@ export function hebrewWeekdayLetter(weekdayIndex: number): string {
  * Returns null (omit the weekday) when none is found, rather than guessing.
  */
 export function tripStartWeekdayIndex(datesText: string): number | null {
-  const iso = datesText.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  const text = datesText.trim();
+  if (!text) return null;
+
+  const iso = text.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (iso) {
     const [, y, m, d] = iso;
     const date = new Date(Number(y), Number(m) - 1, Number(d));
     return Number.isNaN(date.getTime()) ? null : date.getDay();
   }
-  const dmy = datesText.match(/(\d{1,2})[./](\d{1,2})[./](\d{4})/);
+  const dmy = text.match(/(\d{1,2})[./](\d{1,2})[./](\d{4})/);
   if (dmy) {
     const [, d, m, y] = dmy;
     const date = new Date(Number(y), Number(m) - 1, Number(d));
     return Number.isNaN(date.getTime()) ? null : date.getDay();
   }
 
-  const nameMatch = datesText.match(/יום[ '׳]*(ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת)/);
+  const nameMatch = text.match(
+    new RegExp(`יום[ ${APOSTROPHE}]*(ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת)`),
+  );
   if (nameMatch) return HEBREW_WEEKDAY_NAME_TO_INDEX[nameMatch[1]];
 
-  const letterMatch = datesText.match(/יום[ ]*([א-ו]|ש)['׳]/);
+  const letterMatch = text.match(new RegExp(`יום[ ]*([א-ו]|ש)${APOSTROPHE}`));
   if (letterMatch) return HEBREW_WEEKDAY_LETTERS.indexOf(letterMatch[1]);
 
-  const englishMatch = datesText.match(
+  // Bare Hebrew letter at the start, e.g. "א'–ג'" saved without the "יום" prefix.
+  const bareLetterMatch = text.match(new RegExp(`^([א-ו]|ש)${APOSTROPHE}`));
+  if (bareLetterMatch) return HEBREW_WEEKDAY_LETTERS.indexOf(bareLetterMatch[1]);
+
+  const englishMatch = text.match(
     /\b(Sun|Mon|Tue|Wed|Thu|Fri|Sat|Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\b/i,
   );
   if (englishMatch) {

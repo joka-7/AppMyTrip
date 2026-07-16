@@ -1,12 +1,12 @@
 import type { RefObject } from "react";
 import type { Activity, TripData } from "../api";
+import type { AppDesign } from "../services/appDesign";
 import AppFrame from "./AppFrame";
 import type { AgentMessage } from "./ChatPanel";
-import type { Theme } from "./ThemeSelector";
 
 export default function PhonePreview({
   tripData,
-  theme,
+  appDesign,
   agentMessages,
   chatInput,
   onChangeChatInput,
@@ -20,7 +20,7 @@ export default function PhonePreview({
   onUpdateTrip,
 }: {
   tripData: TripData;
-  theme: Theme;
+  appDesign: AppDesign;
   agentMessages: AgentMessage[];
   chatInput: string;
   onChangeChatInput: (text: string) => void;
@@ -37,7 +37,7 @@ export default function PhonePreview({
     <div className="w-[350px] h-[700px] border-[12px] border-ink rounded-[2.5rem] overflow-hidden flex flex-col bg-surface shadow-2xl relative mx-auto">
       <AppFrame
         tripData={tripData}
-        theme={theme}
+        appDesign={appDesign}
         agentMessages={agentMessages}
         chatInput={chatInput}
         onChangeChatInput={onChangeChatInput}

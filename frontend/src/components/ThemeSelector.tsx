@@ -1,10 +1,9 @@
-export type Theme = "blue" | "green" | "dark";
+import type { Theme } from "../services/appDesign";
+import { THEME_SWATCH_CLASSES } from "../services/appDesign";
 
-const THEME_SWATCHES: { value: Theme; className: string }[] = [
-  { value: "blue", className: "bg-primary ring-primary-light" },
-  { value: "green", className: "bg-emerald-700 ring-emerald-200" },
-  { value: "dark", className: "bg-[#12344d] ring-slate-300" },
-];
+export type { Theme };
+
+const THEME_ORDER: Theme[] = ["blue", "green", "dark", "coral", "purple", "sand"];
 
 export default function ThemeSelector({
   theme,
@@ -14,18 +13,20 @@ export default function ThemeSelector({
   onChange: (theme: Theme) => void;
 }) {
   return (
-    <div className="flex gap-4">
-      {THEME_SWATCHES.map((swatch) => (
-        <button
-          key={swatch.value}
-          onClick={() => onChange(swatch.value)}
-          className={`w-12 h-12 rounded-full transition-all ${swatch.className.split(" ")[0]} ${
-            theme === swatch.value
-              ? `ring-4 ${swatch.className.split(" ")[1]} scale-110`
-              : "hover:scale-105"
-          }`}
-        ></button>
-      ))}
+    <div className="flex flex-wrap gap-3">
+      {THEME_ORDER.map((value) => {
+        const swatch = THEME_SWATCH_CLASSES[value];
+        return (
+          <button
+            key={value}
+            type="button"
+            onClick={() => onChange(value)}
+            className={`w-10 h-10 rounded-full transition-all ${swatch.bg} ${
+              theme === value ? `ring-4 ${swatch.ring} scale-110` : "hover:scale-105"
+            }`}
+          />
+        );
+      })}
     </div>
   );
 }

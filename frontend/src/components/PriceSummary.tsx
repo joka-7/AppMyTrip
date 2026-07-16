@@ -13,10 +13,17 @@ const ACTIVITY_TYPE_DOT: Record<Activity["type"], string> = {
 // currency symbol (₪) is part of the trip data, not the interface language.
 const NUMBER_LOCALE: Record<string, string> = { he: "he-IL", en: "en-US", fr: "fr-FR" };
 
-export default function PriceSummary({ tripData }: { tripData: TripData }) {
+export default function PriceSummary({
+  tripData,
+  currency = "₪",
+}: {
+  tripData: TripData;
+  currency?: string;
+}) {
   const { t, lang } = useI18n();
   const formatPrice = (value: number): string =>
     value.toLocaleString(NUMBER_LOCALE[lang] ?? "he-IL", { maximumFractionDigits: 2 });
+  const formatWithCurrency = (value: number): string => `${formatPrice(value)} ${currency}`;
   const days = tripData.days ?? [];
   const allActivities = days.flatMap((day) => day.activities);
   const grandTotal = allActivities.reduce((sum, act) => sum + (act.price ?? 0), 0);
@@ -48,7 +55,7 @@ export default function PriceSummary({ tripData }: { tripData: TripData }) {
                 <span className="text-ink-muted flex-1 truncate">
                   {t(ACTIVITY_TYPE_LABEL_KEYS[type])}
                 </span>
-                <span className="font-semibold text-ink">{formatPrice(total)} ₪</span>
+                <span className="font-semibold text-ink">{formatWithCurrency(total)}</span>
               </div>
             ))}
           </div>
@@ -65,7 +72,7 @@ export default function PriceSummary({ tripData }: { tripData: TripData }) {
             <div className="flex items-center justify-between mb-2">
               <h4 className="font-bold text-ink">{t("appFrame.day", { num: day.dayNum })}</h4>
               <span className="text-sm font-semibold text-ink-muted">
-                {formatPrice(dayTotal)} ₪
+                {formatWithCurrency(dayTotal)}
               </span>
             </div>
             <div className="divide-y divide-outline/20">
@@ -76,7 +83,7 @@ export default function PriceSummary({ tripData }: { tripData: TripData }) {
                   />
                   <span className="truncate flex-1">{act.title}</span>
                   <span className="shrink-0 ms-2">
-                    {act.price != null ? `${formatPrice(act.price)} ₪` : "—"}
+                    {act.price != null ? formatWithCurrency(act.price) : "—"}
                   </span>
                 </div>
               ))}
@@ -87,7 +94,7 @@ export default function PriceSummary({ tripData }: { tripData: TripData }) {
 
       <div className="bg-primary text-white p-4 rounded-xl shadow-card flex items-center justify-between">
         <span className="font-bold">{t("price.total")}</span>
-        <span className="font-bold text-lg">{formatPrice(grandTotal)} ₪</span>
+        <span className="font-bold text-lg">{formatWithCurrency(grandTotal)}</span>
       </div>
     </div>
   );

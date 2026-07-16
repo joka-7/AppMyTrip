@@ -3,13 +3,14 @@ import type { RefObject } from "react";
 import { Download, Upload, UserPlus } from "lucide-react";
 import type { Activity, TripData } from "../api";
 import { useI18n } from "../i18n/useI18n";
+import type { AppDesign } from "../services/appDesign";
 import { exportTripToFile, importTripFromFile } from "../services/tripFile";
 import { getCurrentSession, saveTrip, signInWithGoogle } from "../services/tripsStore";
+import { useTripBranding } from "../hooks/useTripBranding";
 import ApiKeyMenu from "./ApiKeyMenu";
 import AppFrame from "./AppFrame";
 import InstallAppButton from "./InstallAppButton";
 import type { AgentMessage } from "./ChatPanel";
-import type { Theme } from "./ThemeSelector";
 
 /**
  * What a `?shared=<tripId>` link opens: just the generated app, full-screen,
@@ -21,7 +22,8 @@ import type { Theme } from "./ThemeSelector";
  */
 export default function SharedAppPage({
   tripData,
-  theme,
+  appDesign,
+  tripId,
   agentMessages,
   chatInput,
   onChangeChatInput,
@@ -36,7 +38,8 @@ export default function SharedAppPage({
   onImportTrip,
 }: {
   tripData: TripData;
-  theme: Theme;
+  appDesign: AppDesign;
+  tripId: string;
   agentMessages: AgentMessage[];
   chatInput: string;
   onChangeChatInput: (text: string) => void;
@@ -48,9 +51,10 @@ export default function SharedAppPage({
   onAddActivity: (dayIndex: number, activity: Activity) => void;
   onDeleteActivity?: (dayIndex: number, activityId: string) => void;
   onUpdateTrip: (patch: Partial<Pick<TripData, "title" | "dates" | "photo_album_url">>) => void;
-  onImportTrip: (tripData: TripData, theme: Theme) => void;
+  onImportTrip: (tripData: TripData, appDesign: AppDesign) => void;
 }) {
   const { t, dir } = useI18n();
+  useTripBranding(appDesign, tripData.title);
   const [saveStatus, setSaveStatus] = useState<"idle" | "working" | "done" | "error">("idle");
   const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -59,7 +63,7 @@ export default function SharedAppPage({
     setSaveStatus("working");
     try {
       const session = getCurrentSession() ?? (await signInWithGoogle());
-      await saveTrip(session.uid, tripData, { theme });
+      await saveTrip(session.uid, tripData, { appDesign });
       setSaveStatus("done");
     } catch (err) {
       console.error(err);
@@ -73,8 +77,8 @@ export default function SharedAppPage({
     if (!file) return;
     setImportError(null);
     try {
-      const { tripData: imported, theme: importedTheme } = await importTripFromFile(file);
-      onImportTrip(imported, importedTheme);
+      const { tripData: imported, appDesign: importedAppDesign } = await importTripFromFile(file);
+      onImportTrip(imported, importedAppDesign);
     } catch (err) {
       setImportError(err instanceof Error ? err.message : t("cloud.importFailed"));
     }
@@ -85,7 +89,7 @@ export default function SharedAppPage({
       <div className="w-full max-w-md h-dvh bg-surface shadow-2xl flex flex-col overflow-hidden">
         <div className="flex flex-wrap items-center gap-2 p-2 bg-white border-b border-outline/20 text-xs">
           <button
-            onClick={() => exportTripToFile(tripData, theme)}
+            onClick={() => exportTripToFile(tripData, appDesign)}
             className="flex items-center gap-1 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg"
           >
             <Download size={14} />
@@ -134,7 +138,7 @@ export default function SharedAppPage({
         <div className="flex-1 min-h-0">
           <AppFrame
             tripData={tripData}
-            theme={theme}
+            appDesign={appDesign}
             agentMessages={agentMessages}
             chatInput={chatInput}
             onChangeChatInput={onChangeChatInput}
@@ -148,6 +152,7 @@ export default function SharedAppPage({
             onUpdateTrip={onUpdateTrip}
             isLocalOnly
             localOnlyNoticeText={t("sharedPage.localOnlyNotice")}
+            welcomeStorageKey={tripId}
           />
         </div>
       </div>

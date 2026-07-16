@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import CloudMenu from "./CloudMenu";
 import * as trips from "../services/tripsStore";
 import type { TripData } from "../api";
+import { DEFAULT_APP_DESIGN } from "../services/appDesign";
 
 vi.mock("../services/tripsStore", () => ({
   onAuthChange: vi.fn(),
@@ -28,7 +29,7 @@ describe("CloudMenu", () => {
     render(
       <CloudMenu
         tripData={sampleTrip}
-        theme="blue"
+        appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
         onTripIdChange={vi.fn()}
         onLoadTrip={vi.fn()}
@@ -47,13 +48,16 @@ describe("CloudMenu", () => {
     vi.mocked(trips.listTrips).mockResolvedValue([
       { id: "trip-1", name: "My Trip", modifiedTime: "2024-01-01" },
     ]);
-    vi.mocked(trips.loadTrip).mockResolvedValue({ trip: sampleTrip, theme: "green" });
+    vi.mocked(trips.loadTrip).mockResolvedValue({
+      trip: sampleTrip,
+      appDesign: { ...DEFAULT_APP_DESIGN, theme: "green" },
+    });
 
     const onLoadTrip = vi.fn();
     render(
       <CloudMenu
         tripData={sampleTrip}
-        theme="blue"
+        appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
         onTripIdChange={vi.fn()}
         onLoadTrip={onLoadTrip}
@@ -71,7 +75,10 @@ describe("CloudMenu", () => {
     fireEvent.click(screen.getByText("My Trip"));
 
     await waitFor(() => {
-      expect(onLoadTrip).toHaveBeenCalledWith(sampleTrip, "trip-1", "green");
+      expect(onLoadTrip).toHaveBeenCalledWith(sampleTrip, "trip-1", {
+        ...DEFAULT_APP_DESIGN,
+        theme: "green",
+      });
     });
     expect(trips.loadTrip).toHaveBeenCalledWith("uid-123", "trip-1");
   });
@@ -88,7 +95,7 @@ describe("CloudMenu", () => {
     render(
       <CloudMenu
         tripData={sampleTrip}
-        theme="blue"
+        appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
         onTripIdChange={vi.fn()}
         onLoadTrip={vi.fn()}

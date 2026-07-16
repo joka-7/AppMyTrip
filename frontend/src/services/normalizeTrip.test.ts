@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ensureActivityIds } from "./normalizeTrip";
+import { ensureActivityIds, ensureStartWeekday, normalizeTripForLoad } from "./normalizeTrip";
 import type { TripData } from "../api";
 
 function trip(activities: Array<Partial<{ id: string; title: string }>>): TripData {
@@ -41,5 +41,33 @@ describe("ensureActivityIds", () => {
     const ids = result.days[0].activities.map((a) => a.id);
     expect(ids[0]).toBe("dup");
     expect(new Set(ids).size).toBe(3);
+  });
+});
+
+describe("ensureStartWeekday", () => {
+  it("fills startWeekday from parseable dates when missing", () => {
+    const result = ensureStartWeekday({ ...trip([]), dates: "Mon - Wed" });
+    expect(result.startWeekday).toBe(1);
+  });
+
+  it("keeps an existing startWeekday on saved JSON", () => {
+    const saved = { ...trip([]), dates: "12-19 ביולי", startWeekday: 4 };
+    expect(ensureStartWeekday(saved).startWeekday).toBe(4);
+  });
+
+  it("leaves startWeekday unset when dates cannot be parsed", () => {
+    const result = ensureStartWeekday({ ...trip([]), dates: "12-19 ביולי" });
+    expect(result.startWeekday).toBeUndefined();
+  });
+});
+
+describe("normalizeTripForLoad", () => {
+  it("assigns ids and weekday together on import", () => {
+    const result = normalizeTripForLoad({
+      ...trip([{ title: "x" }]),
+      dates: "יום א׳ – יום ג׳",
+    });
+    expect(result.days[0].activities[0].id).toBeTruthy();
+    expect(result.startWeekday).toBe(0);
   });
 });

@@ -108,7 +108,7 @@ describe("App builder flow", () => {
 
     await waitFor(() => {
       expect(api.enhanceTrip).toHaveBeenCalledWith(
-        sampleTrip,
+        expect.objectContaining(sampleTrip),
         {
           directions_car: true,
           directions_transit: true,

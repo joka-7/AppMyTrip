@@ -12,8 +12,17 @@
 // resolves to the real listing nearest that point.
 
 import type { Activity } from "../api";
+import { sequenceLabel } from "./sequenceLabel";
 
 const PLACE_ZOOM = 15;
+
+function directionsStop(act: Activity, index: number): string {
+  const { lat, lng } = act.map_coordinates!;
+  const name = act.title.trim();
+  const label = sequenceLabel(index);
+  if (name) return `${label}. ${name}`;
+  return `${lat},${lng}`;
+}
 
 /**
  * Link to a single place. Opens the named listing (with its reviews/hours)
@@ -34,12 +43,13 @@ export function googleMapsPlaceUrl(act: Activity): string {
 }
 
 /**
- * Directions through the day's stops in order. Uses exact `lat,lng` for every
- * origin/destination/waypoint (not place names) so the route always hits the
- * precise pins the user sees, instead of risking a same-named place elsewhere.
+ * Directions through the day's stops in order. Prefixes each named stop with the
+ * same A/B/C label shown on the in-app map so Google Maps' directions UI lists
+ * stops with matching letters. Falls back to exact coordinates when a stop has
+ * no title (Google cannot show custom labels on map pins via URL).
  */
 export function googleMapsDirectionsUrl(coordActs: Activity[]): string {
-  const points = coordActs.map((a) => `${a.map_coordinates!.lat},${a.map_coordinates!.lng}`);
+  const points = coordActs.map((act, i) => directionsStop(act, i));
   const url = new URL("https://www.google.com/maps/dir/");
   url.searchParams.set("api", "1");
   url.searchParams.set("origin", points[0]);

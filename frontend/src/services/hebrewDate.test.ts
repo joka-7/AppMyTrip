@@ -40,6 +40,11 @@ describe("tripStartWeekdayIndex", () => {
     expect(tripStartWeekdayIndex("12-19 ביולי")).toBeNull();
     expect(tripStartWeekdayIndex("בקרוב")).toBeNull();
   });
+
+  it("parses a bare Hebrew weekday letter without the יום prefix", () => {
+    expect(tripStartWeekdayIndex("א׳–ג׳")).toBe(0);
+    expect(tripStartWeekdayIndex("ג' - ה'")).toBe(2);
+  });
 });
 
 describe("hebrewWeekdayLetter", () => {

@@ -8,6 +8,39 @@ This repository currently contains an early **TripWeaver AI** prototype: a FastA
 backend that uses an LLM to parse trip text and a React web UI that walks the user
 through a 4-step build flow with a live phone preview.
 
+## Screenshots
+
+Step 4 — **App design** (English UI). The builder panel on the left updates the live
+phone preview on the right as you change theme, fonts, background templates, tab
+order, and other options.
+
+| Overview | Live preview (default) |
+| --- | --- |
+| ![Step 4 builder overview](docs/screenshots/step4-overview.png) | ![Step 4 live phone preview](docs/screenshots/step4-live-preview.png) |
+
+**Design panel** — identity, look & feel, behavior, branding, and deploy:
+
+![Step 4 design options panel](docs/screenshots/step4-design-panel.png)
+
+**Customized trip** — organizer name, tagline, serif font, spacious density, timeline
+layout, dots background template, and welcome message:
+
+| Builder with options applied | Phone preview |
+| --- | --- |
+| ![Step 4 customized builder](docs/screenshots/step4-customized.png) | ![Step 4 customized phone preview](docs/screenshots/step4-preview-customized.png) |
+
+**Map tab** in the live preview (markers, route lines, day stops):
+
+![Step 4 map tab preview](docs/screenshots/step4-preview-map.png)
+
+To regenerate these images locally:
+
+```bash
+cd frontend
+npm run dev -- --port 5174 --strictPort   # in another terminal
+SCREENSHOT_BASE_URL=http://localhost:5174 npx playwright test e2e/screenshots.spec.ts
+```
+
 ## Structure
 
 ```
