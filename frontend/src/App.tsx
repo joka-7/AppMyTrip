@@ -17,7 +17,17 @@ import { DEFAULT_APP_DESIGN, type AppDesign } from "./services/appDesign";
 import { getApiKeys, getApiProvider, getAllCredentials } from "./services/apiKey";
 import { tripStartWeekdayIndex } from "./services/hebrewDate";
 import { normalizeTripForLoad } from "./services/normalizeTrip";
-import { loadSharedTrip } from "./services/tripsStore";
+import {
+  addSharedTripAdmin,
+  getCurrentSession,
+  loadSharedTrip,
+  onAuthChange,
+  saveSharedTrip,
+  saveTrip,
+  shareTrip,
+  signInWithGoogle,
+  type CloudSession,
+} from "./services/tripsStore";
 import { translate } from "./i18n/store";
 import { useI18n } from "./i18n/useI18n";
 import LanguageSwitcher from "./components/LanguageSwitcher";
@@ -551,20 +561,25 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
   const [appDesign, setAppDesign] = useState<AppDesign>(DEFAULT_APP_DESIGN);
   const [error, setError] = useState<string | null>(null);
 
-  // Strictly local-only state: a separate instance from TripBuilder's, never
-  // backed by Firestore. handleSendMessage/handleUpdateActivity below only
-  // ever call setTrip — nothing here imports saveTrip/shareTrip.
+  // Edits below (chat or manual) only ever call setTrip — this is local-only
+  // state, never backed by Firestore. adminEmails/session exist purely to
+  // decide whether to show admin controls (save-in-place, add-admin); the
+  // actual writes go through saveSharedTrip/addSharedTripAdmin, gated by
+  // firestore.rules on the server side.
   const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [chatNotice, setChatNotice] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const [session, setSession] = useState<CloudSession | null>(getCurrentSession());
+  const [adminEmails, setAdminEmails] = useState<string[]>([]);
 
   useEffect(() => {
     loadSharedTrip(tripId)
       .then((result) => {
         setTrip(result.trip);
         setAppDesign(result.appDesign);
+        setAdminEmails(result.meta.adminEmails);
         setAgentMessages([{ role: "agent", text: translate("agent.sharedIntro") }]);
       })
       .catch((err) => {
@@ -577,9 +592,39 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
       });
   }, [tripId]);
 
+  useEffect(
+    () =>
+      onAuthChange((user) =>
+        setSession(
+          user ? { uid: user.uid, email: user.email, displayName: user.displayName } : null,
+        ),
+      ),
+    [],
+  );
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [agentMessages]);
+
+  const isAdmin = Boolean(session?.email && adminEmails.includes(session.email.toLowerCase()));
+
+  const handleSaveChanges = async () => {
+    if (!trip) throw new Error("Trip not loaded yet.");
+    await saveSharedTrip(tripId, trip, appDesign);
+  };
+
+  const handleAddAdmin = async (email: string) => {
+    await addSharedTripAdmin(tripId, email);
+    const normalized = email.trim().toLowerCase();
+    setAdminEmails((prev) => (prev.includes(normalized) ? prev : [...prev, normalized]));
+  };
+
+  const handleCreateNewLink = async (): Promise<string> => {
+    if (!trip) throw new Error("Trip not loaded yet.");
+    const currentSession = session ?? (await signInWithGoogle());
+    const newTripId = await saveTrip(currentSession.uid, trip, { appDesign });
+    return shareTrip(currentSession.uid, newTripId, trip, appDesign);
+  };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -703,6 +748,10 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
         setTrip(importedTrip);
         setAppDesign(importedAppDesign);
       }}
+      isAdmin={isAdmin}
+      onSaveChanges={handleSaveChanges}
+      onAddAdmin={handleAddAdmin}
+      onCreateNewLink={handleCreateNewLink}
     />
   );
 }

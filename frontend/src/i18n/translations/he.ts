@@ -268,6 +268,18 @@ export const he = {
   "sharedPage.saveFailed": "השמירה לחשבון נכשלה. נסו שוב.",
   "sharedPage.localOnlyNotice":
     "שינויים שתבצעו כאן (כולל דרך הצ'אט) יישמרו רק בדפדפן הזה ולא יישלחו לשרת.",
+  "sharedPage.adminHint":
+    "אתם מנהלים של הטיול הזה — אפשר לשמור שינויים כאן, או להוסיף מנהל נוסף לפי אימייל.",
+  "sharedPage.saveChanges": "שמירת שינויים",
+  "sharedPage.saveChangesDone": "השינויים נשמרו בקישור הזה.",
+  "sharedPage.saveChangesFailed": "שמירת השינויים נכשלה. נסו שוב.",
+  "sharedPage.addAdminPlaceholder": "הוספת מנהל לפי אימייל...",
+  "sharedPage.addAdmin": "הוספת מנהל",
+  "sharedPage.addAdminDone": "נוסף/ה בהצלחה — עכשיו גם הם יכולים לשמור שינויים בקישור הזה.",
+  "sharedPage.addAdminFailed": "הוספת המנהל נכשלה. נסו שוב.",
+  "sharedPage.shareNewLink": "שיתוף קישור חדש",
+  "sharedPage.newLinkCopied": "קישור חדש עם השינויים שלכם הועתק ללוח.",
+  "sharedPage.newLinkFailed": "יצירת קישור חדש נכשלה. נסו שוב.",
 
   // Trip file import/export
   "tripFile.readFailed": "קריאת הקובץ נכשלה.",
