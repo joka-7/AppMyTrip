@@ -63,6 +63,22 @@ class TripData(BaseModel):
     )
 
 
+class ProviderCredentials(BaseModel):
+    """One LLM provider plus the caller's key(s) for it."""
+
+    provider: str = Field(..., description="Provider id: gemini/openai/anthropic/groq/…")
+    api_keys: list[str] = Field(default_factory=list, description="Keys to try, in order")
+
+
+# Shared description for the `credentials` request field.
+_CREDENTIALS_DESC = (
+    "The caller's saved keys across several providers, tried in order (provider by "
+    "provider, key by key). The server only errors once every one fails, so an "
+    "exhausted or invalid key/provider doesn't surface an error as long as another "
+    "works. Takes precedence over the single-provider api_key/api_keys/provider fields."
+)
+
+
 class AgentInteractRequest(BaseModel):
     """Payload for interacting with the AI Agent in Stage 3."""
 
@@ -71,6 +87,7 @@ class AgentInteractRequest(BaseModel):
     preferences: str | None = Field(
         None, description="Free-text dietary/other preference (e.g. 'Vegan', 'gluten-free')"
     )
+    credentials: list[ProviderCredentials] | None = Field(None, description=_CREDENTIALS_DESC)
     api_key: str | None = Field(
         None,
         description="Caller's own LLM provider API key. Falls back to the server's "
@@ -98,6 +115,7 @@ class ParseRequest(BaseModel):
     preferences: str | None = Field(
         None, description="Free-text dietary/other preference (e.g. 'Vegan', 'gluten-free')"
     )
+    credentials: list[ProviderCredentials] | None = Field(None, description=_CREDENTIALS_DESC)
     api_key: str | None = Field(
         None,
         description="Caller's own LLM provider API key. Falls back to the server's "
@@ -135,6 +153,7 @@ class EnhanceRequest(BaseModel):
 
     trip_data: TripData
     options: EnhanceOptions
+    credentials: list[ProviderCredentials] | None = Field(None, description=_CREDENTIALS_DESC)
     api_key: str | None = Field(
         None,
         description="Caller's own LLM provider API key. Falls back to the server's "

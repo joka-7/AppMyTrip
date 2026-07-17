@@ -55,6 +55,14 @@ export interface EnhanceOptions {
   links?: boolean;
 }
 
+/** One saved provider + its key(s). Sent as the `credentials` list so the backend
+ * can fall through to another saved provider when one is exhausted/invalid, and
+ * only errors once every one has failed. */
+export interface ProviderCredentials {
+  provider: string;
+  api_keys: string[];
+}
+
 export interface ParseResponse {
   trip_data: TripData;
   initial_agent_message: string | null;
@@ -111,10 +119,12 @@ export function parseTrip(
   preferences?: string | null,
   apiKeys?: string[] | null,
   provider?: string | null,
+  credentials?: ProviderCredentials[] | null,
 ): Promise<ParseResponse> {
   return postJSON<ParseResponse>("/api/trip/parse", {
     raw_text: rawText,
     preferences: preferences ?? null,
+    credentials: credentials ?? null,
     api_keys: apiKeys ?? null,
     provider: provider ?? null,
   });
@@ -127,11 +137,13 @@ export function agentInteract(
   preferences?: string | null,
   apiKeys?: string[] | null,
   provider?: string | null,
+  credentials?: ProviderCredentials[] | null,
 ): Promise<AgentResponse> {
   return postJSON<AgentResponse>("/api/trip/agent", {
     trip_data: tripData,
     user_message: userMessage,
     preferences: preferences ?? null,
+    credentials: credentials ?? null,
     api_keys: apiKeys ?? null,
     provider: provider ?? null,
   });
@@ -155,10 +167,12 @@ export function enhanceTrip(
   options: EnhanceOptions,
   apiKeys?: string[] | null,
   provider?: string | null,
+  credentials?: ProviderCredentials[] | null,
 ): Promise<EnhanceResponse> {
   return postJSON<EnhanceResponse>("/api/trip/enhance", {
     trip_data: tripData,
     options,
+    credentials: credentials ?? null,
     api_keys: apiKeys ?? null,
     provider: provider ?? null,
   });

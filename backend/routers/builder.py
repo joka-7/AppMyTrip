@@ -1,6 +1,13 @@
 from fastapi import APIRouter, HTTPException
 
-from models import AgentInteractRequest, EnhanceOptions, EnhanceRequest, ParseRequest, TripData
+from models import (
+    AgentInteractRequest,
+    EnhanceOptions,
+    EnhanceRequest,
+    ParseRequest,
+    ProviderCredentials,
+    TripData,
+)
 from services.llm import LLMService
 from services.tts import TTSService
 
@@ -141,6 +148,7 @@ class TripBuilder:
         self._api_key: str | None = None
         self._api_keys: list[str] | None = None
         self._provider: str | None = None
+        self._credentials: list[ProviderCredentials] | None = None
 
     def load_initial_text(self, text: str) -> "TripBuilder":
         """Receives the raw text from the user."""
@@ -168,6 +176,13 @@ class TripBuilder:
         self._provider = provider
         return self
 
+    def set_credentials(self, credentials: list[ProviderCredentials] | None) -> "TripBuilder":
+        """Sets the caller's keys across several providers, tried in order — the
+        request only fails once every provider/key has failed (takes precedence
+        over the single-provider api_key/api_keys/provider fields)."""
+        self._credentials = credentials
+        return self
+
     async def extract_with_llm(self) -> "TripBuilder":
         """Invokes the LLMService to parse the text."""
         self._trip = await LLMService.parse_trip_text(
@@ -176,6 +191,7 @@ class TripBuilder:
             api_key=self._api_key,
             provider=self._provider,
             api_keys=self._api_keys,
+            credentials=self._credentials,
         )
         return self
 
@@ -197,6 +213,7 @@ class TripBuilder:
             api_key=self._api_key,
             provider=self._provider,
             api_keys=self._api_keys,
+            credentials=self._credentials,
         )
 
         if _looks_truncated(previous_trip, agent_response.updated_trip, user_message):
@@ -209,6 +226,7 @@ class TripBuilder:
                 api_key=self._api_key,
                 provider=self._provider,
                 api_keys=self._api_keys,
+                credentials=self._credentials,
             )
             if _looks_truncated(previous_trip, agent_response.updated_trip, user_message):
                 # 409, not 502/504: this isn't an upstream/provider failure, it's our
@@ -237,6 +255,7 @@ class TripBuilder:
             api_key=self._api_key,
             provider=self._provider,
             api_keys=self._api_keys,
+            credentials=self._credentials,
         )
         return self
 
@@ -276,6 +295,7 @@ async def parse_initial_trip(request: ParseRequest) -> dict:
     builder.set_api_key(request.api_key)
     builder.set_api_keys(request.api_keys)
     builder.set_provider(request.provider)
+    builder.set_credentials(request.credentials)
 
     # Execute the LLM pipeline asynchronously
     builder.load_initial_text(request.raw_text)
@@ -295,6 +315,7 @@ async def agent_interaction(request: AgentInteractRequest) -> dict:
     builder.set_api_key(request.api_key)
     builder.set_api_keys(request.api_keys)
     builder.set_provider(request.provider)
+    builder.set_credentials(request.credentials)
 
     # AI modifies the trip and generates a reply
     reply_text = await builder.process_agent_update(request.user_message)
@@ -312,6 +333,7 @@ async def enhance_trip_endpoint(request: EnhanceRequest) -> dict:
     builder.set_api_key(request.api_key)
     builder.set_api_keys(request.api_keys)
     builder.set_provider(request.provider)
+    builder.set_credentials(request.credentials)
 
     await builder.enhance(request.options)
 
