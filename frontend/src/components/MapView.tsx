@@ -282,7 +282,10 @@ export default function MapView({
         </div>
       )}
 
-      <div className="flex-1 rounded-xl overflow-hidden border border-outline/40 shadow-inner">
+      {/* `isolate` keeps Leaflet's internal stacking contained: its panes/controls
+          use z-index values up to 1000, which would otherwise bubble up and paint
+          over the app's sticky navbar and its dropdowns (e.g. the API-key menu). */}
+      <div className="flex-1 rounded-xl overflow-hidden border border-outline/40 shadow-inner isolate">
         <MapContainer
           center={center}
           zoom={coordActs[0] ? 13 : 2}

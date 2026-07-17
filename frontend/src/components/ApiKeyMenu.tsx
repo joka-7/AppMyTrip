@@ -95,7 +95,7 @@ export default function ApiKeyMenu() {
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-outline/20 p-4 z-40 text-start">
+        <div className="absolute end-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-lg border border-outline/20 p-4 z-40 text-start">
           <h3 className="text-sm font-bold text-ink mb-1">{t("apiKey.heading")}</h3>
           <p className="text-xs text-ink-muted mb-3">
             {t("apiKey.descriptionBefore")}

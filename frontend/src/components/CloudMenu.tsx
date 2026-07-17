@@ -232,7 +232,7 @@ export default function CloudMenu({
         </button>
 
         {isOpen && (
-          <div className="absolute left-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-outline/20 p-4 z-40 text-start">
+          <div className="absolute end-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-lg border border-outline/20 p-4 z-40 text-start">
             {notice && <p className="text-xs text-amber-700 mb-3">{notice}</p>}
 
             <div className="flex gap-2 mb-2">
