@@ -158,12 +158,12 @@ const buildDemoTrip = (): TripData => ({
 // Falls back to the wand icon until frontend/public/logo.png is committed.
 function AppLogo() {
   const [failed, setFailed] = useState(false);
-  if (failed) return <Wand2 className="text-primary" />;
+  if (failed) return <Wand2 size={44} className="text-primary" />;
   return (
     <img
       src="/logo.png"
       alt="AppMyTrip"
-      className="w-12 h-12 rounded-xl"
+      className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl"
       onError={() => setFailed(true)}
     />
   );
