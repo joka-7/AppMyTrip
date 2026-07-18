@@ -3,7 +3,9 @@
 Each request can pick its own provider and supply its own API key(s), so each
 user pays for/rate-limits their own usage instead of sharing the server
 operator's key. Several keys can be sent per provider and are rotated through
-when one is rate-limited. The per-provider env vars are only a fallback for
+whenever one fails — rate-limited, erroring, or timing out — so a single bad
+key doesn't stall the request on its own retry-with-backoff schedule while
+other keys sit untried. The per-provider env vars are only a fallback for
 local development when no per-request key is supplied:
 - gemini     — Google Gemini (GEMINI_API_KEY), free tier — default
 - openai     — OpenAI GPT models (OPENAI_API_KEY)
@@ -274,10 +276,14 @@ class LLMService:
         provider: str | None = None,
         max_retries: int = 5,
     ) -> dict:
-        # Try each supplied key in turn; when one is rate-limited we rotate to the
-        # next (a fresh key beats waiting on an exhausted one) and only surface a
-        # 429 once every key has been rate-limited. Non-429 errors still retry with
-        # exponential backoff on the current key, as before.
+        # Try each supplied key in turn. Whatever the failure — 429, a 5xx, a
+        # timeout, a malformed response — a key that isn't the last one gets
+        # rotated past immediately rather than burning the full retry-with-
+        # backoff budget on it; a fresh key beats waiting on one that just
+        # failed. Only once we're down to the last key/option left do we pay
+        # the full exponential-backoff schedule before finally giving up, so
+        # a transient hiccup on an early key can't stall the request for
+        # minutes while later keys sit untried.
         keys = api_keys if api_keys else [None]
         delays = [1, 2, 4, 8, 16]
         last_rate_limit: httpx.HTTPStatusError | None = None
@@ -300,12 +306,16 @@ class LLMService:
                         delay = float(retry_after) if retry_after else delays[attempt]
                         await asyncio.sleep(delay)
                         continue
+                    if not is_last_key:
+                        break  # rotate to the next key immediately
                     if attempt == max_retries - 1:
                         raise HTTPException(
                             status_code=502, detail=f"LLM API failed after retries: {str(e)}"
                         ) from e
                     await asyncio.sleep(delays[attempt])
                 except (httpx.HTTPError, ValueError, json.JSONDecodeError) as e:
+                    if not is_last_key:
+                        break  # rotate to the next key immediately
                     if attempt == max_retries - 1:
                         raise HTTPException(
                             status_code=502, detail=f"LLM API failed after retries: {str(e)}"

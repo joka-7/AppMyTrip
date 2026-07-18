@@ -321,6 +321,64 @@ def test_execute_with_retry_raises_429_only_after_every_key_is_rate_limited(monk
     assert "k1" in tried and "k2" in tried
 
 
+def test_execute_with_retry_rotates_to_the_next_key_on_a_non_rate_limit_error(monkeypatch):
+    # A non-429 failure (e.g. an empty/malformed response) on the first key
+    # should not burn its full retry budget before trying the second key.
+    tried: list[str | None] = []
+
+    class KeyedProvider:
+        def __init__(self, api_key=None, provider=None):
+            self.api_key = api_key
+
+        async def complete_json(self, system_prompt, user_content):
+            tried.append(self.api_key)
+            if self.api_key == "good-key":
+                return {"ok": True}
+            raise ValueError("Empty response from LLM")
+
+    monkeypatch.setattr(
+        LLMService,
+        "_get_provider",
+        staticmethod(lambda api_key=None, provider=None: KeyedProvider(api_key)),
+    )
+
+    result = asyncio.run(
+        LLMService._execute_with_retry(
+            "sys", "user", api_keys=["bad-key", "good-key"], max_retries=5
+        )
+    )
+    assert result == {"ok": True}
+    # The bad key was only tried once before rotating, not retried max_retries times.
+    assert tried == ["bad-key", "good-key"]
+
+
+def test_execute_with_retry_raises_502_after_every_key_fails_non_rate_limit(monkeypatch):
+    tried: list[str | None] = []
+
+    class BrokenProvider:
+        def __init__(self, api_key=None):
+            self.api_key = api_key
+
+        async def complete_json(self, system_prompt, user_content):
+            tried.append(self.api_key)
+            raise ValueError("Empty response from LLM")
+
+    monkeypatch.setattr(
+        LLMService,
+        "_get_provider",
+        staticmethod(lambda api_key=None, provider=None: BrokenProvider(api_key)),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            LLMService._execute_with_retry("sys", "user", api_keys=["k1", "k2"], max_retries=2)
+        )
+    assert exc_info.value.status_code == 502
+    # k1 (not the last key) was only tried once; k2 (the last key) paid the
+    # full retry budget before the request was finally given up on.
+    assert tried == ["k1", "k2", "k2"]
+
+
 # ---------------------------------------------------------------------------
 # Cross-provider "use all saved keys" fallback
 # ---------------------------------------------------------------------------
