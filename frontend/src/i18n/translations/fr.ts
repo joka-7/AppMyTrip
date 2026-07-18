@@ -277,6 +277,20 @@ export const fr: Record<TranslationKey, string> = {
   "sharedPage.saveFailed": "L'enregistrement sur votre compte a échoué. Réessayez.",
   "sharedPage.localOnlyNotice":
     "Les modifications faites ici (y compris via le chat) sont enregistrées uniquement dans ce navigateur et ne sont pas envoyées au serveur.",
+  "sharedPage.adminHint":
+    "Vous êtes administrateur de ce voyage — vous pouvez enregistrer les modifications ici, ou ajouter un autre administrateur par e-mail.",
+  "sharedPage.saveChanges": "Enregistrer les modifications",
+  "sharedPage.saveChangesDone": "Modifications enregistrées sur ce lien.",
+  "sharedPage.saveChangesFailed": "L'enregistrement des modifications a échoué. Réessayez.",
+  "sharedPage.addAdminPlaceholder": "Ajouter un administrateur par e-mail...",
+  "sharedPage.addAdmin": "Ajouter un administrateur",
+  "sharedPage.addAdminDone":
+    "Ajouté — cette personne peut désormais aussi enregistrer des modifications sur ce lien.",
+  "sharedPage.addAdminFailed": "L'ajout de cet administrateur a échoué. Réessayez.",
+  "sharedPage.shareNewLink": "Partager un nouveau lien",
+  "sharedPage.newLinkCopied":
+    "Un nouveau lien avec vos modifications a été copié dans le presse-papiers.",
+  "sharedPage.newLinkFailed": "La création d'un nouveau lien a échoué. Réessayez.",
 
   // Trip file import/export
   "tripFile.readFailed": "La lecture du fichier a échoué.",

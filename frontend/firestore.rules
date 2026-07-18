@@ -10,12 +10,20 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Publicly readable (no sign-in) once shared; only the owner can publish
-    // or unpublish a share — checked against ownerId on the doc itself.
+    // Publicly readable (no sign-in) once shared. Only the owner (by uid) can
+    // create or unpublish a share. Once shared, the owner or anyone listed in
+    // adminEmails (matched against the caller's verified sign-in email, so an
+    // admin only needs to be invited by address, never looked up) can update
+    // the trip's content in place and add further admins — that's what lets a
+    // dedicated trip link be edited and re-shared by more than one person.
     match /sharedTrips/{tripId} {
       allow read: if true;
-      allow create, update: if request.auth != null
+      allow create: if request.auth != null
         && request.auth.uid == request.resource.data.ownerId;
+      allow update: if request.auth != null
+        && request.resource.data.ownerId == resource.data.ownerId
+        && (request.auth.uid == resource.data.ownerId
+          || request.auth.token.email.lower() in resource.data.adminEmails);
       allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId;
     }
   }

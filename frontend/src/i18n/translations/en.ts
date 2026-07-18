@@ -271,6 +271,18 @@ export const en: Record<TranslationKey, string> = {
   "sharedPage.saveFailed": "Saving to your account failed. Please try again.",
   "sharedPage.localOnlyNotice":
     "Changes you make here (including via chat) are saved only in this browser and are not sent to the server.",
+  "sharedPage.adminHint":
+    "You're an admin of this trip — you can save changes here, or add another admin by email.",
+  "sharedPage.saveChanges": "Save changes",
+  "sharedPage.saveChangesDone": "Changes saved to this link.",
+  "sharedPage.saveChangesFailed": "Saving changes failed. Please try again.",
+  "sharedPage.addAdminPlaceholder": "Add an admin by email...",
+  "sharedPage.addAdmin": "Add admin",
+  "sharedPage.addAdminDone": "Added — they can now save changes to this link too.",
+  "sharedPage.addAdminFailed": "Adding that admin failed. Please try again.",
+  "sharedPage.shareNewLink": "Share new link",
+  "sharedPage.newLinkCopied": "A new link with your changes was copied to the clipboard.",
+  "sharedPage.newLinkFailed": "Creating a new link failed. Please try again.",
 
   // Trip file import/export
   "tripFile.readFailed": "Reading the file failed.",

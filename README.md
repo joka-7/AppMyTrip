@@ -212,6 +212,21 @@ after `expiresAt` — the client-side check above covers that gap. Deleting a pr
 trip (the "My Trips" list's ✕ button) also deletes its `sharedTrips` copy, so the
 share link stops working immediately rather than relying on TTL cleanup.
 
+**Editing a shared link in place (admins).** A `sharedTrips` doc also carries an
+`adminEmails` list, seeded with the owner's sign-in email the first time the trip is
+shared. Anyone whose current Google sign-in email is on that list gets extra controls
+on the `?shared=` page itself: a "save changes" button (`saveSharedTrip`) that writes
+edits straight back to that same doc/link instead of forking a private copy, and an
+"add admin" field (`addSharedTripAdmin`) that adds another email to the list so that
+person gets the same ability the next time they open the link signed in with that
+account. `firestore.rules` enforces this server-side — an update to a `sharedTrips`
+doc is only allowed from the owner's uid or from a caller whose verified sign-in
+email (`request.auth.token.email`) is already in `adminEmails` — so the client-side
+check is a UI convenience, not the actual access control. Everyone (admin or not)
+also gets a "share new link" button that forks the current in-browser edits into a
+brand-new `sharedTrips` doc and copies its link, for when you'd rather hand out a
+separate link than overwrite the original.
+
 Setup (free, no billing required):
 1. Create a project at the [Firebase console](https://console.firebase.google.com/).
 2. **Build → Authentication → Sign-in method** → enable the **Google** provider.
