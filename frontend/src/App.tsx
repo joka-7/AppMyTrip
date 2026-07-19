@@ -47,10 +47,16 @@ const EMPTY_TRIP: TripData = { title: "", dates: "", days: [] };
 const isRateLimited = (err: unknown): boolean => err instanceof ApiError && err.status === 429;
 
 // Turns a failed API call into a specific, honest Hebrew explanation instead of a
-// generic "something went wrong" — but never shows the backend's raw `detail` text
-// verbatim, since that's a developer-facing string (sometimes an entire Pydantic
-// validation dump) that isn't fit for a chat bubble. Instead, classify by HTTP status
-// into a short, clean explanation a non-technical user can actually act on.
+// generic "something went wrong" — but doesn't show most backend `detail` text
+// verbatim, since that's often a developer-facing string (sometimes an entire
+// Pydantic validation dump) that isn't fit for a chat bubble. Instead, classify by
+// HTTP status into a short, clean explanation a non-technical user can act on.
+//
+// 502/504 (the provider/every-key-failed case) is the one exception: its `detail`
+// is always our own short, already-user-facing summary (which key/provider failed
+// and why — see LLMService._summarize_failures on the backend), not a raw dump, and
+// it's exactly the case people otherwise have to dig through server logs to
+// diagnose. Appending it here means the actual cause is visible right in the app.
 const describeApiError = (err: unknown, fallback: string): string => {
   if (isRateLimited(err)) {
     return translate("apiError.rateLimited");
@@ -70,13 +76,22 @@ const describeApiError = (err: unknown, fallback: string): string => {
         return translate("apiError.truncated");
       case 502:
       case 504:
-        return translate("apiError.providerDown");
+        return appendErrorDetail(translate("apiError.providerDown"), err.detail);
       default:
         return fallback;
     }
   }
   return fallback;
 };
+
+/** Appends a short backend error detail to a friendly message so the actual cause
+ * is visible in the UI, without needing server log access to find out why. */
+function appendErrorDetail(message: string, detail: string): string {
+  const trimmed = detail.trim();
+  if (!trimmed) return message;
+  const short = trimmed.length > 220 ? `${trimmed.slice(0, 220)}…` : trimmed;
+  return `${message}\n${short}`;
+}
 
 // Fallback used to enrich activities added after Step 2 (via chat or the "+" button)
 // when the user skipped Step 2 entirely and so never chose any extras to remember.
