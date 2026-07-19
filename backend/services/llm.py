@@ -257,6 +257,31 @@ def _detect_day_numbers(user_message: str) -> list[int]:
     return sorted({int(n) for n in _DAY_NUMBER_PATTERN.findall(user_message)})
 
 
+# Catches "add a/another day"-style requests that don't name a specific day
+# number at all (e.g. "add another day", "הוסיפו עוד יום", "ajoutez un jour") —
+# the common case _DAY_NUMBER_PATTERN can't help with since there's no digit to
+# find. Deliberately requires "day"/"יום"/"jour" as a bare word close after the
+# add-verb: \bיום\b doesn't match inside "ליום"/"היום" (no word boundary before
+# a Hebrew prefix letter), so "add X to the day" (an edit-target reference, ל)
+# and "add X today" (היום) correctly don't match; the explicit negative
+# lookbehinds additionally rule out "(to) every/each day"/"לכל/בכל יום", which
+# read as a bare word but mean "every existing day", not "a new day".
+_ADD_DAY_PATTERN = re.compile(
+    r"\b(?:add|הוסיפ\w*|תוסיפ\w*|הוסף|תוסיף|נוסיף|ajout\w*)\b"
+    r"(?:\s+\S+){0,3}?\s+"
+    r"(?<!כל )(?<!לכל )(?<!בכל )(?<!every )(?<!each )"
+    r"\b(?:days?|ימים|יום|jours?)\b",
+    re.IGNORECASE,
+)
+
+
+def _mentions_adding_a_day(user_message: str) -> bool:
+    """True for an 'add a day' request with no specific day number — see
+    _ADD_DAY_PATTERN. Only meaningful when _detect_day_numbers found nothing;
+    a numbered mention is handled first and takes priority."""
+    return bool(_ADD_DAY_PATTERN.search(user_message))
+
+
 _PROVIDERS: dict[str, type] = {
     "gemini": GeminiProvider,
     "openai": OpenAIProvider,
@@ -577,9 +602,10 @@ class LLMService:
         provider: str | None,
     ) -> AgentDayIntent:
         """Cheaply decides how much of the trip a chat turn actually needs to touch.
-        Tries a free, local heuristic first — an explicit day number mentioned in the
-        message, compared against which days already exist — and only falls back to a
-        small classification LLM call when that's ambiguous (or absent)."""
+        Tries two free, local heuristics first — an explicit day number mentioned in
+        the message (compared against which days already exist), then an unnumbered
+        "add a day" phrasing — and only falls back to a small classification LLM call
+        when neither applies."""
         existing_nums = {d.dayNum for d in current_trip.days}
         mentioned = _detect_day_numbers(user_message)
         if mentioned:
@@ -588,6 +614,8 @@ class LLMService:
             if all(n in existing_nums for n in mentioned):
                 return AgentDayIntent(action="edit_days", day_numbers=mentioned)
             # A mix of new and existing day numbers — genuinely ambiguous, ask the model.
+        elif _mentions_adding_a_day(user_message):
+            return AgentDayIntent(action="add_days")
         return await cls._classify_intent_via_llm(
             current_trip, user_message, credentials, api_key, api_keys, provider
         )

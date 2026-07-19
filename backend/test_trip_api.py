@@ -29,6 +29,7 @@ from services.llm import (
     OpenAIProvider,
     OpenRouterProvider,
     _detect_day_numbers,
+    _mentions_adding_a_day,
 )
 from services.tts import MockTTSProvider, PiperTTSProvider, TTSService
 from trip_api_backend import app
@@ -1009,6 +1010,60 @@ def test_detect_day_numbers_recognizes_explicit_mentions_in_several_languages():
     assert _detect_day_numbers("rename the museum") == []
     assert _detect_day_numbers("the last day of the trip") == []
     assert _detect_day_numbers("day 3 and day 5, swap them") == [3, 5]
+
+
+def test_mentions_adding_a_day_recognizes_unnumbered_add_requests():
+    # No day number at all — the "add a day" phrasing itself is the only signal.
+    assert _mentions_adding_a_day("add another day") is True
+    assert _mentions_adding_a_day("add a day") is True
+    assert _mentions_adding_a_day("add one more day") is True
+    assert _mentions_adding_a_day("add 2 more days") is True
+    assert _mentions_adding_a_day("הוסף עוד יום") is True
+    assert _mentions_adding_a_day("הוסיפו עוד יום, יום רגיעה ליד האגם") is True
+    assert _mentions_adding_a_day("תוסיף עוד יום") is True
+    assert _mentions_adding_a_day("ajoutez un jour") is True
+    # "day"/"יום" as an edit TARGET (or an unrelated word), not something being
+    # created, must not match — these are edits/general requests, not add_days.
+    assert _mentions_adding_a_day("add a restaurant") is False
+    assert _mentions_adding_a_day("add a stop to the day") is False
+    assert _mentions_adding_a_day("הוסף פעילות ליום") is False
+    assert _mentions_adding_a_day("הוסף תמונות לכל יום") is False
+    assert _mentions_adding_a_day("add photos to every day") is False
+    assert _mentions_adding_a_day("add photos today") is False
+    assert _mentions_adding_a_day("הוסף עצירה היום") is False
+    assert _mentions_adding_a_day("rename the museum") is False
+
+
+def test_agent_interaction_adds_a_day_from_unnumbered_request_without_llm_classification(
+    monkeypatch,
+):
+    trip = _sample_trip()  # only day 1 exists
+    fake = _RoutingFakeProvider(
+        add_days={
+            "days": [
+                {
+                    "dayNum": 2,
+                    "activities": [
+                        {
+                            "id": "d2a1",
+                            "time": "09:00",
+                            "title": "Lake day",
+                            "desc": "A relaxing day by the lake.",
+                            "type": "attraction",
+                        }
+                    ],
+                }
+            ],
+            "agent_reply": "הוספתי יום נוסף",
+        }
+    )
+    monkeypatch.setattr(
+        LLMService, "_get_provider", staticmethod(lambda api_key=None, provider=None: fake)
+    )
+    result = asyncio.run(LLMService.agent_interaction(trip, "הוסיפו עוד יום, יום רגיעה ליד האגם"))
+    assert fake.calls == ["add_days"]  # no classification call needed
+    assert [d.dayNum for d in result.updated_trip.days] == [1, 2]
+    assert result.updated_trip.days[1].activities[0].title == "Lake day"
 
 
 class _RoutingFakeProvider:
