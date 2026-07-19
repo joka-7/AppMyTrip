@@ -189,10 +189,16 @@ export default function SharedAppPage({
                   className="flex items-center gap-1.5 text-primary hover:text-primary-dark bg-primary/10 hover:bg-primary/20 disabled:opacity-60 px-2.5 py-1.5 rounded-lg"
                 >
                   <UserPlus size={14} />
-                  {saveStatus === "working" ? t("sharedPage.saving") : t("sharedPage.saveToAccount")}
+                  {saveStatus === "working"
+                    ? t("sharedPage.saving")
+                    : t("sharedPage.saveToAccount")}
                 </button>
-                {saveStatus === "done" && <p className="text-green-700 px-1">{t("sharedPage.savedNotice")}</p>}
-                {saveStatus === "error" && <p className="text-red-700 px-1">{t("sharedPage.saveFailed")}</p>}
+                {saveStatus === "done" && (
+                  <p className="text-green-700 px-1">{t("sharedPage.savedNotice")}</p>
+                )}
+                {saveStatus === "error" && (
+                  <p className="text-red-700 px-1">{t("sharedPage.saveFailed")}</p>
+                )}
 
                 <button
                   onClick={handleCreateNewLink}
@@ -200,7 +206,9 @@ export default function SharedAppPage({
                   className="flex items-center gap-1.5 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high disabled:opacity-60 px-2.5 py-1.5 rounded-lg"
                 >
                   <Share2 size={14} />
-                  {newLinkStatus === "working" ? t("sharedPage.saving") : t("sharedPage.shareNewLink")}
+                  {newLinkStatus === "working"
+                    ? t("sharedPage.saving")
+                    : t("sharedPage.shareNewLink")}
                 </button>
                 {newLinkStatus === "done" && (
                   <p className="text-green-700 px-1">{t("sharedPage.newLinkCopied")}</p>
@@ -242,7 +250,9 @@ export default function SharedAppPage({
                         disabled={addAdminStatus === "working"}
                         className="flex items-center gap-1 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high disabled:opacity-60 px-2.5 py-1.5 rounded-lg shrink-0"
                       >
-                        {addAdminStatus === "working" ? t("sharedPage.saving") : t("sharedPage.addAdmin")}
+                        {addAdminStatus === "working"
+                          ? t("sharedPage.saving")
+                          : t("sharedPage.addAdmin")}
                       </button>
                     </form>
                     {addAdminStatus === "done" && (
