@@ -1,5 +1,15 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { hebrewWeekdayLetter, tripStartWeekdayIndex } from "./hebrewDate";
+
+// Several cases below have no year at all, which resolves relative to "now" —
+// pin it so those assertions don't depend on when the suite actually runs.
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(2026, 6, 19)); // 2026-07-19
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("tripStartWeekdayIndex", () => {
   it("parses an ISO date", () => {
@@ -13,6 +23,11 @@ describe("tripStartWeekdayIndex", () => {
 
   it("parses a DD.MM.YYYY date", () => {
     expect(tripStartWeekdayIndex("12.06.2025 - 18.06.2025")).toBe(4);
+  });
+
+  it("parses a 2-digit year the same as its 4-digit equivalent", () => {
+    expect(tripStartWeekdayIndex("12/06/25 - 18/06/25")).toBe(4);
+    expect(tripStartWeekdayIndex("12.06.25 - 18.06.25")).toBe(4);
   });
 
   it("falls back to a Hebrew weekday letter after 'יום'", () => {
@@ -36,8 +51,7 @@ describe("tripStartWeekdayIndex", () => {
     expect(tripStartWeekdayIndex("du samedi")).toBe(6);
   });
 
-  it("returns null for a freeform string with no recognizable date", () => {
-    expect(tripStartWeekdayIndex("12-19 ביולי")).toBeNull();
+  it("returns null for a freeform string with no day, month, or weekday at all", () => {
     expect(tripStartWeekdayIndex("בקרוב")).toBeNull();
   });
 
@@ -62,9 +76,25 @@ describe("tripStartWeekdayIndex", () => {
     expect(tripStartWeekdayIndex("20-27 juillet 2026")).toBe(1);
   });
 
-  it("does not guess a year when a month name has none", () => {
-    expect(tripStartWeekdayIndex("20-27 יולי")).toBeNull();
-    expect(tripStartWeekdayIndex("20-27 July")).toBeNull();
+  it("assumes the nearest upcoming year when a month name has none", () => {
+    // "now" is 2026-07-19 (fake system time above); July 20 hasn't happened
+    // yet this year, so it resolves to 2026-07-20, a Monday.
+    expect(tripStartWeekdayIndex("20-27 יולי")).toBe(1);
+    expect(tripStartWeekdayIndex("20-27 July")).toBe(1);
+  });
+
+  it("rolls a yearless month/day that already passed this year to next year", () => {
+    // "now" is 2026-07-19; July 12 already happened this year, so it resolves
+    // to 2027-07-12, also a Monday — distinct from 2026-07-12 (a Sunday).
+    expect(tripStartWeekdayIndex("12-19 ביולי")).toBe(1);
+  });
+
+  it("parses a bare day + numeric month with no year at all", () => {
+    // Resolves to 2026-07-20 (nearest upcoming), a Monday.
+    expect(tripStartWeekdayIndex("20-27.07")).toBe(1);
+    expect(tripStartWeekdayIndex("20-27/07")).toBe(1);
+    expect(tripStartWeekdayIndex("20/07 - 27/07")).toBe(1);
+    expect(tripStartWeekdayIndex("20.07 - 27.07")).toBe(1);
   });
 });
 

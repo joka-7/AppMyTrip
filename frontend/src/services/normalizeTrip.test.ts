@@ -51,12 +51,12 @@ describe("ensureStartWeekday", () => {
   });
 
   it("keeps an existing startWeekday on saved JSON", () => {
-    const saved = { ...trip([]), dates: "12-19 ביולי", startWeekday: 4 };
+    const saved = { ...trip([]), dates: "בקרוב", startWeekday: 4 };
     expect(ensureStartWeekday(saved).startWeekday).toBe(4);
   });
 
   it("leaves startWeekday unset when dates cannot be parsed", () => {
-    const result = ensureStartWeekday({ ...trip([]), dates: "12-19 ביולי" });
+    const result = ensureStartWeekday({ ...trip([]), dates: "בקרוב" });
     expect(result.startWeekday).toBeUndefined();
   });
 });
