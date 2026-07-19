@@ -59,7 +59,7 @@ class GeminiProvider:
             },
         }
         async with httpx.AsyncClient() as client:
-            response = await client.post(url, json=payload, timeout=30.0)
+            response = await client.post(url, json=payload, timeout=60.0)
             response.raise_for_status()
             result = response.json()
 
@@ -101,7 +101,7 @@ class _OpenAICompatibleProvider:
         }
         headers = {"Authorization": f"Bearer {self.api_key}"}
         async with httpx.AsyncClient() as client:
-            response = await client.post(self.url, json=payload, headers=headers, timeout=30.0)
+            response = await client.post(self.url, json=payload, headers=headers, timeout=60.0)
             response.raise_for_status()
             result = response.json()
 
@@ -189,7 +189,7 @@ class AnthropicProvider:
             "messages": [{"role": "user", "content": user_content}],
         }
         async with httpx.AsyncClient() as client:
-            response = await client.post(self.url, json=payload, headers=headers, timeout=30.0)
+            response = await client.post(self.url, json=payload, headers=headers, timeout=60.0)
             response.raise_for_status()
             result = response.json()
 
@@ -274,7 +274,7 @@ class LLMService:
         user_content: str,
         api_keys: list[str | None] | None = None,
         provider: str | None = None,
-        max_retries: int = 5,
+        max_retries: int = 3,
     ) -> dict:
         # Try each supplied key in turn. Whatever the failure — 429, a 5xx, a
         # timeout, a malformed response — a key that isn't the last one gets
@@ -383,7 +383,7 @@ class LLMService:
         api_key: str | None = None,
         api_keys: list[str] | None = None,
         provider: str | None = None,
-        max_retries: int = 5,
+        max_retries: int = 3,
     ) -> dict:
         """Run the prompt against every saved provider/key in order, falling through
         to the next provider when one fails, and only raising once all have failed —
