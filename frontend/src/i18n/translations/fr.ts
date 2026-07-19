@@ -233,6 +233,8 @@ export const fr: Record<TranslationKey, string> = {
   "apiKey.addKey": "Ajouter une clé",
   "apiKey.close": "Fermer",
   "apiKey.inputPlaceholder": "Clé API...",
+  "apiKey.primaryNote": "Ce fournisseur est essayé en premier à chaque requête.",
+  "apiKey.makePrimary": "Définir comme fournisseur principal",
 
   // Cloud menu (sign-in, save, share, my trips)
   "cloud.importSuccess": "Le voyage a été importé depuis le fichier.",

@@ -227,6 +227,8 @@ export const en: Record<TranslationKey, string> = {
   "apiKey.addKey": "Add key",
   "apiKey.close": "Close",
   "apiKey.inputPlaceholder": "API Key...",
+  "apiKey.primaryNote": "This provider is tried first on every request.",
+  "apiKey.makePrimary": "Make this the primary provider",
 
   // Cloud menu (sign-in, save, share, my trips)
   "cloud.importSuccess": "The trip was imported from the file.",
