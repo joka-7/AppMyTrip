@@ -396,6 +396,16 @@ class LLMService:
                     )
                     if not is_last_key:
                         break  # rotate to the next key immediately
+                    # A non-429 4xx (e.g. a 404 from a misconfigured/deprecated model, or
+                    # a 400 from a malformed request) is the server rejecting this exact
+                    # request — retrying the identical request can never change that
+                    # outcome, so fail immediately instead of burning the whole retry
+                    # budget (and the seconds that come with it) on a request that can't
+                    # succeed. Only 5xx (a transient server-side issue) still retries.
+                    if 400 <= e.response.status_code < 500:
+                        raise HTTPException(
+                            status_code=502, detail=f"LLM API rejected the request: {str(e)}"
+                        ) from e
                     if attempt == max_retries - 1:
                         raise HTTPException(
                             status_code=502, detail=f"LLM API failed after retries: {str(e)}"

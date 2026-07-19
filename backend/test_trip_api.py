@@ -381,6 +381,36 @@ def test_execute_with_retry_raises_502_after_every_key_fails_non_rate_limit(monk
     assert tried == ["k1", "k2", "k2"]
 
 
+def test_execute_with_retry_fails_fast_on_a_permanent_4xx_even_on_the_last_key(monkeypatch):
+    # A 404 (e.g. a misconfigured/deprecated model) is a deterministic
+    # rejection of this exact request — retrying it can never succeed, so even
+    # on the last key it should fail after a single attempt, not burn the
+    # whole retry budget on a request that's guaranteed to keep failing.
+    tried: list[str | None] = []
+    request = httpx.Request("POST", "https://openrouter.ai/api/v1/chat/completions")
+    response = httpx.Response(404, request=request)
+    error = httpx.HTTPStatusError("not found", request=request, response=response)
+
+    class NotFoundProvider:
+        def __init__(self, api_key=None):
+            self.api_key = api_key
+
+        async def complete_json(self, system_prompt, user_content):
+            tried.append(self.api_key)
+            raise error
+
+    monkeypatch.setattr(
+        LLMService,
+        "_get_provider",
+        staticmethod(lambda api_key=None, provider=None: NotFoundProvider(api_key)),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(LLMService._execute_with_retry("sys", "user", api_keys=["k1"], max_retries=5))
+    assert exc_info.value.status_code == 502
+    assert tried == ["k1"]  # a single attempt, not 5
+
+
 # ---------------------------------------------------------------------------
 # Cross-provider "use all saved keys" fallback
 # ---------------------------------------------------------------------------
