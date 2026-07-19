@@ -262,6 +262,8 @@ export const he = {
   "errorBoundary.details": "פרטים טכניים (לדיווח)",
 
   // Shared trip page
+  "sharedPage.settings": "הגדרות",
+  "sharedPage.settingsAria": "הגדרות הטיול",
   "sharedPage.export": "ייצוא לקובץ",
   "sharedPage.import": "ייבוא מקובץ",
   "sharedPage.saving": "שומר...",

@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { RefObject } from "react";
-import { Download, Save, Share2, Upload, UserCog, UserPlus } from "lucide-react";
+import { Download, Save, Settings, Share2, Upload, UserCog, UserPlus } from "lucide-react";
 import type { Activity, TripData } from "../api";
 import { useI18n } from "../i18n/useI18n";
 import type { AppDesign } from "../services/appDesign";
@@ -67,6 +67,7 @@ export default function SharedAppPage({
 }) {
   const { t, dir } = useI18n();
   useTripBranding(appDesign, tripData.title);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "working" | "done" | "error">("idle");
   const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -144,126 +145,128 @@ export default function SharedAppPage({
   return (
     <div className="h-dvh overflow-hidden bg-surface-container flex justify-center" dir={dir}>
       <div className="w-full max-w-md h-dvh bg-surface shadow-2xl flex flex-col overflow-hidden">
-        <div className="flex flex-wrap items-center gap-2 p-2 bg-white border-b border-outline/20 text-xs">
-          <button
-            onClick={() => exportTripToFile(tripData, appDesign)}
-            className="flex items-center gap-1 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg"
-          >
-            <Download size={14} />
-            {t("sharedPage.export")}
-          </button>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg"
-          >
-            <Upload size={14} />
-            {t("sharedPage.import")}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json"
-            onChange={handleImportFile}
-            className="hidden"
-          />
-          <button
-            onClick={handleSaveToAccount}
-            disabled={saveStatus === "working"}
-            className="flex items-center gap-1 text-primary hover:text-primary-dark bg-primary/10 hover:bg-primary/20 disabled:opacity-60 px-2.5 py-1.5 rounded-lg"
-          >
-            <UserPlus size={14} />
-            {saveStatus === "working" ? t("sharedPage.saving") : t("sharedPage.saveToAccount")}
-          </button>
-          <button
-            onClick={handleCreateNewLink}
-            disabled={newLinkStatus === "working"}
-            className="flex items-center gap-1 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high disabled:opacity-60 px-2.5 py-1.5 rounded-lg"
-          >
-            <Share2 size={14} />
-            {newLinkStatus === "working" ? t("sharedPage.saving") : t("sharedPage.shareNewLink")}
-          </button>
-          {isAdmin && (
-            <button
-              onClick={handleSaveChanges}
-              disabled={saveChangesStatus === "working"}
-              className="flex items-center gap-1 text-white bg-primary hover:bg-primary-dark disabled:opacity-60 px-2.5 py-1.5 rounded-lg"
-            >
-              <Save size={14} />
-              {saveChangesStatus === "working"
-                ? t("sharedPage.saving")
-                : t("sharedPage.saveChanges")}
-            </button>
-          )}
+        <div className="shrink-0 flex items-center justify-end gap-2 p-2 bg-white border-b border-outline/20">
           <ApiKeyMenu />
           <InstallAppButton />
-        </div>
-        {isAdmin && (
-          <form
-            onSubmit={handleAddAdmin}
-            className="flex items-center gap-2 p-2 bg-surface-container-low border-b border-outline/20 text-xs"
-          >
-            <UserCog size={14} className="text-ink-muted shrink-0" />
-            <input
-              type="email"
-              value={adminEmailInput}
-              onChange={(e) => setAdminEmailInput(e.target.value)}
-              placeholder={t("sharedPage.addAdminPlaceholder")}
-              className="flex-1 min-w-0 border border-outline/40 rounded-md px-2 py-1 text-xs bg-surface"
-            />
+          <div className="relative">
             <button
-              type="submit"
-              disabled={addAdminStatus === "working"}
-              className="flex items-center gap-1 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high disabled:opacity-60 px-2.5 py-1.5 rounded-lg shrink-0"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label={t("sharedPage.settingsAria")}
+              className="flex items-center gap-1 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg text-xs"
             >
-              {addAdminStatus === "working" ? t("sharedPage.saving") : t("sharedPage.addAdmin")}
+              <Settings size={14} />
+              {t("sharedPage.settings")}
             </button>
-          </form>
-        )}
-        {saveStatus === "done" && (
-          <p className="text-xs text-green-700 text-center py-1 bg-green-50 border-b border-green-200">
-            {t("sharedPage.savedNotice")}
-          </p>
-        )}
-        {saveStatus === "error" && (
-          <p className="text-xs text-red-700 text-center py-1 bg-red-50 border-b border-red-200">
-            {t("sharedPage.saveFailed")}
-          </p>
-        )}
-        {saveChangesStatus === "done" && (
-          <p className="text-xs text-green-700 text-center py-1 bg-green-50 border-b border-green-200">
-            {t("sharedPage.saveChangesDone")}
-          </p>
-        )}
-        {saveChangesStatus === "error" && (
-          <p className="text-xs text-red-700 text-center py-1 bg-red-50 border-b border-red-200">
-            {t("sharedPage.saveChangesFailed")}
-          </p>
-        )}
-        {newLinkStatus === "done" && (
-          <p className="text-xs text-green-700 text-center py-1 bg-green-50 border-b border-green-200">
-            {t("sharedPage.newLinkCopied")}
-          </p>
-        )}
-        {newLinkStatus === "error" && (
-          <p className="text-xs text-red-700 text-center py-1 bg-red-50 border-b border-red-200">
-            {t("sharedPage.newLinkFailed")}
-          </p>
-        )}
-        {addAdminStatus === "done" && (
-          <p className="text-xs text-green-700 text-center py-1 bg-green-50 border-b border-green-200">
-            {t("sharedPage.addAdminDone")}
-          </p>
-        )}
-        {addAdminStatus === "error" && (
-          <p className="text-xs text-red-700 text-center py-1 bg-red-50 border-b border-red-200">
-            {t("sharedPage.addAdminFailed")}
-          </p>
-        )}
-        {importError && (
-          <p className="text-xs text-red-700 text-center py-1 bg-red-50 border-b border-red-200">
-            {importError}
-          </p>
-        )}
+
+            {menuOpen && (
+              <div className="absolute end-0 mt-2 w-72 max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto bg-white rounded-xl shadow-lg border border-outline/20 p-3 z-40 text-start text-xs flex flex-col gap-1.5">
+                <button
+                  onClick={() => exportTripToFile(tripData, appDesign)}
+                  className="flex items-center gap-1.5 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg"
+                >
+                  <Download size={14} />
+                  {t("sharedPage.export")}
+                </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-1.5 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg"
+                >
+                  <Upload size={14} />
+                  {t("sharedPage.import")}
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/json"
+                  onChange={handleImportFile}
+                  className="hidden"
+                />
+                {importError && <p className="text-red-700 px-1">{importError}</p>}
+
+                <button
+                  onClick={handleSaveToAccount}
+                  disabled={saveStatus === "working"}
+                  className="flex items-center gap-1.5 text-primary hover:text-primary-dark bg-primary/10 hover:bg-primary/20 disabled:opacity-60 px-2.5 py-1.5 rounded-lg"
+                >
+                  <UserPlus size={14} />
+                  {saveStatus === "working"
+                    ? t("sharedPage.saving")
+                    : t("sharedPage.saveToAccount")}
+                </button>
+                {saveStatus === "done" && (
+                  <p className="text-green-700 px-1">{t("sharedPage.savedNotice")}</p>
+                )}
+                {saveStatus === "error" && (
+                  <p className="text-red-700 px-1">{t("sharedPage.saveFailed")}</p>
+                )}
+
+                <button
+                  onClick={handleCreateNewLink}
+                  disabled={newLinkStatus === "working"}
+                  className="flex items-center gap-1.5 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high disabled:opacity-60 px-2.5 py-1.5 rounded-lg"
+                >
+                  <Share2 size={14} />
+                  {newLinkStatus === "working"
+                    ? t("sharedPage.saving")
+                    : t("sharedPage.shareNewLink")}
+                </button>
+                {newLinkStatus === "done" && (
+                  <p className="text-green-700 px-1">{t("sharedPage.newLinkCopied")}</p>
+                )}
+                {newLinkStatus === "error" && (
+                  <p className="text-red-700 px-1">{t("sharedPage.newLinkFailed")}</p>
+                )}
+
+                {isAdmin && (
+                  <div className="border-t border-outline/20 mt-1 pt-1.5 flex flex-col gap-1.5">
+                    <button
+                      onClick={handleSaveChanges}
+                      disabled={saveChangesStatus === "working"}
+                      className="flex items-center gap-1.5 text-white bg-primary hover:bg-primary-dark disabled:opacity-60 px-2.5 py-1.5 rounded-lg"
+                    >
+                      <Save size={14} />
+                      {saveChangesStatus === "working"
+                        ? t("sharedPage.saving")
+                        : t("sharedPage.saveChanges")}
+                    </button>
+                    {saveChangesStatus === "done" && (
+                      <p className="text-green-700 px-1">{t("sharedPage.saveChangesDone")}</p>
+                    )}
+                    {saveChangesStatus === "error" && (
+                      <p className="text-red-700 px-1">{t("sharedPage.saveChangesFailed")}</p>
+                    )}
+
+                    <form onSubmit={handleAddAdmin} className="flex items-center gap-1.5">
+                      <UserCog size={14} className="text-ink-muted shrink-0" />
+                      <input
+                        type="email"
+                        value={adminEmailInput}
+                        onChange={(e) => setAdminEmailInput(e.target.value)}
+                        placeholder={t("sharedPage.addAdminPlaceholder")}
+                        className="flex-1 min-w-0 border border-outline/40 rounded-md px-2 py-1 bg-surface"
+                      />
+                      <button
+                        type="submit"
+                        disabled={addAdminStatus === "working"}
+                        className="flex items-center gap-1 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high disabled:opacity-60 px-2.5 py-1.5 rounded-lg shrink-0"
+                      >
+                        {addAdminStatus === "working"
+                          ? t("sharedPage.saving")
+                          : t("sharedPage.addAdmin")}
+                      </button>
+                    </form>
+                    {addAdminStatus === "done" && (
+                      <p className="text-green-700 px-1">{t("sharedPage.addAdminDone")}</p>
+                    )}
+                    {addAdminStatus === "error" && (
+                      <p className="text-red-700 px-1">{t("sharedPage.addAdminFailed")}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
         <div className="flex-1 min-h-0">
           <AppFrame
             tripData={tripData}

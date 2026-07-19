@@ -271,6 +271,8 @@ export const fr: Record<TranslationKey, string> = {
   "errorBoundary.details": "Détails techniques (pour signalement)",
 
   // Shared trip page
+  "sharedPage.settings": "Paramètres",
+  "sharedPage.settingsAria": "Paramètres du voyage",
   "sharedPage.export": "Exporter vers un fichier",
   "sharedPage.import": "Importer depuis un fichier",
   "sharedPage.saving": "Enregistrement...",
