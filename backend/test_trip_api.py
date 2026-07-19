@@ -407,8 +407,31 @@ def test_execute_with_retry_fails_fast_on_a_permanent_4xx_even_on_the_last_key(m
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(LLMService._execute_with_retry("sys", "user", api_keys=["k1"], max_retries=5))
-    assert exc_info.value.status_code == 502
+    # The upstream 404 is preserved, not flattened into a generic 502.
+    assert exc_info.value.status_code == 404
     assert tried == ["k1"]  # a single attempt, not 5
+
+
+def test_execute_with_retry_preserves_413_payload_too_large(monkeypatch):
+    # 413 gets its own frontend message ("split this into smaller requests")
+    # that a generic 502 would hide — the real status must survive.
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
+    response = httpx.Response(413, request=request)
+    error = httpx.HTTPStatusError("payload too large", request=request, response=response)
+
+    class TooLargeProvider:
+        async def complete_json(self, system_prompt, user_content):
+            raise error
+
+    monkeypatch.setattr(
+        LLMService,
+        "_get_provider",
+        staticmethod(lambda api_key=None, provider=None: TooLargeProvider()),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(LLMService._execute_with_retry("sys", "user", max_retries=3))
+    assert exc_info.value.status_code == 413
 
 
 # ---------------------------------------------------------------------------

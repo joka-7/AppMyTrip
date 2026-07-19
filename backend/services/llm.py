@@ -53,6 +53,17 @@ def _mask_key(key: str | None) -> str:
     return "****" if len(key) <= 8 else f"{key[:4]}…{key[-4:]}"
 
 
+def _describe_http_status_error(e: httpx.HTTPStatusError) -> str:
+    """A short, user-facing summary of a provider's HTTP failure — which host said
+    what — without httpx's verbose `str(e)`, which appends an MDN boilerplate link
+    that's noise once this reaches an end user rather than a developer's terminal."""
+    host = e.request.url.host
+    reason = e.response.reason_phrase or ""
+    return (
+        f"{host} rejected the request ({e.response.status_code}{f' {reason}' if reason else ''})."
+    )
+
+
 class LLMProvider(Protocol):
     async def complete_json(self, system_prompt: str, user_content: str) -> dict:
         """Sends a system + user prompt and returns the parsed JSON response."""
@@ -396,19 +407,25 @@ class LLMService:
                     )
                     if not is_last_key:
                         break  # rotate to the next key immediately
-                    # A non-429 4xx (e.g. a 404 from a misconfigured/deprecated model, or
-                    # a 400 from a malformed request) is the server rejecting this exact
-                    # request — retrying the identical request can never change that
-                    # outcome, so fail immediately instead of burning the whole retry
-                    # budget (and the seconds that come with it) on a request that can't
-                    # succeed. Only 5xx (a transient server-side issue) still retries.
+                    # A non-429 4xx (e.g. a 404 from a misconfigured/deprecated model, a
+                    # 400 from a malformed request, or a 413 payload-too-large) is the
+                    # server rejecting this exact request — retrying the identical
+                    # request can never change that outcome, so fail immediately instead
+                    # of burning the whole retry budget (and the seconds that come with
+                    # it) on a request that can't succeed. Only 5xx (a transient
+                    # server-side issue) still retries. The upstream status is preserved
+                    # rather than flattened to a generic 502 so the caller can tell them
+                    # apart (e.g. the frontend has a specific, actionable message for
+                    # 413 — "split this into smaller requests" — that a blanket "provider
+                    # down" would otherwise hide).
                     if 400 <= e.response.status_code < 500:
                         raise HTTPException(
-                            status_code=502, detail=f"LLM API rejected the request: {str(e)}"
+                            status_code=e.response.status_code,
+                            detail=_describe_http_status_error(e),
                         ) from e
                     if attempt == max_retries - 1:
                         raise HTTPException(
-                            status_code=502, detail=f"LLM API failed after retries: {str(e)}"
+                            status_code=502, detail=_describe_http_status_error(e)
                         ) from e
                     await asyncio.sleep(delays[attempt])
                 except (httpx.HTTPError, ValueError, json.JSONDecodeError) as e:

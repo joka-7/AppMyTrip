@@ -45,6 +45,27 @@ describe("tripStartWeekdayIndex", () => {
     expect(tripStartWeekdayIndex("א׳–ג׳")).toBe(0);
     expect(tripStartWeekdayIndex("ג' - ה'")).toBe(2);
   });
+
+  it("parses a Hebrew day-range + month name + year", () => {
+    // 2026-07-20 is a Monday
+    expect(tripStartWeekdayIndex("20-27 ביולי 2026")).toBe(1);
+    expect(tripStartWeekdayIndex("20-27 יולי 2026")).toBe(1);
+    expect(tripStartWeekdayIndex("20 ביולי - 27 ביולי 2026")).toBe(1);
+  });
+
+  it("parses an English day-range + month name + year, either order", () => {
+    expect(tripStartWeekdayIndex("20-27 July 2026")).toBe(1);
+    expect(tripStartWeekdayIndex("July 20-27, 2026")).toBe(1);
+  });
+
+  it("parses a French day-range + month name + year", () => {
+    expect(tripStartWeekdayIndex("20-27 juillet 2026")).toBe(1);
+  });
+
+  it("does not guess a year when a month name has none", () => {
+    expect(tripStartWeekdayIndex("20-27 יולי")).toBeNull();
+    expect(tripStartWeekdayIndex("20-27 July")).toBeNull();
+  });
 });
 
 describe("hebrewWeekdayLetter", () => {
