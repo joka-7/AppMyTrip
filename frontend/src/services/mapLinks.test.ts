@@ -7,18 +7,15 @@ function act(id: string, title: string, lat: number, lng: number): Activity {
 }
 
 describe("googleMapsPlaceUrl", () => {
-  it("opens a coordinate-biased name search for a named place (not a raw name@coord query)", () => {
+  it("opens a coordinate query regardless of the activity's title", () => {
+    // Most itinerary titles ("Breakfast", "Colosseum", a generic "Beach") aren't
+    // unique, resolvable Google listings, so a name-based search routinely finds
+    // nothing (or the wrong place) and opens a map with no pin. Coordinates
+    // always resolve to the exact point.
     const url = googleMapsPlaceUrl(act("a1", "Colosseum", 41.89, 12.49));
-    // Named place biased to its coordinates via the path form.
-    expect(url).toBe("https://www.google.com/maps/search/Colosseum/@41.89,12.49,15z");
-    // The old bug crammed "name @lat,lng" into the query param — make sure it's gone.
-    expect(url).not.toContain("@41.89,12.49,15z&");
-    expect(url).not.toMatch(/query=.*@/);
-  });
-
-  it("url-encodes place names with spaces and special characters", () => {
-    const url = googleMapsPlaceUrl(act("a1", "St. Peter's Basilica", 41.9, 12.45));
-    expect(url).toContain("/maps/search/St.%20Peter's%20Basilica/@41.9,12.45,15z");
+    const parsed = new URL(url);
+    expect(parsed.searchParams.get("query")).toBe("41.89,12.49");
+    expect(parsed.searchParams.get("api")).toBe("1");
   });
 
   it("falls back to a bare coordinate query when the activity has no title", () => {

@@ -4,56 +4,40 @@
 // paid tile embed) so users get turn-by-turn directions, travel times, reviews
 // and hours for free, in their own device/account language.
 //
-// IMPORTANT: the `?api=1&query=` search parameter accepts EITHER a place name OR
-// "lat,lng" — never a "name @lat,lng" mash-up. Passing the latter makes Google
-// search for that literal text and fail to resolve the place (the bug this
-// module replaces). To open a *named* place biased to its exact coordinates we
-// use the path form `/maps/search/<name>/@<lat>,<lng>,<zoom>z`, which Google
-// resolves to the real listing nearest that point.
+// IMPORTANT: every link below is built from exact `lat,lng` coordinates, never
+// the activity's title text. Google's `?api=1&query=` (search) and
+// origin/destination/waypoints (directions) parameters accept a place name,
+// but resolve it as a literal text search — with no way to bias it toward a
+// specific location. Most itinerary titles aren't real, uniquely-named Google
+// listings ("Breakfast", "Check-in", a generic "Beach" or "Market", a name
+// that also exists in another city), so a name-based link routinely finds
+// nothing at all, or the wrong place elsewhere, and silently opens a map with
+// no pin. Coordinates always resolve to the exact point, so a pin always
+// shows up — the only tradeoff is losing the named listing's reviews/hours
+// when the title happens to match a real business.
 
 import type { Activity } from "../api";
 
-const PLACE_ZOOM = 15;
-
-// Unlike the search action (below), the directions action has no path-form
-// biasing syntax — origin/destination/waypoints are always resolved as a
-// literal text query. A plain place name is therefore ambiguous whenever the
-// same name exists elsewhere (a generic "Beach", "Market", a chain restaurant,
-// a name that also exists in another city): Google can silently resolve it to
-// the wrong location, which drops the pin/route far from where the activity
-// actually is or fails to draw a route at all. Passing "lat,lng" always
-// resolves to the exact point, so every stop always gets a pin.
-function directionsStop(act: Activity): string {
+function coordString(act: Activity): string {
   const { lat, lng } = act.map_coordinates!;
   return `${lat},${lng}`;
 }
 
-/**
- * Link to a single place. Opens the named listing (with its reviews/hours)
- * centered on the activity's coordinates, so Maps resolves the right place even
- * when the name alone would be ambiguous across cities. Falls back to a bare
- * coordinate pin only when the activity has no title.
- */
+/** Link to a single place, pinned at its exact coordinates. */
 export function googleMapsPlaceUrl(act: Activity): string {
-  const { lat, lng } = act.map_coordinates!;
-  const name = act.title.trim();
-  if (!name) {
-    const url = new URL("https://www.google.com/maps/search/");
-    url.searchParams.set("api", "1");
-    url.searchParams.set("query", `${lat},${lng}`);
-    return url.toString();
-  }
-  return `https://www.google.com/maps/search/${encodeURIComponent(name)}/@${lat},${lng},${PLACE_ZOOM}z`;
+  const url = new URL("https://www.google.com/maps/search/");
+  url.searchParams.set("api", "1");
+  url.searchParams.set("query", coordString(act));
+  return url.toString();
 }
 
 /**
  * Directions through the day's stops in order, as exact coordinates so every
- * stop reliably gets a pin (see directionsStop above). Google's own directions
- * UI still letters the stops A, B, C, D in route order, matching the in-app
- * map labels.
+ * stop reliably gets a pin. Google's own directions UI still letters the
+ * stops A, B, C, D in route order, matching the in-app map labels.
  */
 export function googleMapsDirectionsUrl(coordActs: Activity[]): string {
-  const points = coordActs.map((act) => directionsStop(act));
+  const points = coordActs.map((act) => coordString(act));
   const url = new URL("https://www.google.com/maps/dir/");
   url.searchParams.set("api", "1");
   url.searchParams.set("origin", points[0]);
