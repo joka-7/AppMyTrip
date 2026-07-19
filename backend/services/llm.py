@@ -53,6 +53,19 @@ def _mask_key(key: str | None) -> str:
     return "****" if len(key) <= 8 else f"{key[:4]}…{key[-4:]}"
 
 
+# Completion-budget tiers passed as `max_tokens` to LLMService._execute — sized to
+# what each kind of call actually needs to return, not the largest possible case.
+# Requesting far more than needed isn't just wasteful: some providers (Groq
+# notably) cap how large a completion budget a *request* is even allowed to ask
+# for on a given model, separate from how big the prompt itself is, and will
+# reject an otherwise-tiny request outright for asking too much. Gemini's
+# "thinking" models also spend part of this budget internally before writing the
+# answer, so these still leave real headroom rather than being cut to the bone.
+MAX_TOKENS_CLASSIFY = 1024  # tiny {action, day_numbers} JSON
+MAX_TOKENS_SCOPED_EDIT = 8192  # one or a few days' worth of activities
+MAX_TOKENS_FULL_TRIP = 16384  # a whole-trip echo-back can be large
+
+
 def _describe_http_status_error(e: httpx.HTTPStatusError) -> str:
     """A short, user-facing summary of a provider's HTTP failure — which host said
     what — without httpx's verbose `str(e)`, which appends an MDN boilerplate link
@@ -65,8 +78,15 @@ def _describe_http_status_error(e: httpx.HTTPStatusError) -> str:
 
 
 class LLMProvider(Protocol):
-    async def complete_json(self, system_prompt: str, user_content: str) -> dict:
-        """Sends a system + user prompt and returns the parsed JSON response."""
+    async def complete_json(
+        self, system_prompt: str, user_content: str, max_tokens: int = 16384
+    ) -> dict:
+        """Sends a system + user prompt and returns the parsed JSON response.
+        `max_tokens` should reflect how much output the caller actually expects —
+        see the MAX_TOKENS_* constants below. Some providers (Groq notably) cap how
+        large a completion budget a request is even *allowed* to ask for, separate
+        from the prompt's own size — always requesting the largest budget regardless
+        of the caller's real needs can get an otherwise-tiny request rejected."""
         ...
 
 
@@ -75,7 +95,9 @@ class GeminiProvider:
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY", "")
         self.model = os.environ.get("GEMINI_MODEL") or "gemini-2.5-flash"
 
-    async def complete_json(self, system_prompt: str, user_content: str) -> dict:
+    async def complete_json(
+        self, system_prompt: str, user_content: str, max_tokens: int = 16384
+    ) -> dict:
         url = (
             f"https://generativelanguage.googleapis.com/v1beta/models/"
             f"{self.model}:generateContent?key={self.api_key}"
@@ -83,15 +105,15 @@ class GeminiProvider:
         payload = {
             "systemInstruction": {"parts": [{"text": system_prompt}]},
             "contents": [{"parts": [{"text": user_content}]}],
-            # Each agent turn echoes back the *entire* itinerary (not a diff), which can
-            # run long for multi-day trips with many activities — too low a cap here
-            # truncates the JSON mid-day, silently dropping the rest of the trip. Gemini
-            # 2.5 models also spend part of this same budget on internal "thinking" before
-            # writing the answer, so too low a cap can leave nothing for the actual JSON
-            # and come back completely empty rather than merely truncated.
+            # A full-trip echo can run long for multi-day trips with many
+            # activities — too low a cap here truncates the JSON mid-day, silently
+            # dropping the rest of the trip. Gemini 2.5 models also spend part of
+            # this same budget on internal "thinking" before writing the answer,
+            # so too low a cap can leave nothing for the actual JSON and come back
+            # completely empty rather than merely truncated.
             "generationConfig": {
                 "responseMimeType": "application/json",
-                "maxOutputTokens": 16384,
+                "maxOutputTokens": max_tokens,
             },
         }
         async with httpx.AsyncClient() as client:
@@ -121,7 +143,9 @@ class _OpenAICompatibleProvider:
         self.api_key = api_key or os.environ.get(env_key_var, "")
         self.model = os.environ.get(model_env_var, default_model)
 
-    async def complete_json(self, system_prompt: str, user_content: str) -> dict:
+    async def complete_json(
+        self, system_prompt: str, user_content: str, max_tokens: int = 16384
+    ) -> dict:
         payload = {
             "model": self.model,
             "messages": [
@@ -129,11 +153,14 @@ class _OpenAICompatibleProvider:
                 {"role": "user", "content": user_content},
             ],
             "response_format": {"type": "json_object"},
-            # Each agent turn echoes back the *entire* itinerary (not a diff), which can
-            # run long for multi-day trips with many activities — left unset, some
-            # providers/models default to a much smaller completion budget than their
-            # context window allows, silently truncating the JSON mid-day.
-            "max_tokens": 16384,
+            # A full-trip echo can run long for multi-day trips with many
+            # activities — left unset, some providers/models default to a much
+            # smaller completion budget than their context window allows, silently
+            # truncating the JSON mid-day. But some providers (Groq) also *cap* how
+            # large a value here is even allowed to be for a given model and can
+            # reject the whole request over it — hence this being a parameter
+            # rather than always requesting the largest budget "just in case".
+            "max_tokens": max_tokens,
         }
         headers = {"Authorization": f"Bearer {self.api_key}"}
         async with httpx.AsyncClient() as client:
@@ -209,7 +236,9 @@ class AnthropicProvider:
         self.model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929")
         self.url = "https://api.anthropic.com/v1/messages"
 
-    async def complete_json(self, system_prompt: str, user_content: str) -> dict:
+    async def complete_json(
+        self, system_prompt: str, user_content: str, max_tokens: int = 16384
+    ) -> dict:
         headers = {
             "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
@@ -217,10 +246,10 @@ class AnthropicProvider:
         }
         payload = {
             "model": self.model,
-            # Each agent turn echoes back the *entire* itinerary (not a diff), which can
-            # run long for multi-day trips with many activities — too low a cap here
-            # truncates the JSON mid-day, silently dropping the rest of the trip.
-            "max_tokens": 16384,
+            # A full-trip echo can run long for multi-day trips with many
+            # activities — too low a cap here truncates the JSON mid-day, silently
+            # dropping the rest of the trip.
+            "max_tokens": max_tokens,
             "system": f"{system_prompt}\nRespond with ONLY valid JSON — no markdown fences, no commentary.",
             "messages": [{"role": "user", "content": user_content}],
         }
@@ -363,6 +392,7 @@ class LLMService:
         api_keys: list[str | None] | None = None,
         provider: str | None = None,
         max_retries: int = 3,
+        max_tokens: int = 16384,
     ) -> dict:
         # Try each supplied key in turn. Whatever the failure — 429, a 5xx, a
         # timeout, a malformed response — a key that isn't the last one gets
@@ -384,7 +414,9 @@ class LLMService:
             for attempt in range(max_retries):
                 logger.info("llm attempt: %s (try %d/%d)", key_label, attempt + 1, max_retries)
                 try:
-                    result = await llm_provider.complete_json(system_prompt, user_content)
+                    result = await llm_provider.complete_json(
+                        system_prompt, user_content, max_tokens=max_tokens
+                    )
                     logger.info("llm attempt: %s succeeded", key_label)
                     return result
                 except httpx.HTTPStatusError as e:
@@ -500,10 +532,15 @@ class LLMService:
         api_keys: list[str] | None = None,
         provider: str | None = None,
         max_retries: int = 3,
+        max_tokens: int = 16384,
     ) -> dict:
         """Run the prompt against every saved provider/key in order, falling through
         to the next provider when one fails, and only raising once all have failed —
-        so a single exhausted or invalid key/provider doesn't surface an error."""
+        so a single exhausted or invalid key/provider doesn't surface an error.
+        `max_tokens` should reflect the caller's actual expected output size — see
+        the MAX_TOKENS_* constants; passing the full-trip-sized default for a small
+        scoped call risks a provider (Groq notably) rejecting the request outright
+        for asking too large a completion budget, regardless of prompt size."""
         groups = cls._resolve_credential_groups(credentials, api_key, api_keys, provider)
         logger.info(
             "llm request: trying %d provider group(s): %s",
@@ -519,6 +556,7 @@ class LLMService:
                     api_keys=keys,
                     provider=prov,
                     max_retries=max_retries,
+                    max_tokens=max_tokens,
                 )
                 logger.info("llm request: succeeded via provider group '%s'", prov or "default")
                 return result
@@ -737,6 +775,7 @@ class LLMService:
                 api_keys=api_keys,
                 provider=provider,
                 max_retries=2,
+                max_tokens=MAX_TOKENS_CLASSIFY,
             )
             return AgentDayIntent(**json_data)
         except (HTTPException, ValidationError, TypeError):
@@ -792,6 +831,7 @@ class LLMService:
             api_key=api_key,
             api_keys=api_keys,
             provider=provider,
+            max_tokens=MAX_TOKENS_SCOPED_EDIT,
         )
         if isinstance(json_data, dict):
             _coerce_invalid_activity_types_in_days(json_data.get("days"))
@@ -852,6 +892,7 @@ class LLMService:
             api_key=api_key,
             api_keys=api_keys,
             provider=provider,
+            max_tokens=MAX_TOKENS_SCOPED_EDIT,
         )
         if isinstance(json_data, dict):
             _coerce_invalid_activity_types_in_days(json_data.get("days"))
