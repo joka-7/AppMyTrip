@@ -20,6 +20,9 @@ import services.tts as tts_module
 from models import Activity, AgentResponse, EnhanceOptions, ProviderCredentials, TripData, TripDay
 from routers.builder import TripBuilder
 from services.llm import (
+    MAX_TOKENS_CLASSIFY,
+    MAX_TOKENS_FULL_TRIP,
+    MAX_TOKENS_SCOPED_EDIT,
     AnthropicProvider,
     CerebrasProvider,
     GeminiProvider,
@@ -240,7 +243,7 @@ def test_execute_with_retry_raises_429_after_exhausting_retries(monkeypatch):
     error = httpx.HTTPStatusError("rate limited", request=request, response=response)
 
     class RateLimitedProvider:
-        async def complete_json(self, system_prompt, user_content):
+        async def complete_json(self, system_prompt, user_content, max_tokens=16384):
             raise error
 
     monkeypatch.setattr(
@@ -279,7 +282,7 @@ def test_execute_with_retry_rotates_to_the_next_key_on_rate_limit(monkeypatch):
         def __init__(self, api_key=None, provider=None):
             self.api_key = api_key
 
-        async def complete_json(self, system_prompt, user_content):
+        async def complete_json(self, system_prompt, user_content, max_tokens=16384):
             if self.api_key == "good-key":
                 return {"ok": True}
             raise error
@@ -304,7 +307,7 @@ def test_execute_with_retry_raises_429_only_after_every_key_is_rate_limited(monk
         def __init__(self, api_key=None):
             self.api_key = api_key
 
-        async def complete_json(self, system_prompt, user_content):
+        async def complete_json(self, system_prompt, user_content, max_tokens=16384):
             tried.append(self.api_key)
             raise error
 
@@ -332,7 +335,7 @@ def test_execute_with_retry_rotates_to_the_next_key_on_a_non_rate_limit_error(mo
         def __init__(self, api_key=None, provider=None):
             self.api_key = api_key
 
-        async def complete_json(self, system_prompt, user_content):
+        async def complete_json(self, system_prompt, user_content, max_tokens=16384):
             tried.append(self.api_key)
             if self.api_key == "good-key":
                 return {"ok": True}
@@ -361,7 +364,7 @@ def test_execute_with_retry_raises_502_after_every_key_fails_non_rate_limit(monk
         def __init__(self, api_key=None):
             self.api_key = api_key
 
-        async def complete_json(self, system_prompt, user_content):
+        async def complete_json(self, system_prompt, user_content, max_tokens=16384):
             tried.append(self.api_key)
             raise ValueError("Empty response from LLM")
 
@@ -395,7 +398,7 @@ def test_execute_with_retry_fails_fast_on_a_permanent_4xx_even_on_the_last_key(m
         def __init__(self, api_key=None):
             self.api_key = api_key
 
-        async def complete_json(self, system_prompt, user_content):
+        async def complete_json(self, system_prompt, user_content, max_tokens=16384):
             tried.append(self.api_key)
             raise error
 
@@ -420,7 +423,7 @@ def test_execute_with_retry_preserves_413_payload_too_large(monkeypatch):
     error = httpx.HTTPStatusError("payload too large", request=request, response=response)
 
     class TooLargeProvider:
-        async def complete_json(self, system_prompt, user_content):
+        async def complete_json(self, system_prompt, user_content, max_tokens=16384):
             raise error
 
     monkeypatch.setattr(
@@ -468,7 +471,9 @@ def test_resolve_credential_groups_falls_back_to_legacy_and_env():
 def test_execute_falls_through_to_the_next_provider_when_one_fails(monkeypatch):
     tried: list[tuple[str | None, list[str | None] | None]] = []
 
-    async def fake_retry(system_prompt, user_content, api_keys=None, provider=None, max_retries=5):
+    async def fake_retry(
+        system_prompt, user_content, api_keys=None, provider=None, max_retries=5, max_tokens=16384
+    ):
         tried.append((provider, api_keys))
         if provider == "gemini":
             raise HTTPException(status_code=401, detail="bad gemini key")
@@ -487,7 +492,9 @@ def test_execute_falls_through_to_the_next_provider_when_one_fails(monkeypatch):
 
 
 def test_execute_raises_only_after_every_provider_fails(monkeypatch):
-    async def fake_retry(system_prompt, user_content, api_keys=None, provider=None, max_retries=5):
+    async def fake_retry(
+        system_prompt, user_content, api_keys=None, provider=None, max_retries=5, max_tokens=16384
+    ):
         raise HTTPException(status_code=401, detail=f"bad {provider} key")
 
     monkeypatch.setattr(LLMService, "_execute_with_retry", staticmethod(fake_retry))
@@ -880,7 +887,9 @@ class _FakeProvider:
     def __init__(self, json_data: dict) -> None:
         self._json_data = json_data
 
-    async def complete_json(self, system_prompt: str, user_content: str) -> dict:
+    async def complete_json(
+        self, system_prompt: str, user_content: str, max_tokens: int = 16384
+    ) -> dict:
         return self._json_data
 
 
@@ -1035,7 +1044,7 @@ def test_agent_interaction_handles_reordered_and_renumbered_days(monkeypatch):
 def test_agent_interaction_raises_502_on_non_json_provider_response(monkeypatch):
     # Provider fails to return parseable JSON at all (a real HTTP/decode failure).
     class BrokenProvider:
-        async def complete_json(self, system_prompt, user_content):
+        async def complete_json(self, system_prompt, user_content, max_tokens=16384):
             raise json.JSONDecodeError("bad json", "doc", 0)
 
     monkeypatch.setattr(
@@ -1127,8 +1136,11 @@ class _RoutingFakeProvider:
     def __init__(self, **responses: dict) -> None:
         self._responses = responses
         self.calls: list[str] = []
+        self.max_tokens_by_call: list[int] = []
 
-    async def complete_json(self, system_prompt: str, user_content: str) -> dict:
+    async def complete_json(
+        self, system_prompt: str, user_content: str, max_tokens: int = 16384
+    ) -> dict:
         if user_content.startswith("Existing days:"):
             kind = "classify"
         elif user_content.startswith("Trip context:"):
@@ -1138,6 +1150,7 @@ class _RoutingFakeProvider:
         else:
             kind = "full"
         self.calls.append(kind)
+        self.max_tokens_by_call.append(max_tokens)
         return self._responses[kind]
 
 
@@ -1255,6 +1268,33 @@ def test_agent_interaction_uses_full_trip_path_when_classified_as_general(monkey
     result = asyncio.run(LLMService.agent_interaction(trip, "rename the whole trip"))
     assert fake.calls == ["classify", "full"]
     assert result.updated_trip.title == "Renamed trip"
+    # Classification only needs a tiny {action, day_numbers} response, and the
+    # full-trip fallback needs the largest budget since it echoes everything back.
+    assert fake.max_tokens_by_call == [MAX_TOKENS_CLASSIFY, MAX_TOKENS_FULL_TRIP]
+
+
+def test_agent_interaction_uses_a_smaller_token_budget_for_day_scoped_calls(monkeypatch):
+    # A day-scoped call only needs to return one or a few days, not the whole
+    # trip — requesting the full-trip-sized budget for it risks a provider (Groq
+    # notably) rejecting an otherwise-tiny request for asking too much.
+    trip = _sample_trip()  # has day 1
+    add_fake = _RoutingFakeProvider(
+        add_days={"days": [{"dayNum": 2, "activities": []}], "agent_reply": "הוספתי"}
+    )
+    monkeypatch.setattr(
+        LLMService, "_get_provider", staticmethod(lambda api_key=None, provider=None: add_fake)
+    )
+    asyncio.run(LLMService.agent_interaction(trip, "add day 2 - a hike"))
+    assert add_fake.max_tokens_by_call == [MAX_TOKENS_SCOPED_EDIT]
+
+    edit_fake = _RoutingFakeProvider(
+        edit_days={"days": [{"dayNum": 1, "activities": []}], "agent_reply": "עדכנתי"}
+    )
+    monkeypatch.setattr(
+        LLMService, "_get_provider", staticmethod(lambda api_key=None, provider=None: edit_fake)
+    )
+    asyncio.run(LLMService.agent_interaction(trip, "day 1 - change something"))
+    assert edit_fake.max_tokens_by_call == [MAX_TOKENS_SCOPED_EDIT]
 
 
 def test_agent_interaction_falls_back_to_full_trip_when_scoped_edit_is_invalid(monkeypatch):
