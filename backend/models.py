@@ -179,3 +179,24 @@ class AgentResponse(BaseModel):
 
     updated_trip: TripData
     agent_reply: str = Field(..., description="The friendly reply from the agent in Hebrew")
+
+
+class AgentDayIntent(BaseModel):
+    """Cheap classification of a chat message's scope, used to decide whether the
+    server can send/regenerate only a subset of days instead of the whole trip
+    for this turn — see LLMService._resolve_edit_intent."""
+
+    action: Literal["add_days", "edit_days", "general"]
+    day_numbers: list[int] = Field(
+        default_factory=list,
+        description="For 'edit_days', the existing day numbers the message affects. "
+        "Ignored for 'add_days' and 'general'.",
+    )
+
+
+class AgentScopedResponse(BaseModel):
+    """Structured response for a day-scoped agent turn (add_days/edit_days) — only
+    the new/changed day(s) are returned, not the whole trip."""
+
+    days: list[TripDay]
+    agent_reply: str = Field(..., description="The friendly reply from the agent")
