@@ -2,10 +2,23 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import App from "./App";
 import * as api from "./api";
+import { ApiError } from "./api";
 import type { TripData } from "./api";
 import { setLang } from "./i18n/store";
 
-vi.mock("./api");
+// Automocking (bare `vi.mock("./api")`) replaces ApiError's constructor too,
+// so `new ApiError(status, detail)` in tests loses status/detail — keep the
+// real class and only mock the network-calling functions.
+vi.mock("./api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./api")>();
+  return {
+    ...actual,
+    parseTrip: vi.fn(),
+    agentInteract: vi.fn(),
+    generateMedia: vi.fn(),
+    enhanceTrip: vi.fn(),
+  };
+});
 vi.mock("./services/tripsStore", () => ({
   onAuthChange: () => () => {},
   signInWithGoogle: vi.fn(),
@@ -181,6 +194,45 @@ describe("App builder flow", () => {
     const [tripArg] = vi.mocked(api.enhanceTrip).mock.calls[0];
     expect(tripArg.days[0].activities.map((a) => a.id)).toEqual(["a2"]);
     expect(screen.getByText("₪20")).toBeInTheDocument();
+  });
+
+  it("shows the backend's actual failure detail alongside the friendly message on a 502", async () => {
+    vi.mocked(api.parseTrip).mockResolvedValue({
+      trip_data: sampleTrip,
+      initial_agent_message: "Welcome!",
+    });
+    vi.mocked(api.agentInteract).mockRejectedValue(
+      new ApiError(
+        502,
+        "LLM API rejected the request: 404 Not Found for url 'https://openrouter.ai/api/v1/chat/completions'",
+      ),
+    );
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /צור מבנה אפליקציה ראשוני/ }));
+    await waitFor(() => {
+      expect(screen.getByText("שיפורים נוספים (אופציונלי)")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /דלג, המשך לסוכן/ }));
+    await waitFor(() => {
+      expect(screen.getByText("סוכן השלמות AI")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText(/ענה לסוכן/), {
+      target: { value: "תוסיף יום נוסף" },
+    });
+    fireEvent.submit(screen.getByPlaceholderText(/ענה לסוכן/).closest("form")!);
+
+    // Shown both in the dismissible top banner and in the chat bubble.
+    await waitFor(() => {
+      expect(
+        screen.getAllByText((_, el) => (el?.textContent ?? "").includes("ספק ה-AI לא הצליח להשיב"))
+          .length,
+      ).toBeGreaterThan(0);
+    });
+    expect(
+      screen.getAllByText((_, el) => (el?.textContent ?? "").includes("404 Not Found")).length,
+    ).toBeGreaterThan(0);
   });
 
   it("re-applies the chosen Step 2 enhancements to an activity added manually via the '+' button", async () => {

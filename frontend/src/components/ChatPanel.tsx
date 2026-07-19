@@ -44,7 +44,7 @@ export default function ChatPanel({
             className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} animate-fade-in`}
           >
             <div
-              className={`max-w-[80%] p-3 text-sm ${
+              className={`max-w-[80%] p-3 text-sm whitespace-pre-line ${
                 msg.role === "user"
                   ? "bg-primary text-white rounded-2xl rounded-tr-sm shadow-md"
                   : "bg-white border border-outline/20 text-ink rounded-2xl rounded-tl-sm shadow-sm"
