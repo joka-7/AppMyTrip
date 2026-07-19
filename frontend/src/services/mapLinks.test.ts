@@ -30,7 +30,7 @@ describe("googleMapsPlaceUrl", () => {
 });
 
 describe("googleMapsDirectionsUrl", () => {
-  it("routes through every stop by plain place name (Google letters them A/B/C itself)", () => {
+  it("routes through every stop by exact coordinates (Google letters them A/B/C itself)", () => {
     const url = new URL(
       googleMapsDirectionsUrl([
         act("a1", "Start", 41.9, 12.5),
@@ -38,20 +38,21 @@ describe("googleMapsDirectionsUrl", () => {
         act("a3", "End", 41.92, 12.52),
       ]),
     );
-    // Plain names — no "A. "/"B. " prefix, which Google would treat as literal
-    // query text and fail to resolve.
-    expect(url.searchParams.get("origin")).toBe("Start");
-    expect(url.searchParams.get("destination")).toBe("End");
-    expect(url.searchParams.get("waypoints")).toBe("Middle");
+    // Coordinates, not the place name — a plain name is resolved as a literal
+    // text query and can silently match a same-named place elsewhere, dropping
+    // the pin in the wrong spot or failing to draw a route at all.
+    expect(url.searchParams.get("origin")).toBe("41.9,12.5");
+    expect(url.searchParams.get("destination")).toBe("41.92,12.52");
+    expect(url.searchParams.get("waypoints")).toBe("41.91,12.51");
     expect(url.searchParams.get("travelmode")).toBe("walking");
   });
 
-  it("falls back to coordinates for untitled stops", () => {
+  it("uses coordinates regardless of whether a stop has a title", () => {
     const url = new URL(
       googleMapsDirectionsUrl([act("a1", "   ", 41.9, 12.5), act("a2", "End", 41.92, 12.52)]),
     );
     expect(url.searchParams.get("origin")).toBe("41.9,12.5");
-    expect(url.searchParams.get("destination")).toBe("End");
+    expect(url.searchParams.get("destination")).toBe("41.92,12.52");
   });
 
   it("omits waypoints when there are only two stops", () => {

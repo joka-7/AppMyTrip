@@ -95,6 +95,11 @@ describe("App shared-trip viewer", () => {
     render(<App />);
 
     await waitFor(() => {
+      expect(screen.getByText("הגדרות")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("הגדרות"));
+
+    await waitFor(() => {
       expect(screen.getByText("שמירת שינויים")).toBeInTheDocument();
     });
 
@@ -132,6 +137,11 @@ describe("App shared-trip viewer", () => {
 
     const { default: App } = await import("./App");
     render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("הגדרות")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("הגדרות"));
 
     const input = await screen.findByPlaceholderText("הוספת מנהל לפי אימייל...");
     fireEvent.change(input, { target: { value: "Friend@Example.com" } });

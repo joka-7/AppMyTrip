@@ -15,17 +15,16 @@ import type { Activity } from "../api";
 
 const PLACE_ZOOM = 15;
 
+// Unlike the search action (below), the directions action has no path-form
+// biasing syntax — origin/destination/waypoints are always resolved as a
+// literal text query. A plain place name is therefore ambiguous whenever the
+// same name exists elsewhere (a generic "Beach", "Market", a chain restaurant,
+// a name that also exists in another city): Google can silently resolve it to
+// the wrong location, which drops the pin/route far from where the activity
+// actually is or fails to draw a route at all. Passing "lat,lng" always
+// resolves to the exact point, so every stop always gets a pin.
 function directionsStop(act: Activity): string {
   const { lat, lng } = act.map_coordinates!;
-  const name = act.title.trim();
-  // Use the plain place name so Google resolves the real listing. Do NOT prefix
-  // it with the in-app A/B/C label: Google's directions URL treats origin/
-  // destination/waypoints as a literal search query, so "A. Colosseum" searches
-  // for that exact text and fails to find the place. Google's own directions UI
-  // already letters the stops A, B, C, D in route order, so the labels still line
-  // up with the in-app map without us corrupting the query. Untitled stops fall
-  // back to exact coordinates.
-  if (name) return name;
   return `${lat},${lng}`;
 }
 
@@ -48,10 +47,10 @@ export function googleMapsPlaceUrl(act: Activity): string {
 }
 
 /**
- * Directions through the day's stops in order. Google's own directions UI letters
- * the stops A, B, C, D in route order, matching the in-app map labels, so each
- * stop is passed as its plain place name (biased nowhere — Google resolves it in
- * the route's region). Falls back to exact coordinates when a stop has no title.
+ * Directions through the day's stops in order, as exact coordinates so every
+ * stop reliably gets a pin (see directionsStop above). Google's own directions
+ * UI still letters the stops A, B, C, D in route order, matching the in-app
+ * map labels.
  */
 export function googleMapsDirectionsUrl(coordActs: Activity[]): string {
   const points = coordActs.map((act) => directionsStop(act));
