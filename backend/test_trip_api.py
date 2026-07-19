@@ -28,6 +28,7 @@ from services.llm import (
     MistralProvider,
     OpenAIProvider,
     OpenRouterProvider,
+    _detect_day_numbers,
 )
 from services.tts import MockTTSProvider, PiperTTSProvider, TTSService
 from trip_api_backend import app
@@ -991,6 +992,197 @@ def test_agent_interaction_raises_502_on_non_json_provider_response(monkeypatch)
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(LLMService._execute_with_retry("sys", "user", max_retries=1))
     assert exc_info.value.status_code == 502
+
+
+# ---------------------------------------------------------------------------
+# Day-scoped agent editing (agent_interaction avoids resending/regenerating
+# the whole trip on every chat turn when a message only concerns specific
+# day(s) — see LLMService._resolve_edit_intent).
+# ---------------------------------------------------------------------------
+
+
+def test_detect_day_numbers_recognizes_explicit_mentions_in_several_languages():
+    assert _detect_day_numbers("add day 8 - a hike") == [8]
+    assert _detect_day_numbers("הוסף עוד יום (8) - הטרק האלפיני") == [8]
+    assert _detect_day_numbers("תוסיף ליום 8 - 10:00 – 15:00 – הטרק") == [8]
+    assert _detect_day_numbers("jour 8 - randonnée") == [8]
+    assert _detect_day_numbers("rename the museum") == []
+    assert _detect_day_numbers("the last day of the trip") == []
+    assert _detect_day_numbers("day 3 and day 5, swap them") == [3, 5]
+
+
+class _RoutingFakeProvider:
+    """Stands in for a real LLM provider, returning a different canned response
+    depending on which of agent_interaction's prompt shapes it receives — lets
+    tests assert exactly which path(s) were actually called."""
+
+    def __init__(self, **responses: dict) -> None:
+        self._responses = responses
+        self.calls: list[str] = []
+
+    async def complete_json(self, system_prompt: str, user_content: str) -> dict:
+        if user_content.startswith("Existing days:"):
+            kind = "classify"
+        elif user_content.startswith("Trip context:"):
+            kind = "add_days"
+        elif user_content.startswith("Days:"):
+            kind = "edit_days"
+        else:
+            kind = "full"
+        self.calls.append(kind)
+        return self._responses[kind]
+
+
+def test_agent_interaction_adds_a_new_day_without_resending_the_whole_trip(monkeypatch):
+    trip = _sample_trip()  # only day 1 exists
+    fake = _RoutingFakeProvider(
+        add_days={
+            "days": [
+                {
+                    "dayNum": 2,
+                    "activities": [
+                        {
+                            "id": "d2a1",
+                            "time": "09:00",
+                            "title": "Hike to the lake",
+                            "desc": "A day hike.",
+                            "type": "attraction",
+                        }
+                    ],
+                }
+            ],
+            "agent_reply": "הוספתי יום 2",
+        }
+    )
+    monkeypatch.setattr(
+        LLMService, "_get_provider", staticmethod(lambda api_key=None, provider=None: fake)
+    )
+    result = asyncio.run(LLMService.agent_interaction(trip, "add day 2 - a hike to the lake"))
+    assert fake.calls == ["add_days"]  # no classification call, no full-trip resend
+    assert [d.dayNum for d in result.updated_trip.days] == [1, 2]
+    assert result.updated_trip.days[0].activities[0].id == "a1"  # day 1 untouched
+    assert result.updated_trip.days[1].activities[0].title == "Hike to the lake"
+    assert result.agent_reply == "הוספתי יום 2"
+
+
+def test_agent_interaction_edits_an_existing_day_without_resending_the_whole_trip(monkeypatch):
+    trip = _sample_trip()
+    trip.days.append(
+        TripDay(
+            dayNum=2,
+            activities=[
+                Activity(id="b1", time="09:00", title="Old title", desc="...", type="attraction")
+            ],
+        )
+    )
+    fake = _RoutingFakeProvider(
+        edit_days={
+            "days": [
+                {
+                    "dayNum": 2,
+                    "activities": [
+                        {
+                            "id": "b1",
+                            "time": "09:00",
+                            "title": "Updated title",
+                            "desc": "...",
+                            "type": "attraction",
+                        }
+                    ],
+                }
+            ],
+            "agent_reply": "עדכנתי יום 2",
+        }
+    )
+    monkeypatch.setattr(
+        LLMService, "_get_provider", staticmethod(lambda api_key=None, provider=None: fake)
+    )
+    result = asyncio.run(LLMService.agent_interaction(trip, "day 2 - rename the activity"))
+    assert fake.calls == ["edit_days"]
+    assert result.updated_trip.days[0].activities[0].id == "a1"  # day 1 completely untouched
+    assert result.updated_trip.days[1].activities[0].title == "Updated title"
+
+
+def test_agent_interaction_falls_back_to_llm_classification_when_no_day_is_mentioned(monkeypatch):
+    trip = _sample_trip()
+    fake = _RoutingFakeProvider(
+        classify={"action": "edit_days", "day_numbers": [1]},
+        edit_days={
+            "days": [
+                {
+                    "dayNum": 1,
+                    "activities": [
+                        {
+                            "id": "a1",
+                            "time": "10:00",
+                            "title": "Colosseum",
+                            "desc": "A historic landmark.",
+                            "type": "attraction",
+                        }
+                    ],
+                }
+            ],
+            "agent_reply": "עדכנתי",
+        },
+    )
+    monkeypatch.setattr(
+        LLMService, "_get_provider", staticmethod(lambda api_key=None, provider=None: fake)
+    )
+    result = asyncio.run(LLMService.agent_interaction(trip, "rename the landmark"))
+    assert fake.calls == ["classify", "edit_days"]
+    assert result.updated_trip.days[0].activities[0].title == "Colosseum"
+
+
+def test_agent_interaction_uses_full_trip_path_when_classified_as_general(monkeypatch):
+    trip = _sample_trip()
+    full_trip = trip.model_dump()
+    full_trip["title"] = "Renamed trip"
+    fake = _RoutingFakeProvider(
+        classify={"action": "general"},
+        full={"updated_trip": full_trip, "agent_reply": "שיניתי את הכותרת"},
+    )
+    monkeypatch.setattr(
+        LLMService, "_get_provider", staticmethod(lambda api_key=None, provider=None: fake)
+    )
+    result = asyncio.run(LLMService.agent_interaction(trip, "rename the whole trip"))
+    assert fake.calls == ["classify", "full"]
+    assert result.updated_trip.title == "Renamed trip"
+
+
+def test_agent_interaction_falls_back_to_full_trip_when_scoped_edit_is_invalid(monkeypatch):
+    # The model hallucinates a day number that was never sent to it — must not
+    # be trusted to splice into the trip; fall back to the reliable full path.
+    trip = _sample_trip()
+    full_trip = trip.model_dump()
+    full_trip["title"] = "Fixed via full path"
+    fake = _RoutingFakeProvider(
+        edit_days={"days": [{"dayNum": 99, "activities": []}], "agent_reply": "oops"},
+        full={"updated_trip": full_trip, "agent_reply": "עדכנתי בדרך המלאה"},
+    )
+    monkeypatch.setattr(
+        LLMService, "_get_provider", staticmethod(lambda api_key=None, provider=None: fake)
+    )
+    result = asyncio.run(LLMService.agent_interaction(trip, "day 1 - change something"))
+    assert fake.calls == ["edit_days", "full"]
+    assert result.updated_trip.title == "Fixed via full path"
+
+
+def test_agent_interaction_falls_back_to_full_trip_when_new_day_collides(monkeypatch):
+    # The model returns a "new" day number that already exists — must not be
+    # trusted to append (would create a duplicate dayNum); fall back instead.
+    trip = _sample_trip()  # has day 1
+    full_trip = trip.model_dump()
+    full_trip["title"] = "Fixed via full path"
+    fake = _RoutingFakeProvider(
+        add_days={"days": [{"dayNum": 1, "activities": []}], "agent_reply": "oops"},
+        full={"updated_trip": full_trip, "agent_reply": "עדכנתי"},
+    )
+    monkeypatch.setattr(
+        LLMService, "_get_provider", staticmethod(lambda api_key=None, provider=None: fake)
+    )
+    result = asyncio.run(LLMService.agent_interaction(trip, "add day 2 - something new"))
+    assert fake.calls == ["add_days", "full"]
+    assert result.updated_trip.title == "Fixed via full path"
 
 
 # ---------------------------------------------------------------------------

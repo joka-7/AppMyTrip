@@ -19,13 +19,21 @@ local development when no per-request key is supplied:
 import asyncio
 import json
 import os
+import re
 from typing import Protocol
 
 import httpx
 from fastapi import HTTPException
 from pydantic import ValidationError
 
-from models import AgentResponse, EnhanceOptions, ProviderCredentials, TripData
+from models import (
+    AgentDayIntent,
+    AgentResponse,
+    AgentScopedResponse,
+    EnhanceOptions,
+    ProviderCredentials,
+    TripData,
+)
 
 
 class LLMProvider(Protocol):
@@ -59,7 +67,7 @@ class GeminiProvider:
             },
         }
         async with httpx.AsyncClient() as client:
-            response = await client.post(url, json=payload, timeout=30.0)
+            response = await client.post(url, json=payload, timeout=60.0)
             response.raise_for_status()
             result = response.json()
 
@@ -101,7 +109,7 @@ class _OpenAICompatibleProvider:
         }
         headers = {"Authorization": f"Bearer {self.api_key}"}
         async with httpx.AsyncClient() as client:
-            response = await client.post(self.url, json=payload, headers=headers, timeout=30.0)
+            response = await client.post(self.url, json=payload, headers=headers, timeout=60.0)
             response.raise_for_status()
             result = response.json()
 
@@ -189,7 +197,7 @@ class AnthropicProvider:
             "messages": [{"role": "user", "content": user_content}],
         }
         async with httpx.AsyncClient() as client:
-            response = await client.post(self.url, json=payload, headers=headers, timeout=30.0)
+            response = await client.post(self.url, json=payload, headers=headers, timeout=60.0)
             response.raise_for_status()
             result = response.json()
 
@@ -207,19 +215,46 @@ class AnthropicProvider:
 _VALID_ACTIVITY_TYPES = {"attraction", "food", "lodging", "transport"}
 
 
-def _coerce_invalid_activity_types(trip_json: object) -> None:
+def _coerce_invalid_activity_types_in_days(days_json: object) -> None:
     """LLMs occasionally emit a plausible but off-schema 'type' value (e.g.
     'sightseeing' instead of 'attraction'). Rather than discarding an entire
     otherwise-good response over one enum mismatch, coerce it to a safe
-    default in place before validation."""
-    if not isinstance(trip_json, dict):
+    default in place before validation. Operates on a bare list of day dicts
+    (as returned by a day-scoped agent call); see _coerce_invalid_activity_types
+    for the whole-trip-dict variant."""
+    if not isinstance(days_json, list):
         return
-    for day in trip_json.get("days") or []:
+    for day in days_json:
         if not isinstance(day, dict):
             continue
         for act in day.get("activities") or []:
             if isinstance(act, dict) and act.get("type") not in _VALID_ACTIVITY_TYPES:
                 act["type"] = "attraction"
+
+
+def _coerce_invalid_activity_types(trip_json: object) -> None:
+    if not isinstance(trip_json, dict):
+        return
+    _coerce_invalid_activity_types_in_days(trip_json.get("days"))
+
+
+# Best-effort, multi-language extraction of an explicit day-number mention in a
+# chat message (e.g. "day 8", "יום 8", "ליום 8", "jour 8"). Used by
+# LLMService._resolve_edit_intent as a free, local first guess at whether a
+# message only concerns specific day(s) — deliberately conservative, since an
+# empty/ambiguous result just falls back to an LLM classification call rather
+# than ever being trusted blindly.
+_DAY_NUMBER_PATTERN = re.compile(
+    r"(?:\bday\b|\b[לבה]?יום\b|\bjour\b)[\s:#()-]*(?:number|no\.?|מספר)?[\s:#()-]*(\d+)",
+    re.IGNORECASE,
+)
+
+
+def _detect_day_numbers(user_message: str) -> list[int]:
+    """De-duplicated, sorted list of day numbers explicitly mentioned in the
+    message; empty if none found (callers should treat that as 'not confident',
+    not as 'no days are relevant')."""
+    return sorted({int(n) for n in _DAY_NUMBER_PATTERN.findall(user_message)})
 
 
 _PROVIDERS: dict[str, type] = {
@@ -274,7 +309,7 @@ class LLMService:
         user_content: str,
         api_keys: list[str | None] | None = None,
         provider: str | None = None,
-        max_retries: int = 5,
+        max_retries: int = 3,
     ) -> dict:
         # Try each supplied key in turn. Whatever the failure — 429, a 5xx, a
         # timeout, a malformed response — a key that isn't the last one gets
@@ -383,7 +418,7 @@ class LLMService:
         api_key: str | None = None,
         api_keys: list[str] | None = None,
         provider: str | None = None,
-        max_retries: int = 5,
+        max_retries: int = 3,
     ) -> dict:
         """Run the prompt against every saved provider/key in order, falling through
         to the next provider when one fails, and only raising once all have failed —
@@ -491,7 +526,262 @@ class LLMService:
         api_keys: list[str] | None = None,
         credentials: list[ProviderCredentials] | None = None,
     ) -> AgentResponse:
-        """Calls the LLM to update the trip based on user chat and return a conversational reply."""
+        """Calls the LLM to update the trip based on user chat and return a conversational
+        reply. Re-sending/regenerating the *entire* trip on every chat turn (the
+        _agent_interaction_full path below) gets slow — and risks provider/platform
+        timeouts — as a trip grows, so this first tries to scope the call to only the
+        day(s) the message actually needs (see _resolve_edit_intent). Falls back to the
+        reliable full-trip path whenever that optimization doesn't cleanly apply, or its
+        result doesn't check out — so a bad classification or a malformed scoped
+        response can never corrupt the trip, only cost the time it would have taken
+        anyway."""
+        intent = await cls._resolve_edit_intent(
+            current_trip, user_message, credentials, api_key, api_keys, provider
+        )
+        try:
+            if intent.action == "add_days":
+                return await cls._agent_add_days(
+                    current_trip,
+                    user_message,
+                    preferences,
+                    api_key,
+                    provider,
+                    api_keys,
+                    credentials,
+                )
+            if intent.action == "edit_days" and intent.day_numbers:
+                return await cls._agent_edit_days(
+                    current_trip,
+                    user_message,
+                    intent.day_numbers,
+                    preferences,
+                    api_key,
+                    provider,
+                    api_keys,
+                    credentials,
+                )
+        except (ValueError, ValidationError):
+            pass  # the scoped attempt didn't check out — fall through below
+        return await cls._agent_interaction_full(
+            current_trip, user_message, preferences, api_key, provider, api_keys, credentials
+        )
+
+    @classmethod
+    async def _resolve_edit_intent(
+        cls,
+        current_trip: TripData,
+        user_message: str,
+        credentials: list[ProviderCredentials] | None,
+        api_key: str | None,
+        api_keys: list[str] | None,
+        provider: str | None,
+    ) -> AgentDayIntent:
+        """Cheaply decides how much of the trip a chat turn actually needs to touch.
+        Tries a free, local heuristic first — an explicit day number mentioned in the
+        message, compared against which days already exist — and only falls back to a
+        small classification LLM call when that's ambiguous (or absent)."""
+        existing_nums = {d.dayNum for d in current_trip.days}
+        mentioned = _detect_day_numbers(user_message)
+        if mentioned:
+            if all(n not in existing_nums for n in mentioned):
+                return AgentDayIntent(action="add_days")
+            if all(n in existing_nums for n in mentioned):
+                return AgentDayIntent(action="edit_days", day_numbers=mentioned)
+            # A mix of new and existing day numbers — genuinely ambiguous, ask the model.
+        return await cls._classify_intent_via_llm(
+            current_trip, user_message, credentials, api_key, api_keys, provider
+        )
+
+    @classmethod
+    async def _classify_intent_via_llm(
+        cls,
+        current_trip: TripData,
+        user_message: str,
+        credentials: list[ProviderCredentials] | None,
+        api_key: str | None,
+        api_keys: list[str] | None,
+        provider: str | None,
+    ) -> AgentDayIntent:
+        """Small/fast fallback classification when the day-number heuristic can't tell —
+        sends only a one-line summary of each day (never full content), so this stays
+        quick regardless of trip size. Any failure here (provider error, bad JSON,
+        schema mismatch) just means 'general' — classification is a pure optimization,
+        never a source of truth, so it must fail safe rather than fail loud."""
+        if not current_trip.days:
+            return AgentDayIntent(action="general")
+        day_summaries = "\n".join(
+            f"Day {d.dayNum}: " + (", ".join(a.title for a in d.activities)[:200] or "(empty)")
+            for d in current_trip.days
+        )
+        system_prompt = (
+            "You are triaging a travel-itinerary chat message so the server knows how much "
+            "of the trip to send for the actual edit — you are NOT performing the edit "
+            "itself. Given a one-line summary of each existing day and the user's message, "
+            "decide: 'add_days' if the message only asks to add one or more brand-new "
+            "day(s) and nothing existing needs to change; 'edit_days' if it asks to change, "
+            "remove from, or add something to specific existing day(s) — list every day "
+            "number it affects; 'general' if it's ambiguous, references the whole trip, or "
+            "needs restructuring (reordering/renumbering days, changing the trip title/dates, "
+            "or anything spanning many days). When unsure, choose 'general' — it's always "
+            "safe, just slower."
+        )
+        schema = AgentDayIntent.model_json_schema()
+        user_content = (
+            f"Existing days:\n{day_summaries}\n\nUser message: {user_message}\n\n"
+            f"Output strict JSON matching this schema: {json.dumps(schema)}"
+        )
+        try:
+            json_data = await cls._execute(
+                system_prompt,
+                user_content,
+                credentials=credentials,
+                api_key=api_key,
+                api_keys=api_keys,
+                provider=provider,
+                max_retries=2,
+            )
+            return AgentDayIntent(**json_data)
+        except (HTTPException, ValidationError, TypeError):
+            return AgentDayIntent(action="general")
+
+    @classmethod
+    async def _agent_add_days(
+        cls,
+        current_trip: TripData,
+        user_message: str,
+        preferences: str | None,
+        api_key: str | None,
+        provider: str | None,
+        api_keys: list[str] | None,
+        credentials: list[ProviderCredentials] | None,
+    ) -> AgentResponse:
+        """Handles a chat turn that only adds new day(s) to the end of the trip — sends
+        just the trip's basic info and its last existing day (for continuity), not the
+        whole itinerary, since nothing earlier needs to change or even be looked at."""
+        existing_nums = {d.dayNum for d in current_trip.days}
+        next_num = max(existing_nums, default=0) + 1
+        last_day = current_trip.days[-1] if current_trip.days else None
+        preferences_fragment = f"IMPORTANT: {preferences} " if preferences else ""
+        system_prompt = (
+            "You are a helpful travel assistant AI adding brand-new day(s) to the end of "
+            "an existing trip itinerary. You're only shown the trip's basic info and its "
+            "last existing day for continuity — every earlier day is unaffected and "
+            "already fine, so don't regenerate them; only output the new day(s) in 'days'. "
+            f"Number the new day(s) starting from {next_num} and increasing by 1. "
+            f"The itinerary's language (ISO 639-1, currently '{current_trip.language}') "
+            "indicates which language to write 'agent_reply' and the new activities in. "
+            f"{preferences_fragment}"
+            "Always include realistic 'map_coordinates' for new locations, but leave "
+            "'price', 'url', 'hasPodcast', 'podcast_brief', 'directions_car' and "
+            "'directions_transit' null/false on the new activities — those are filled in "
+            "later by an optional, opt-in enhancement step."
+        )
+        schema = AgentScopedResponse.model_json_schema()
+        context = {
+            "title": current_trip.title,
+            "dates": current_trip.dates,
+            "existing_day_count": len(current_trip.days),
+            "last_day": last_day.model_dump() if last_day else None,
+        }
+        user_content = (
+            f"Trip context: {json.dumps(context)}\nUser Message: {user_message}\n\n"
+            f"Output strict JSON matching this schema: {json.dumps(schema)}"
+        )
+        json_data = await cls._execute(
+            system_prompt,
+            user_content,
+            credentials=credentials,
+            api_key=api_key,
+            api_keys=api_keys,
+            provider=provider,
+        )
+        if isinstance(json_data, dict):
+            _coerce_invalid_activity_types_in_days(json_data.get("days"))
+        scoped = AgentScopedResponse(**json_data)
+        new_nums = {d.dayNum for d in scoped.days}
+        if not new_nums or new_nums & existing_nums:
+            raise ValueError("agent returned no new days, or a day-number collision")
+        merged_trip = current_trip.model_copy(update={"days": [*current_trip.days, *scoped.days]})
+        return AgentResponse(updated_trip=merged_trip, agent_reply=scoped.agent_reply)
+
+    @classmethod
+    async def _agent_edit_days(
+        cls,
+        current_trip: TripData,
+        user_message: str,
+        day_numbers: list[int],
+        preferences: str | None,
+        api_key: str | None,
+        provider: str | None,
+        api_keys: list[str] | None,
+        credentials: list[ProviderCredentials] | None,
+    ) -> AgentResponse:
+        """Handles a chat turn that only touches specific existing day(s) — sends just
+        those day(s), not the whole itinerary. Every other day is guaranteed unaffected,
+        since it's never shown to the model in the first place."""
+        target_days = [d for d in current_trip.days if d.dayNum in day_numbers]
+        if not target_days:
+            raise ValueError("none of the classified day numbers exist in the trip")
+        preferences_fragment = f"IMPORTANT: {preferences} " if preferences else ""
+        system_prompt = (
+            "You are a helpful travel assistant AI editing specific day(s) of a larger "
+            "trip itinerary. Only the day(s) below are shown to you — every other day "
+            "already exists and is unaffected, so don't worry about them or try to "
+            "reproduce them. The 'Days' below are the full source of truth for these "
+            "day(s), including activities the user added manually that may be missing "
+            "fields like 'map_coordinates' or 'hasPodcast' — copy each one through to the "
+            "output UNCHANGED unless the user's request specifically asks you to add, "
+            "remove, or modify it. Never drop an activity just because it looks "
+            "incomplete; preserve its id and other fields as-is. "
+            f"The itinerary's language (ISO 639-1, currently '{current_trip.language}') "
+            "indicates which language to write 'agent_reply' in. "
+            f"{preferences_fragment}"
+            "Always include realistic 'map_coordinates' for new locations, but leave "
+            "'price', 'url', 'hasPodcast', 'podcast_brief', 'directions_car' and "
+            "'directions_transit' null/false on newly added activities — those are filled "
+            "in later by an optional, opt-in enhancement step."
+        )
+        schema = AgentScopedResponse.model_json_schema()
+        days_json = json.dumps([d.model_dump() for d in target_days])
+        user_content = (
+            f"Days: {days_json}\nUser Message: {user_message}\n\n"
+            f"Output strict JSON matching this schema: {json.dumps(schema)}"
+        )
+        json_data = await cls._execute(
+            system_prompt,
+            user_content,
+            credentials=credentials,
+            api_key=api_key,
+            api_keys=api_keys,
+            provider=provider,
+        )
+        if isinstance(json_data, dict):
+            _coerce_invalid_activity_types_in_days(json_data.get("days"))
+        scoped = AgentScopedResponse(**json_data)
+        returned_nums = {d.dayNum for d in scoped.days}
+        if not returned_nums or not returned_nums <= set(day_numbers):
+            raise ValueError("agent returned an unexpected day number")
+        by_num = {d.dayNum: d for d in scoped.days}
+        merged_days = [by_num.get(d.dayNum, d) for d in current_trip.days]
+        merged_trip = current_trip.model_copy(update={"days": merged_days})
+        return AgentResponse(updated_trip=merged_trip, agent_reply=scoped.agent_reply)
+
+    @classmethod
+    async def _agent_interaction_full(
+        cls,
+        current_trip: TripData,
+        user_message: str,
+        preferences: str | None = None,
+        api_key: str | None = None,
+        provider: str | None = None,
+        api_keys: list[str] | None = None,
+        credentials: list[ProviderCredentials] | None = None,
+    ) -> AgentResponse:
+        """The original whole-trip agent turn: sends the entire itinerary and expects
+        the entire itinerary back. Used directly for edits that genuinely need full
+        context (reordering, renumbering, trip-wide changes), and as the safety-net
+        fallback when the day-scoped path above doesn't apply or its result doesn't
+        check out."""
         preferences_fragment = f"IMPORTANT: {preferences} " if preferences else ""
         system_prompt = (
             "You are a helpful travel assistant AI. The user is reviewing their current trip itinerary. "
