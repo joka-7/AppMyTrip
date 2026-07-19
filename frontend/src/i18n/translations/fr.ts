@@ -322,6 +322,7 @@ export const fr: Record<TranslationKey, string> = {
     "La réponse de l'IA semblait avoir supprimé la majeure partie de l'itinéraire, nous l'avons donc laissé tel quel. Réessayez, ou divisez la requête en étapes plus petites.",
   "apiError.providerDown":
     "Le fournisseur d'IA n'a pas pu répondre pour le moment (problème de service temporaire). Réessayez dans un instant.",
+  "apiError.technicalDetailLabel": "Détail technique :",
 
   // App-level notices & agent messages
   "notice.rateLimitedDemo":

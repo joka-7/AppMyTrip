@@ -314,6 +314,7 @@ export const en: Record<TranslationKey, string> = {
     "The AI's response looked like it deleted most of the itinerary, so we kept it as it was. Try again, or split the request into smaller steps.",
   "apiError.providerDown":
     "The AI provider couldn't respond right now (a temporary service issue). Try again in a moment.",
+  "apiError.technicalDetailLabel": "Technical detail:",
 
   // App-level notices & agent messages
   "notice.rateLimitedDemo":

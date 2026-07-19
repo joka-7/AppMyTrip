@@ -307,6 +307,7 @@ export const he = {
   "apiError.truncated":
     'התשובה מה-AI נראתה כאילו מחקה את רוב הלו"ז, אז השארנו אותו כפי שהיה. נסו שוב, או פצלו את הבקשה לשלבים קטנים יותר.',
   "apiError.providerDown": "ספק ה-AI לא הצליח להשיב כרגע (תקלה זמנית בשירות). נסו שוב בעוד רגע.",
+  "apiError.technicalDetailLabel": "פרטים טכניים:",
 
   // App-level notices & agent messages
   "notice.rateLimitedDemo":

@@ -140,9 +140,14 @@ export default function AppFrame({
   const displayDates = formatTripDates(tripData.dates, appDesign.dateFormat);
   const currency = effectiveCurrency(appDesign);
 
+  // Only jump to the configured start day when the trip's day *count* changes
+  // (a genuinely different/reloaded trip, or a day added/removed) — not on
+  // every edit, which creates a new `days` array reference (e.g. deleting a
+  // single activity) without changing which day the user is looking at.
   useEffect(() => {
     setActiveDay(startDayIndex(days, appDesign.startDay));
-  }, [appDesign.startDay, days]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appDesign.startDay, days.length]);
 
   useEffect(() => {
     setActiveTab(resolveDefaultTab(appDesign.defaultTab, appDesign.visibleTabs));
