@@ -114,18 +114,24 @@ export function getAllCredentials(): { provider: LLMProvider; api_keys: string[]
     .filter((c) => c.api_keys.length > 0);
 }
 
-/** Appends a key to a provider's list (ignoring blanks/exact duplicates) and
- * makes that provider the active one. */
+/** Appends a key to a provider's list (ignoring blanks/exact duplicates). Only makes
+ * that provider the active (first-tried) one if this is the very first key saved for
+ * *any* provider — once a provider is already configured and working, adding a key
+ * for a different one is meant to add a fallback, not silently bump it ahead in the
+ * `getAllCredentials()` order (which is what actually gets tried first). */
 export function addApiKey(key: string, provider: LLMProvider): void {
   const trimmed = key.trim();
   if (!trimmed) return;
   const map = loadKeyMap();
+  const hadAnyKeyBefore = Object.values(map).some((keys) => (keys?.length ?? 0) > 0);
   const existing = map[provider] ?? [];
   if (!existing.includes(trimmed)) {
     map[provider] = [...existing, trimmed];
     saveKeyMap(map);
   }
-  setApiProvider(provider);
+  if (!hadAnyKeyBefore) {
+    setApiProvider(provider);
+  }
 }
 
 /** Removes a single key from a provider's list. */

@@ -49,13 +49,17 @@ export default function ApiKeyMenu() {
   const { t } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const [provider, setProvider] = useState<LLMProvider>(getApiProvider());
+  const [activeProvider, setActiveProvider] = useState<LLMProvider>(getApiProvider());
   const [llmKeys, setLlmKeys] = useState<string[]>(() => getApiKeysForProvider(provider));
   const [llmDraft, setLlmDraft] = useState("");
   const [showLlmDraft, setShowLlmDraft] = useState(false);
 
+  // Browsing to a different provider here (to view/add its keys) must not by
+  // itself change which provider gets tried first on real requests — that
+  // used to happen silently and could bump a working provider behind a new,
+  // possibly-flaky one just because the user opened this dropdown.
   const handleProviderChange = (next: LLMProvider) => {
     setProvider(next);
-    setApiProvider(next);
     setLlmKeys(getApiKeysForProvider(next));
     setLlmDraft("");
   };
@@ -66,6 +70,12 @@ export default function ApiKeyMenu() {
     addApiKey(trimmed, provider);
     setLlmKeys(getApiKeysForProvider(provider));
     setLlmDraft("");
+    setActiveProvider(getApiProvider());
+  };
+
+  const handleMakePrimary = () => {
+    setApiProvider(provider);
+    setActiveProvider(provider);
   };
 
   const handleRemoveLlmKey = (key: string) => {
@@ -122,6 +132,20 @@ export default function ApiKeyMenu() {
                 <KeyRow key={key} value={key} onRemove={() => handleRemoveLlmKey(key)} />
               ))}
             </div>
+          )}
+
+          {provider === activeProvider ? (
+            <p className="text-[11px] text-ink-muted mb-2">{t("apiKey.primaryNote")}</p>
+          ) : (
+            hasKeys && (
+              <button
+                type="button"
+                onClick={handleMakePrimary}
+                className="text-[11px] text-primary hover:text-primary-dark underline mb-2"
+              >
+                {t("apiKey.makePrimary")}
+              </button>
+            )
           )}
 
           <div className="relative mb-2">

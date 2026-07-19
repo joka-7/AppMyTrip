@@ -224,6 +224,8 @@ export const he = {
   "apiKey.addKey": "הוספת מפתח",
   "apiKey.close": "סגירה",
   "apiKey.inputPlaceholder": "API Key...",
+  "apiKey.primaryNote": "הספק הזה מנוסה ראשון בכל בקשה.",
+  "apiKey.makePrimary": "הפוך לספק הראשי",
 
   // Cloud menu (sign-in, save, share, my trips)
   "cloud.importSuccess": "הטיול יובא מהקובץ.",

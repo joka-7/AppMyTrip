@@ -73,6 +73,31 @@ describe("ApiKeyMenu", () => {
     });
   });
 
+  it("adding a backup key for another provider doesn't bump the active one", () => {
+    render(<ApiKeyMenu />);
+    openMenu();
+    fireEvent.change(screen.getByPlaceholderText("API Key..."), {
+      target: { value: "gemini-key" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "הוספת מפתח" }));
+    expect(localStorage.getItem("tripweaver_api_provider")).toBe("gemini");
+
+    // Just browsing to another provider (without adding a key) must not
+    // change the active provider either.
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "openrouter" } });
+    expect(localStorage.getItem("tripweaver_api_provider")).toBe("gemini");
+
+    fireEvent.change(screen.getByPlaceholderText("API Key..."), {
+      target: { value: "openrouter-key" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "הוספת מפתח" }));
+    expect(localStorage.getItem("tripweaver_api_provider")).toBe("gemini");
+
+    // The user can still explicitly promote a different provider.
+    fireEvent.click(screen.getByRole("button", { name: "הפוך לספק הראשי" }));
+    expect(localStorage.getItem("tripweaver_api_provider")).toBe("openrouter");
+  });
+
   it("removes a saved key", () => {
     localStorage.setItem("tripweaver_api_keys", JSON.stringify({ gemini: ["key-to-remove"] }));
     render(<ApiKeyMenu />);

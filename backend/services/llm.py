@@ -18,6 +18,7 @@ local development when no per-request key is supplied:
 
 import asyncio
 import json
+import logging
 import os
 import re
 from typing import Protocol
@@ -34,6 +35,22 @@ from models import (
     ProviderCredentials,
     TripData,
 )
+
+# INFO-level so which provider/key was actually tried (and why it failed) shows
+# up in the server's logs (e.g. Vercel's function logs) without extra setup —
+# there's otherwise no way to tell from the outside which of several saved
+# provider/key combinations a request actually used.
+logger = logging.getLogger("llm")
+if not logger.handlers:
+    logging.basicConfig(level=logging.INFO)
+logger.setLevel(logging.INFO)
+
+
+def _mask_key(key: str | None) -> str:
+    """Shortens a key to a log-safe, still-recognizable form — never the full secret."""
+    if not key:
+        return "(server env key)"
+    return "****" if len(key) <= 8 else f"{key[:4]}…{key[-4:]}"
 
 
 class LLMProvider(Protocol):
@@ -351,12 +368,17 @@ class LLMService:
         for key_index, key in enumerate(keys):
             llm_provider = cls._get_provider(key, provider)
             is_last_key = key_index == len(keys) - 1
+            key_label = f"{provider or 'default'}/{_mask_key(key)}"
 
             for attempt in range(max_retries):
+                logger.info("llm attempt: %s (try %d/%d)", key_label, attempt + 1, max_retries)
                 try:
-                    return await llm_provider.complete_json(system_prompt, user_content)
+                    result = await llm_provider.complete_json(system_prompt, user_content)
+                    logger.info("llm attempt: %s succeeded", key_label)
+                    return result
                 except httpx.HTTPStatusError as e:
                     if e.response.status_code == 429:
+                        logger.info("llm attempt: %s rate-limited (429)", key_label)
                         last_rate_limit = e
                         if not is_last_key:
                             break  # rotate to the next key immediately
@@ -366,6 +388,12 @@ class LLMService:
                         delay = float(retry_after) if retry_after else delays[attempt]
                         await asyncio.sleep(delay)
                         continue
+                    logger.info(
+                        "llm attempt: %s failed with HTTP %d: %s",
+                        key_label,
+                        e.response.status_code,
+                        e,
+                    )
                     if not is_last_key:
                         break  # rotate to the next key immediately
                     if attempt == max_retries - 1:
@@ -374,6 +402,7 @@ class LLMService:
                         ) from e
                     await asyncio.sleep(delays[attempt])
                 except (httpx.HTTPError, ValueError, json.JSONDecodeError) as e:
+                    logger.info("llm attempt: %s failed: %s", key_label, e)
                     if not is_last_key:
                         break  # rotate to the next key immediately
                     if attempt == max_retries - 1:
@@ -449,19 +478,33 @@ class LLMService:
         to the next provider when one fails, and only raising once all have failed —
         so a single exhausted or invalid key/provider doesn't surface an error."""
         groups = cls._resolve_credential_groups(credentials, api_key, api_keys, provider)
+        logger.info(
+            "llm request: trying %d provider group(s): %s",
+            len(groups),
+            ", ".join(f"{prov or 'default'} ({len(keys)} key(s))" for prov, keys in groups),
+        )
         errors: list[HTTPException] = []
         for prov, keys in groups:
             try:
-                return await cls._execute_with_retry(
+                result = await cls._execute_with_retry(
                     system_prompt,
                     user_content,
                     api_keys=keys,
                     provider=prov,
                     max_retries=max_retries,
                 )
+                logger.info("llm request: succeeded via provider group '%s'", prov or "default")
+                return result
             except HTTPException as e:
+                logger.info(
+                    "llm request: provider group '%s' exhausted (%d: %s)",
+                    prov or "default",
+                    e.status_code,
+                    e.detail,
+                )
                 errors.append(e)
                 continue
+        logger.info("llm request: all %d provider group(s) failed", len(groups))
         raise cls._summarize_failures(errors)
 
     @staticmethod

@@ -25,13 +25,27 @@ describe("apiKey storage (multiple keys per provider)", () => {
     expect(getApiKeysForProvider("gemini")).toEqual(["dup"]);
   });
 
-  it("keeps each provider's keys separate and makes the added provider active", () => {
+  it("keeps each provider's keys separate", () => {
     addApiKey("gem", "gemini");
     addApiKey("groq-key", "groq");
-    expect(getApiProvider()).toBe("groq");
-    expect(getApiKeys()).toEqual(["groq-key"]);
-    setApiProvider("gemini");
+    expect(getApiKeysForProvider("gemini")).toEqual(["gem"]);
+    expect(getApiKeysForProvider("groq")).toEqual(["groq-key"]);
+  });
+
+  it("makes the very first key ever saved the active provider", () => {
+    addApiKey("gem", "gemini");
+    expect(getApiProvider()).toBe("gemini");
     expect(getApiKeys()).toEqual(["gem"]);
+  });
+
+  it("does not silently reassign the active provider once one is already set", () => {
+    // A working provider shouldn't get bumped behind a newly-added backup key —
+    // that only happens if the user explicitly promotes it (setApiProvider).
+    addApiKey("gem", "gemini");
+    addApiKey("groq-key", "groq");
+    expect(getApiProvider()).toBe("gemini");
+    setApiProvider("groq");
+    expect(getApiProvider()).toBe("groq");
   });
 
   it("removes a single key without touching the others", () => {
@@ -67,12 +81,14 @@ describe("getAllCredentials", () => {
     addApiKey("groq-1", "groq");
     addApiKey("groq-2", "groq");
     addApiKey("oai", "openai");
-    // The last-added provider (openai) is active, so it must come first.
-    expect(getApiProvider()).toBe("openai");
+    // gemini was the first key ever saved, so it stays active/first even
+    // though groq and openai were added afterward — adding a backup key for
+    // another provider must not silently bump a working one out of first place.
+    expect(getApiProvider()).toBe("gemini");
     expect(getAllCredentials()).toEqual([
-      { provider: "openai", api_keys: ["oai"] },
       { provider: "gemini", api_keys: ["gem"] },
       { provider: "groq", api_keys: ["groq-1", "groq-2"] },
+      { provider: "openai", api_keys: ["oai"] },
     ]);
   });
 
