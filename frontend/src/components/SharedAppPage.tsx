@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { RefObject } from "react";
-import { Download, Save, Settings, Share2, Upload, UserCog, UserPlus } from "lucide-react";
+import { Download, Home, Save, Settings, Share2, Upload, UserCog, UserPlus } from "lucide-react";
 import type { Activity, TripData } from "../api";
 import { useI18n } from "../i18n/useI18n";
 import type { AppDesign } from "../services/appDesign";
@@ -79,6 +79,10 @@ export default function SharedAppPage({
     "idle",
   );
   const [adminEmailInput, setAdminEmailInput] = useState("");
+  // "?shared=" is read once at module load (see App.tsx's SHARED_TRIP_ID), so
+  // there's no in-app route back to the builder/"My trips" — leaving this
+  // view means an actual navigation, dropping the query string.
+  const homeHref = window.location.pathname;
 
   const handleSaveToAccount = async () => {
     setSaveStatus("working");
@@ -146,6 +150,14 @@ export default function SharedAppPage({
     <div className="h-dvh overflow-hidden bg-surface-container flex justify-center" dir={dir}>
       <div className="w-full max-w-md h-dvh bg-surface shadow-2xl flex flex-col overflow-hidden">
         <div className="shrink-0 flex items-center justify-end gap-2 p-2 bg-white border-b border-outline/20">
+          <a
+            href={homeHref}
+            aria-label={t("sharedPage.myTripsAria")}
+            className="flex items-center gap-1 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg text-xs"
+          >
+            <Home size={14} />
+            {t("cloud.myTrips")}
+          </a>
           <ApiKeyMenu />
           <InstallAppButton />
           <div className="relative">
@@ -194,7 +206,12 @@ export default function SharedAppPage({
                     : t("sharedPage.saveToAccount")}
                 </button>
                 {saveStatus === "done" && (
-                  <p className="text-green-700 px-1">{t("sharedPage.savedNotice")}</p>
+                  <p className="text-green-700 px-1">
+                    {t("sharedPage.savedNotice")}{" "}
+                    <a href={homeHref} className="underline hover:text-green-800">
+                      {t("cloud.myTrips")}
+                    </a>
+                  </p>
                 )}
                 {saveStatus === "error" && (
                   <p className="text-red-700 px-1">{t("sharedPage.saveFailed")}</p>
