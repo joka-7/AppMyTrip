@@ -88,7 +88,7 @@ export default function SharedAppPage({
     setSaveStatus("working");
     try {
       const session = getCurrentSession() ?? (await signInWithGoogle());
-      await saveTrip(session.uid, tripData, { appDesign });
+      await saveTrip(session.uid, tripData, { appDesign, stage: "final" });
       setSaveStatus("done");
     } catch (err) {
       console.error(err);

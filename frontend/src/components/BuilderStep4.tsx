@@ -142,6 +142,7 @@ export default function BuilderStep4({
       const savedId = await saveTrip(session.uid, namedTrip, {
         appDesign,
         tripId: asNewCopy ? undefined : (tripId ?? undefined),
+        stage: "final",
       });
       const url = await shareTrip(
         session.uid,

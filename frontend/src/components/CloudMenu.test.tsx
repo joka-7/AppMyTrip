@@ -31,6 +31,7 @@ describe("CloudMenu", () => {
         tripData={sampleTrip}
         appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
+        currentStep={1}
         onTripIdChange={vi.fn()}
         onLoadTrip={vi.fn()}
         onImportTrip={vi.fn()}
@@ -46,7 +47,7 @@ describe("CloudMenu", () => {
       displayName: "User",
     });
     vi.mocked(trips.listTrips).mockResolvedValue([
-      { id: "trip-1", name: "My Trip", modifiedTime: "2024-01-01" },
+      { id: "trip-1", name: "My Trip", modifiedTime: "2024-01-01", stage: null },
     ]);
     vi.mocked(trips.loadTrip).mockResolvedValue({
       trip: sampleTrip,
@@ -59,6 +60,7 @@ describe("CloudMenu", () => {
         tripData={sampleTrip}
         appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
+        currentStep={1}
         onTripIdChange={vi.fn()}
         onLoadTrip={onLoadTrip}
         onImportTrip={vi.fn()}
@@ -85,7 +87,7 @@ describe("CloudMenu", () => {
 
   it("loads the trip list for an already-signed-in session without requiring a manual sign-in click", async () => {
     vi.mocked(trips.listTrips).mockResolvedValue([
-      { id: "trip-1", name: "My Trip", modifiedTime: "2024-01-01" },
+      { id: "trip-1", name: "My Trip", modifiedTime: "2024-01-01", stage: null },
     ]);
     vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
       callback({ uid: "uid-123", email: "user@example.com", displayName: "User" } as never);
@@ -97,6 +99,7 @@ describe("CloudMenu", () => {
         tripData={sampleTrip}
         appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
+        currentStep={1}
         onTripIdChange={vi.fn()}
         onLoadTrip={vi.fn()}
         onImportTrip={vi.fn()}

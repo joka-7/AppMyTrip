@@ -5,6 +5,7 @@ import { useI18n, type TranslationKey } from "../i18n/useI18n";
 import { exportTripToFile, importTripFromFile } from "../services/tripFile";
 import {
   type CloudTripSummary,
+  type TripStage,
   deleteSharedTrip,
   deleteTrip,
   listTrips,
@@ -23,6 +24,28 @@ const SHARE_DURATIONS: { labelKey: TranslationKey; days: number }[] = [
   { labelKey: "share.days90", days: 90 },
   { labelKey: "share.forever", days: 0 },
 ];
+
+/** "Save as" choices shown next to the save button, so a trip's saved name can
+ * record which stage of the builder it was saved from. */
+const SAVE_STAGES: { labelKey: TranslationKey; stage: TripStage }[] = [
+  { labelKey: "cloud.stage.step1", stage: "step1" },
+  { labelKey: "cloud.stage.step2", stage: "step2" },
+  { labelKey: "cloud.stage.step3", stage: "step3" },
+  { labelKey: "cloud.stage.step4", stage: "step4" },
+  { labelKey: "cloud.stage.final", stage: "final" },
+];
+
+const STAGE_LABEL_KEYS: Record<TripStage, TranslationKey> = {
+  step1: "cloud.stage.step1",
+  step2: "cloud.stage.step2",
+  step3: "cloud.stage.step3",
+  step4: "cloud.stage.step4",
+  final: "cloud.stage.final",
+};
+
+function stageForStep(step: number): TripStage {
+  return step >= 1 && step <= 4 ? (`step${step}` as TripStage) : "final";
+}
 import type { AppDesign } from "../services/appDesign";
 
 /** Sign-in + "My Trips" + Save/Share controls backed by Firestore. */
@@ -30,6 +53,7 @@ export default function CloudMenu({
   tripData,
   appDesign,
   tripId,
+  currentStep,
   onTripIdChange,
   onLoadTrip,
   onImportTrip,
@@ -38,6 +62,8 @@ export default function CloudMenu({
   appDesign: AppDesign;
   /** Id of the trip currently being edited, shared with the step-4 deploy flow. */
   tripId: string | null;
+  /** Current builder step (1-4) — used as the default "save as" stage. */
+  currentStep: number;
   onTripIdChange: (tripId: string | null) => void;
   onLoadTrip: (trip: TripData, tripId: string, appDesign: AppDesign) => void;
   onImportTrip: (trip: TripData, appDesign: AppDesign) => void;
@@ -50,6 +76,10 @@ export default function CloudMenu({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [shareDays, setShareDays] = useState(0);
+  const [saveStage, setSaveStage] = useState<TripStage>(() => stageForStep(currentStep));
+  useEffect(() => {
+    setSaveStage(stageForStep(currentStep));
+  }, [currentStep]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -113,7 +143,11 @@ export default function CloudMenu({
     setBusy(true);
     setNotice(null);
     try {
-      const savedId = await saveTrip(uid, tripData, { appDesign, tripId: tripId ?? undefined });
+      const savedId = await saveTrip(uid, tripData, {
+        appDesign,
+        tripId: tripId ?? undefined,
+        stage: saveStage,
+      });
       onTripIdChange(savedId);
       await refreshTrips(uid);
       setNotice(t("cloud.saved"));
@@ -253,6 +287,20 @@ export default function CloudMenu({
                 {t("cloud.share")}
               </button>
             </div>
+            <label className="block text-xs text-ink-muted mb-2">
+              {t("cloud.saveAsLabel")}{" "}
+              <select
+                value={saveStage}
+                onChange={(e) => setSaveStage(e.target.value as TripStage)}
+                className="border border-outline/40 rounded-md px-1.5 py-0.5 text-xs"
+              >
+                {SAVE_STAGES.map((opt) => (
+                  <option key={opt.stage} value={opt.stage}>
+                    {t(opt.labelKey)}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="block text-xs text-ink-muted mb-4">
               {t("cloud.shareValidity")}{" "}
               <select
@@ -281,9 +329,14 @@ export default function CloudMenu({
                   <button
                     onClick={() => handleLoad(trip)}
                     disabled={busy}
-                    className="flex-1 text-sm text-ink text-start truncate hover:text-primary px-2 py-1.5 rounded-lg hover:bg-surface-container"
+                    className="flex-1 min-w-0 flex items-center gap-1.5 text-sm text-ink text-start hover:text-primary px-2 py-1.5 rounded-lg hover:bg-surface-container"
                   >
-                    {trip.name}
+                    <span className="truncate">{trip.name}</span>
+                    {trip.stage && (
+                      <span className="shrink-0 text-[10px] font-medium text-ink-muted bg-surface-container-high px-1.5 py-0.5 rounded-full">
+                        {t(STAGE_LABEL_KEYS[trip.stage])}
+                      </span>
+                    )}
                   </button>
                   <button
                     onClick={() => handleDelete(trip)}
