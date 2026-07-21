@@ -483,6 +483,7 @@ function TripBuilder() {
             tripData={tripData}
             appDesign={appDesign}
             tripId={tripId}
+            currentStep={step}
             onTripIdChange={setTripId}
             onLoadTrip={(trip, loadedTripId, loadedAppDesign) => {
               setTripData(trip);
@@ -703,7 +704,7 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
   const handleCreateNewLink = async (): Promise<string> => {
     if (!trip) throw new Error("Trip not loaded yet.");
     const currentSession = session ?? (await signInWithGoogle());
-    const newTripId = await saveTrip(currentSession.uid, trip, { appDesign });
+    const newTripId = await saveTrip(currentSession.uid, trip, { appDesign, stage: "final" });
     return shareTrip(currentSession.uid, newTripId, trip, appDesign);
   };
 

@@ -44,10 +44,19 @@ export interface CloudSession {
   displayName: string | null;
 }
 
+/**
+ * Which point in the builder a trip was saved at — shown next to its name in
+ * "My trips" so multiple saves of the same work-in-progress are distinguishable.
+ * "final" means it was saved from the finished/shared app view rather than
+ * mid-build (e.g. via SharedAppPage's "save to my account", or a Step 4 deploy).
+ */
+export type TripStage = "step1" | "step2" | "step3" | "step4" | "final";
+
 export interface CloudTripSummary {
   id: string;
   name: string;
   modifiedTime: string;
+  stage: TripStage | null;
 }
 
 /** Permission/ownership info for a `?shared=` link, alongside its content. */
@@ -101,12 +110,19 @@ function timestampToIso(value: unknown): string {
   return value instanceof Timestamp ? value.toDate().toISOString() : new Date().toISOString();
 }
 
+const TRIP_STAGES: readonly TripStage[] = ["step1", "step2", "step3", "step4", "final"];
+
+function stageFromStored(value: unknown): TripStage | null {
+  return TRIP_STAGES.includes(value as TripStage) ? (value as TripStage) : null;
+}
+
 export async function listTrips(uid: string): Promise<CloudTripSummary[]> {
   const snap = await getDocs(query(tripsCollection(uid), orderBy("updatedAt", "desc")));
   return snap.docs.map((d) => ({
     id: d.id,
     name: (d.data().title as string) || "Untitled trip",
     modifiedTime: timestampToIso(d.data().updatedAt),
+    stage: stageFromStored(d.data().stage),
   }));
 }
 
@@ -116,11 +132,13 @@ function appDesignFromStored(data: StoredTrip): AppDesign {
   return normalizeAppDesign(data.appDesign, data.theme);
 }
 
-/** Creates a new trip doc, or overwrites an existing one if tripId is given. */
+/** Creates a new trip doc, or overwrites an existing one if tripId is given.
+ * `stage` records which point in the builder this save represents (or "final"
+ * for a save made from the finished/shared app view) — see `TripStage`. */
 export async function saveTrip(
   uid: string,
   trip: TripData,
-  options?: { appDesign?: AppDesign; tripId?: string },
+  options?: { appDesign?: AppDesign; tripId?: string; stage?: TripStage },
 ): Promise<string> {
   const ref = options?.tripId
     ? doc(tripsCollection(uid), options.tripId)
@@ -132,6 +150,7 @@ export async function saveTrip(
     appDesign,
     theme: appDesign.theme,
     updatedAt: serverTimestamp(),
+    ...(options?.stage ? { stage: options.stage } : {}),
   });
   return ref.id;
 }
