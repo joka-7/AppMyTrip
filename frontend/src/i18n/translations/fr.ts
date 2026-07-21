@@ -7,6 +7,7 @@ export const fr: Record<TranslationKey, string> = {
   "document.title": "Planificateur de voyage IA — AppMyTrip",
   "nav.title": "Planificateur de voyage IA",
   "nav.step": "Étape {step} sur 4",
+  "nav.preview": "Aperçu de l'application",
   "lang.label": "Langue de l'interface",
 
   // Progress bar
