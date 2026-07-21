@@ -1049,7 +1049,10 @@ class LLMService:
             "extra detail the user explicitly opted into. The 'Current Itinerary' is the full "
             "source of truth — copy every day and activity through to 'updated_trip' UNCHANGED, "
             "including id, time, title, desc, type and any already-set fields; only fill in the "
-            "specific new field(s) requested below. " + instruction
+            "specific new field(s) requested below. "
+            f"The itinerary's language (ISO 639-1, currently '{current_trip.language}') "
+            "indicates which language to write any new text in (e.g. 'podcast_brief' or the "
+            "directions notes) — do not switch to English or any other language. " + instruction
         )
         schema = TripData.model_json_schema()
         user_content = (
