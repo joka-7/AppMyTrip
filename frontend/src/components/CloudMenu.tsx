@@ -149,6 +149,12 @@ export default function CloudMenu({
         stage: saveStage,
       });
       onTripIdChange(savedId);
+      // "Final app" means the actual finished/shared app, not a look-alike —
+      // so publish it for real, the same as the Share button does, instead of
+      // just labeling it "final" without anything backing that up.
+      if (saveStage === "final") {
+        await shareTrip(uid, savedId, tripData, appDesign, shareDays || undefined);
+      }
       await refreshTrips(uid);
       setNotice(t("cloud.saved"));
     } catch (err) {
@@ -180,6 +186,16 @@ export default function CloudMenu({
 
   const handleLoad = async (trip: CloudTripSummary) => {
     if (!uid) return;
+    // A trip saved as "Final app" was actually published (see handleSave) —
+    // open the real "?shared=" link instead of loading it back into the
+    // builder, so "final" really means the finished app, not a look-alike
+    // preview you can still navigate away from into planning.
+    if (trip.stage === "final") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("shared", trip.id);
+      window.location.assign(url.toString());
+      return;
+    }
     setBusy(true);
     setNotice(null);
     try {
