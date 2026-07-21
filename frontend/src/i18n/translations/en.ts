@@ -267,6 +267,7 @@ export const en: Record<TranslationKey, string> = {
   // Shared trip page
   "sharedPage.settings": "Settings",
   "sharedPage.settingsAria": "Trip settings",
+  "sharedPage.myTripsAria": "Go to My Trips",
   "sharedPage.export": "Export to file",
   "sharedPage.import": "Import from file",
   "sharedPage.saving": "Saving...",

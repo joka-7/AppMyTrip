@@ -264,6 +264,7 @@ export const he = {
   // Shared trip page
   "sharedPage.settings": "הגדרות",
   "sharedPage.settingsAria": "הגדרות הטיול",
+  "sharedPage.myTripsAria": "מעבר לטיולים שלי",
   "sharedPage.export": "ייצוא לקובץ",
   "sharedPage.import": "ייבוא מקובץ",
   "sharedPage.saving": "שומר...",

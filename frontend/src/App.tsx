@@ -474,7 +474,10 @@ function TripBuilder() {
               setTripId(loadedTripId);
               setAppDesign(loadedAppDesign);
               setAgentMessages([{ role: "agent", text: t("agent.loaded") }]);
-              goToStep(3);
+              // A saved trip is already built — land on the design/publish step
+              // (which shows the real live preview and share link) instead of
+              // dropping the user back into the from-scratch chat editor.
+              goToStep(4);
             }}
             onImportTrip={(trip, importedAppDesign) => {
               setTripData(trip);
