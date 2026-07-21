@@ -8,6 +8,7 @@ export const en: Record<TranslationKey, string> = {
   "document.title": "AI Trip Planner — AppMyTrip",
   "nav.title": "AI Trip Planner",
   "nav.step": "Step {step} of 4",
+  "nav.preview": "Preview app",
   "lang.label": "Interface language",
 
   // Progress bar

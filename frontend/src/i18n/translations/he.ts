@@ -7,6 +7,7 @@ export const he = {
   "document.title": "תכנון טיול באמצעות AI — AppMyTrip",
   "nav.title": "תכנון טיול באמצעות AI",
   "nav.step": "שלב {step} מתוך 4",
+  "nav.preview": "תצוגה מקדימה של האפליקציה",
   "lang.label": "שפת הממשק",
 
   // Progress bar

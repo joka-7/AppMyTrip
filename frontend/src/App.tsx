@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Wand2 } from "lucide-react";
+import { ChevronLeft, Smartphone, Wand2 } from "lucide-react";
 import { parseTrip, agentInteract, generateMedia, enhanceTrip, ApiError } from "./api";
 import type { Activity, EnhanceOptions, TripData } from "./api";
 import ApiKeyMenu from "./components/ApiKeyMenu";
 import ApiNotice from "./components/ApiNotice";
+import AppFrame from "./components/AppFrame";
 import BuilderStep1 from "./components/BuilderStep1";
 import BuilderStep2 from "./components/BuilderStep2";
 import BuilderStep3, { type AgentMessage } from "./components/BuilderStep3";
@@ -230,6 +231,11 @@ function TripBuilder() {
   // overwriting one. Shared between CloudMenu and BuilderStep4 so both stay
   // in sync about which trip is "current".
   const [tripId, setTripId] = useState<string | null>(null);
+  // Shows the trip full-screen, exactly as AppFrame renders it on a "?shared="
+  // link — the actual "final app" look, as opposed to the builder chrome
+  // around it. Opened automatically after loading a saved trip from
+  // CloudMenu, or manually via the nav bar's preview button.
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([]);
 
@@ -464,6 +470,15 @@ function TripBuilder() {
           <LanguageSwitcher />
           <InstallAppButton />
           <ApiKeyMenu />
+          {tripData.days.length > 0 && (
+            <button
+              onClick={() => setPreviewOpen(true)}
+              className="flex items-center gap-1.5 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-full transition-colors"
+            >
+              <Smartphone size={16} />
+              {t("nav.preview")}
+            </button>
+          )}
           <CloudMenu
             tripData={tripData}
             appDesign={appDesign}
@@ -475,9 +490,11 @@ function TripBuilder() {
               setAppDesign(loadedAppDesign);
               setAgentMessages([{ role: "agent", text: t("agent.loaded") }]);
               // A saved trip is already built — land on the design/publish step
-              // (which shows the real live preview and share link) instead of
-              // dropping the user back into the from-scratch chat editor.
+              // (which has the share link) instead of dropping the user back
+              // into the from-scratch chat editor, and open straight into the
+              // full-screen "final app" look instead of the builder chrome.
               goToStep(4);
+              setPreviewOpen(true);
             }}
             onImportTrip={(trip, importedAppDesign) => {
               setTripData(trip);
@@ -577,6 +594,41 @@ function TripBuilder() {
           />
         </div>
       </div>
+
+      {previewOpen && (
+        <div
+          className="fixed inset-0 z-50 h-dvh overflow-hidden bg-surface-container flex justify-center"
+          dir={dir}
+        >
+          <div className="w-full max-w-md h-dvh bg-surface shadow-2xl flex flex-col overflow-hidden">
+            <div className="shrink-0 flex items-center gap-2 p-2 bg-white border-b border-outline/20">
+              <button
+                onClick={() => setPreviewOpen(false)}
+                className="flex items-center gap-1 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg text-xs"
+              >
+                <ChevronLeft size={14} />
+                {t("common.back")}
+              </button>
+            </div>
+            <div className="flex-1 min-h-0">
+              <AppFrame
+                tripData={tripData}
+                appDesign={appDesign}
+                agentMessages={agentMessages}
+                chatInput={chatInput}
+                onChangeChatInput={setChatInput}
+                onSendMessage={handleSendMessage}
+                chatEndRef={chatEndRef}
+                isSendingMessage={isSendingMessage}
+                onUpdateActivity={handleUpdateActivity}
+                onAddActivity={handleAddActivity}
+                onDeleteActivity={handleDeleteActivity}
+                onUpdateTrip={handleUpdateTrip}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
