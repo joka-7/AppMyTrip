@@ -490,12 +490,13 @@ function TripBuilder() {
               setTripId(loadedTripId);
               setAppDesign(loadedAppDesign);
               setAgentMessages([{ role: "agent", text: t("agent.loaded") }]);
-              // A saved trip is already built — land on the design/publish step
-              // (which has the share link) instead of dropping the user back
-              // into the from-scratch chat editor, and open straight into the
-              // full-screen "final app" look instead of the builder chrome.
+              // Reaching here means the trip wasn't saved as "Final app" (that
+              // case navigates straight to the real "?shared=" link instead,
+              // see CloudMenu's handleLoad) — it's still in progress, so land
+              // on the design/publish step rather than the from-scratch chat
+              // editor. The nav bar's "Preview app" button is there if the
+              // user wants a quick look without leaving the builder.
               goToStep(4);
-              setPreviewOpen(true);
             }}
             onImportTrip={(trip, importedAppDesign) => {
               setTripData(trip);

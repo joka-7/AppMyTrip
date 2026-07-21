@@ -85,6 +85,159 @@ describe("CloudMenu", () => {
     expect(trips.loadTrip).toHaveBeenCalledWith("uid-123", "trip-1");
   });
 
+  it("saves with the selected stage and shows it as a tag once the list refreshes", async () => {
+    vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
+      callback({ uid: "uid-123", email: "user@example.com", displayName: "User" } as never);
+      return () => {};
+    });
+    vi.mocked(trips.listTrips)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { id: "trip-1", name: "Trip", modifiedTime: "2024-01-01", stage: "step3" },
+      ]);
+    vi.mocked(trips.saveTrip).mockResolvedValue("trip-1");
+    const onTripIdChange = vi.fn();
+
+    render(
+      <CloudMenu
+        tripData={sampleTrip}
+        appDesign={DEFAULT_APP_DESIGN}
+        tripId={null}
+        currentStep={2}
+        onTripIdChange={onTripIdChange}
+        onLoadTrip={vi.fn()}
+        onImportTrip={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("user@example.com")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("user@example.com"));
+
+    // Defaults to the current builder step (2), matching the "currentStep" prop.
+    const stageSelect = screen.getByLabelText(/שמירה בשלב/) as HTMLSelectElement;
+    expect(stageSelect.value).toBe("step2");
+
+    // User explicitly picks a different stage before saving.
+    fireEvent.change(stageSelect, { target: { value: "step3" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /שמירה/ }));
+
+    await waitFor(() => {
+      expect(trips.saveTrip).toHaveBeenCalledWith("uid-123", sampleTrip, {
+        appDesign: DEFAULT_APP_DESIGN,
+        tripId: undefined,
+        stage: "step3",
+      });
+    });
+    expect(onTripIdChange).toHaveBeenCalledWith("trip-1");
+
+    // The refreshed trip list carries the stage back from Firestore, shown as a tag
+    // (scoped to a <span>, since the still-open "save as" <select> also has an
+    // option with this same text).
+    await waitFor(() => {
+      expect(screen.getByText("שלב 3", { selector: "span" })).toBeInTheDocument();
+    });
+  });
+
+  it('saving as "Final app" also publishes the trip, not just labels it', async () => {
+    vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
+      callback({ uid: "uid-123", email: "user@example.com", displayName: "User" } as never);
+      return () => {};
+    });
+    vi.mocked(trips.listTrips).mockResolvedValue([]);
+    vi.mocked(trips.saveTrip).mockResolvedValue("trip-1");
+    vi.mocked(trips.shareTrip).mockResolvedValue("https://example.com/?shared=trip-1");
+
+    render(
+      <CloudMenu
+        tripData={sampleTrip}
+        appDesign={DEFAULT_APP_DESIGN}
+        tripId={null}
+        currentStep={4}
+        onTripIdChange={vi.fn()}
+        onLoadTrip={vi.fn()}
+        onImportTrip={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("user@example.com")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("user@example.com"));
+
+    const stageSelect = screen.getByLabelText(/שמירה בשלב/) as HTMLSelectElement;
+    fireEvent.change(stageSelect, { target: { value: "final" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /שמירה/ }));
+
+    await waitFor(() => {
+      expect(trips.saveTrip).toHaveBeenCalledWith("uid-123", sampleTrip, {
+        appDesign: DEFAULT_APP_DESIGN,
+        tripId: undefined,
+        stage: "final",
+      });
+    });
+    // "Final app" must actually be shared — not just tagged — so the saved
+    // trip really is the finished app when opened, not a look-alike preview.
+    await waitFor(() => {
+      expect(trips.shareTrip).toHaveBeenCalledWith(
+        "uid-123",
+        "trip-1",
+        sampleTrip,
+        DEFAULT_APP_DESIGN,
+        undefined,
+      );
+    });
+  });
+
+  it('opening a trip saved as "Final app" goes to its real shared link, not the builder', async () => {
+    vi.mocked(trips.listTrips).mockResolvedValue([
+      { id: "trip-9", name: "Finished Trip", modifiedTime: "2024-01-01", stage: "final" },
+    ]);
+    vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
+      callback({ uid: "uid-123", email: "user@example.com", displayName: "User" } as never);
+      return () => {};
+    });
+    const onLoadTrip = vi.fn();
+    const assignSpy = vi.fn();
+    const originalLocation = window.location;
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...originalLocation, assign: assignSpy },
+    });
+
+    render(
+      <CloudMenu
+        tripData={sampleTrip}
+        appDesign={DEFAULT_APP_DESIGN}
+        tripId={null}
+        currentStep={1}
+        onTripIdChange={vi.fn()}
+        onLoadTrip={onLoadTrip}
+        onImportTrip={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("user@example.com")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("user@example.com"));
+    fireEvent.click(screen.getByText("Finished Trip"));
+
+    await waitFor(() => {
+      expect(assignSpy).toHaveBeenCalled();
+    });
+    const navigatedTo = new URL(assignSpy.mock.calls[0][0] as string);
+    expect(navigatedTo.searchParams.get("shared")).toBe("trip-9");
+    // Must not fall back to loading it into the builder as well.
+    expect(trips.loadTrip).not.toHaveBeenCalled();
+    expect(onLoadTrip).not.toHaveBeenCalled();
+
+    Object.defineProperty(window, "location", { configurable: true, value: originalLocation });
+  });
+
   it("loads the trip list for an already-signed-in session without requiring a manual sign-in click", async () => {
     vi.mocked(trips.listTrips).mockResolvedValue([
       { id: "trip-1", name: "My Trip", modifiedTime: "2024-01-01", stage: null },
