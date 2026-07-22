@@ -3,6 +3,7 @@ import { Cloud, Download, LogIn, LogOut, Save, Share2, FolderOpen, Upload, X } f
 import type { TripData } from "../api";
 import { useI18n, type TranslationKey } from "../i18n/useI18n";
 import { exportTripToFile, importTripFromFile } from "../services/tripFile";
+import LinkDisplay from "./LinkDisplay";
 import {
   type CloudTripSummary,
   type TripStage,
@@ -76,6 +77,7 @@ export default function CloudMenu({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [shareDays, setShareDays] = useState(0);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [saveStage, setSaveStage] = useState<TripStage>(() => stageForStep(currentStep));
   useEffect(() => {
     setSaveStage(stageForStep(currentStep));
@@ -142,6 +144,7 @@ export default function CloudMenu({
     if (!uid) return;
     setBusy(true);
     setNotice(null);
+    setShareUrl(null);
     try {
       const savedId = await saveTrip(uid, tripData, {
         appDesign,
@@ -153,7 +156,8 @@ export default function CloudMenu({
       // so publish it for real, the same as the Share button does, instead of
       // just labeling it "final" without anything backing that up.
       if (saveStage === "final") {
-        await shareTrip(uid, savedId, tripData, appDesign, shareDays || undefined);
+        const link = await shareTrip(uid, savedId, tripData, appDesign, shareDays || undefined);
+        setShareUrl(link);
       }
       await refreshTrips(uid);
       setNotice(t("cloud.saved"));
@@ -172,9 +176,11 @@ export default function CloudMenu({
     }
     setBusy(true);
     setNotice(null);
+    setShareUrl(null);
     try {
       const link = await shareTrip(uid, tripId, tripData, appDesign, shareDays || undefined);
       await navigator.clipboard.writeText(link).catch(() => {});
+      setShareUrl(link);
       setNotice(t("cloud.shareCopied"));
     } catch (err) {
       console.error(err);
@@ -282,8 +288,13 @@ export default function CloudMenu({
         </button>
 
         {isOpen && (
-          <div className="absolute end-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-lg border border-outline/20 p-4 z-40 text-start">
-            {notice && <p className="text-xs text-amber-700 mb-3">{notice}</p>}
+          <div className="absolute end-0 mt-2 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-lg border border-outline/20 p-4 z-40 text-start">
+            {notice && <p className="text-xs text-amber-700 mb-2">{notice}</p>}
+            {shareUrl && (
+              <div className="mb-3">
+                <LinkDisplay url={shareUrl} />
+              </div>
+            )}
 
             <div className="flex gap-2 mb-2">
               <button
@@ -345,6 +356,7 @@ export default function CloudMenu({
                   <button
                     onClick={() => handleLoad(trip)}
                     disabled={busy}
+                    title={trip.name}
                     className="flex-1 min-w-0 flex items-center gap-1.5 text-sm text-ink text-start hover:text-primary px-2 py-1.5 rounded-lg hover:bg-surface-container"
                   >
                     <span className="truncate">{trip.name}</span>

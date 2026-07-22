@@ -5,11 +5,12 @@ import type { Activity, TripData } from "../api";
 import { useI18n } from "../i18n/useI18n";
 import type { AppDesign } from "../services/appDesign";
 import { exportTripToFile, importTripFromFile } from "../services/tripFile";
-import { getCurrentSession, saveTrip, signInWithGoogle } from "../services/tripsStore";
+import { getCurrentSession, saveTrip, shareTrip, signInWithGoogle } from "../services/tripsStore";
 import { useTripBranding } from "../hooks/useTripBranding";
 import ApiKeyMenu from "./ApiKeyMenu";
 import AppFrame from "./AppFrame";
 import InstallAppButton from "./InstallAppButton";
+import LinkDisplay from "./LinkDisplay";
 import type { AgentMessage } from "./ChatPanel";
 
 /**
@@ -79,6 +80,12 @@ export default function SharedAppPage({
     "idle",
   );
   const [adminEmailInput, setAdminEmailInput] = useState("");
+  const [saveName, setSaveName] = useState(tripData.title);
+  const [saveUrl, setSaveUrl] = useState<string | null>(null);
+  const [newLinkUrl, setNewLinkUrl] = useState<string | null>(null);
+  // Tracks the copy created by "Save to my account" so a second click updates
+  // that same copy instead of creating a new one every time.
+  const [savedCopyId, setSavedCopyId] = useState<string | null>(null);
   // "?shared=" is read once at module load (see App.tsx's SHARED_TRIP_ID), so
   // there's no in-app route back to the builder/"My trips" — leaving this
   // view means an actual navigation, dropping the query string.
@@ -86,9 +93,21 @@ export default function SharedAppPage({
 
   const handleSaveToAccount = async () => {
     setSaveStatus("working");
+    setSaveUrl(null);
     try {
       const session = getCurrentSession() ?? (await signInWithGoogle());
-      await saveTrip(session.uid, tripData, { appDesign, stage: "final" });
+      const namedTrip = { ...tripData, title: saveName.trim() || tripData.title };
+      // "Final app" must actually be the finished/shared app, not just a
+      // label — publish it for real (same as the builder's Share button),
+      // otherwise opening it later 404s exactly like a broken share link.
+      const savedId = await saveTrip(session.uid, namedTrip, {
+        appDesign,
+        tripId: savedCopyId ?? undefined,
+        stage: "final",
+      });
+      setSavedCopyId(savedId);
+      const url = await shareTrip(session.uid, savedId, namedTrip, appDesign);
+      setSaveUrl(url);
       setSaveStatus("done");
     } catch (err) {
       console.error(err);
@@ -109,9 +128,11 @@ export default function SharedAppPage({
 
   const handleCreateNewLink = async () => {
     setNewLinkStatus("working");
+    setNewLinkUrl(null);
     try {
       const link = await onCreateNewLink();
       await navigator.clipboard.writeText(link).catch(() => {});
+      setNewLinkUrl(link);
       setNewLinkStatus("done");
     } catch (err) {
       console.error(err);
@@ -171,7 +192,7 @@ export default function SharedAppPage({
             </button>
 
             {menuOpen && (
-              <div className="absolute end-0 mt-2 w-72 max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto bg-white rounded-xl shadow-lg border border-outline/20 p-3 z-40 text-start text-xs flex flex-col gap-1.5">
+              <div className="absolute end-0 mt-2 w-80 max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto bg-white rounded-xl shadow-lg border border-outline/20 p-3 z-40 text-start text-xs flex flex-col gap-1.5">
                 <button
                   onClick={() => exportTripToFile(tripData, appDesign)}
                   className="flex items-center gap-1.5 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg"
@@ -195,6 +216,14 @@ export default function SharedAppPage({
                 />
                 {importError && <p className="text-red-700 px-1">{importError}</p>}
 
+                <input
+                  type="text"
+                  value={saveName}
+                  onChange={(e) => setSaveName(e.target.value)}
+                  placeholder={t("step4.tripNamePlaceholder")}
+                  aria-label={t("step4.tripNameLabel")}
+                  className="border border-outline/40 rounded-md px-2 py-1.5 bg-surface"
+                />
                 <button
                   onClick={handleSaveToAccount}
                   disabled={saveStatus === "working"}
@@ -205,13 +234,16 @@ export default function SharedAppPage({
                     ? t("sharedPage.saving")
                     : t("sharedPage.saveToAccount")}
                 </button>
-                {saveStatus === "done" && (
-                  <p className="text-green-700 px-1">
-                    {t("sharedPage.savedNotice")}{" "}
-                    <a href={homeHref} className="underline hover:text-green-800">
-                      {t("cloud.myTrips")}
-                    </a>
-                  </p>
+                {saveStatus === "done" && saveUrl && (
+                  <div className="flex flex-col gap-1">
+                    <p className="text-green-700 px-1">
+                      {t("sharedPage.savedNotice")}{" "}
+                      <a href={homeHref} className="underline hover:text-green-800">
+                        {t("cloud.myTrips")}
+                      </a>
+                    </p>
+                    <LinkDisplay url={saveUrl} />
+                  </div>
                 )}
                 {saveStatus === "error" && (
                   <p className="text-red-700 px-1">{t("sharedPage.saveFailed")}</p>
@@ -227,8 +259,11 @@ export default function SharedAppPage({
                     ? t("sharedPage.saving")
                     : t("sharedPage.shareNewLink")}
                 </button>
-                {newLinkStatus === "done" && (
-                  <p className="text-green-700 px-1">{t("sharedPage.newLinkCopied")}</p>
+                {newLinkStatus === "done" && newLinkUrl && (
+                  <div className="flex flex-col gap-1">
+                    <p className="text-green-700 px-1">{t("sharedPage.newLinkCopied")}</p>
+                    <LinkDisplay url={newLinkUrl} />
+                  </div>
                 )}
                 {newLinkStatus === "error" && (
                   <p className="text-red-700 px-1">{t("sharedPage.newLinkFailed")}</p>

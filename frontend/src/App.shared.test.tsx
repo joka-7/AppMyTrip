@@ -117,6 +117,72 @@ describe("App shared-trip viewer", () => {
     });
   });
 
+  it('"save to my account" actually publishes the trip and shows the real link', async () => {
+    const trips = await import("./services/tripsStore");
+    vi.mocked(trips.onAuthChange).mockImplementation(() => () => {});
+    vi.mocked(trips.getCurrentSession).mockReturnValue({
+      uid: "visitor-1",
+      email: "visitor@example.com",
+      displayName: "Visitor",
+    });
+    vi.mocked(trips.loadSharedTrip).mockResolvedValue({
+      trip: { title: "Shared Trip", dates: "Mon - Wed", days: [] },
+      appDesign: { ...DEFAULT_APP_DESIGN, theme: "green" },
+      meta: emptyMeta,
+    });
+    vi.mocked(trips.saveTrip).mockResolvedValue("copy-1");
+    vi.mocked(trips.shareTrip).mockResolvedValue("https://example.com/?shared=copy-1");
+
+    const { default: App } = await import("./App");
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("הגדרות")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("הגדרות"));
+    fireEvent.click(screen.getByText("שמירה לחשבון שלי"));
+
+    await waitFor(() => {
+      expect(trips.saveTrip).toHaveBeenCalledWith(
+        "visitor-1",
+        expect.objectContaining({ title: "Shared Trip" }),
+        {
+          appDesign: expect.objectContaining({ theme: "green" }),
+          tripId: undefined,
+          stage: "final",
+        },
+      );
+    });
+    // A "final app" save must actually be published (like the Share button
+    // does) — not just tagged — otherwise opening it later 404s.
+    await waitFor(() => {
+      expect(trips.shareTrip).toHaveBeenCalledWith(
+        "visitor-1",
+        "copy-1",
+        expect.objectContaining({ title: "Shared Trip" }),
+        expect.objectContaining({ theme: "green" }),
+      );
+    });
+    // The real link must be visible, not just silently copied.
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("https://example.com/?shared=copy-1")).toBeInTheDocument();
+    });
+
+    // Saving again must update the same copy, not create a duplicate.
+    fireEvent.click(screen.getByText("שמירה לחשבון שלי"));
+    await waitFor(() => {
+      expect(trips.saveTrip).toHaveBeenLastCalledWith(
+        "visitor-1",
+        expect.objectContaining({ title: "Shared Trip" }),
+        {
+          appDesign: expect.objectContaining({ theme: "green" }),
+          tripId: "copy-1",
+          stage: "final",
+        },
+      );
+    });
+  });
+
   it("lets an admin add another admin by email", async () => {
     const trips = await import("./services/tripsStore");
     vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
