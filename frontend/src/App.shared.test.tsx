@@ -163,9 +163,10 @@ describe("App shared-trip viewer", () => {
         expect.objectContaining({ theme: "green" }),
       );
     });
-    // The real link must be visible, not just silently copied.
+    // The real, full link must be visible on screen, not just silently
+    // copied or truncated in an <input>.
     await waitFor(() => {
-      expect(screen.getByDisplayValue("https://example.com/?shared=copy-1")).toBeInTheDocument();
+      expect(screen.getByText("https://example.com/?shared=copy-1")).toBeInTheDocument();
     });
 
     // Saving again must update the same copy, not create a duplicate.

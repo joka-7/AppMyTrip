@@ -169,7 +169,10 @@ export default function SharedAppPage({
 
   return (
     <div className="h-dvh overflow-hidden bg-surface-container flex justify-center" dir={dir}>
-      <div className="w-full max-w-md h-dvh bg-surface shadow-2xl flex flex-col overflow-hidden">
+      {/* max-w-md only kicks in from the "sm" breakpoint up — on an actual
+          phone (which is what this view is really for) it should fill the
+          whole screen; the phone-frame look is purely a desktop preview. */}
+      <div className="w-full sm:max-w-md h-dvh bg-surface shadow-2xl flex flex-col overflow-hidden">
         <div className="shrink-0 flex items-center justify-end gap-2 p-2 bg-white border-b border-outline/20">
           <a
             href={homeHref}

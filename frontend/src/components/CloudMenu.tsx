@@ -58,6 +58,7 @@ export default function CloudMenu({
   onTripIdChange,
   onLoadTrip,
   onImportTrip,
+  onUpdateTrip,
 }: {
   tripData: TripData;
   appDesign: AppDesign;
@@ -68,6 +69,10 @@ export default function CloudMenu({
   onTripIdChange: (tripId: string | null) => void;
   onLoadTrip: (trip: TripData, tripId: string, appDesign: AppDesign) => void;
   onImportTrip: (trip: TripData, appDesign: AppDesign) => void;
+  /** Applies a renamed title back to the trip being edited, so a name typed
+   * into the save box (see BuilderStep4's own name field for the same idea)
+   * sticks around instead of only living in the saved Firestore doc. */
+  onUpdateTrip: (patch: Partial<Pick<TripData, "title">>) => void;
 }) {
   const { t } = useI18n();
   const [email, setEmail] = useState<string | null>(null);
@@ -82,6 +87,18 @@ export default function CloudMenu({
   useEffect(() => {
     setSaveStage(stageForStep(currentStep));
   }, [currentStep]);
+  // Local editable copy of the trip name for the save box — tracks
+  // tripData.title until the user types their own (same pattern as
+  // BuilderStep4's own trip-name field).
+  const [saveName, setSaveName] = useState(tripData.title);
+  const saveNameTouchedRef = useRef(false);
+  const handleChangeSaveName = (value: string) => {
+    saveNameTouchedRef.current = true;
+    setSaveName(value);
+  };
+  useEffect(() => {
+    if (!saveNameTouchedRef.current) setSaveName(tripData.title);
+  }, [tripData.title]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -146,17 +163,19 @@ export default function CloudMenu({
     setNotice(null);
     setShareUrl(null);
     try {
-      const savedId = await saveTrip(uid, tripData, {
+      const namedTrip = { ...tripData, title: saveName.trim() || tripData.title };
+      const savedId = await saveTrip(uid, namedTrip, {
         appDesign,
         tripId: tripId ?? undefined,
         stage: saveStage,
       });
       onTripIdChange(savedId);
+      onUpdateTrip({ title: namedTrip.title });
       // "Final app" means the actual finished/shared app, not a look-alike —
       // so publish it for real, the same as the Share button does, instead of
       // just labeling it "final" without anything backing that up.
       if (saveStage === "final") {
-        const link = await shareTrip(uid, savedId, tripData, appDesign, shareDays || undefined);
+        const link = await shareTrip(uid, savedId, namedTrip, appDesign, shareDays || undefined);
         setShareUrl(link);
       }
       await refreshTrips(uid);
@@ -296,6 +315,14 @@ export default function CloudMenu({
               </div>
             )}
 
+            <input
+              type="text"
+              value={saveName}
+              onChange={(e) => handleChangeSaveName(e.target.value)}
+              placeholder={t("step4.tripNamePlaceholder")}
+              aria-label={t("step4.tripNameLabel")}
+              className="w-full border border-outline/40 rounded-md px-2.5 py-1.5 text-sm mb-2"
+            />
             <div className="flex gap-2 mb-2">
               <button
                 onClick={handleSave}
