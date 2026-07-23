@@ -33,6 +33,7 @@ describe("CloudMenu", () => {
         tripId={null}
         currentStep={1}
         onTripIdChange={vi.fn()}
+        onUpdateTrip={vi.fn()}
         onLoadTrip={vi.fn()}
         onImportTrip={vi.fn()}
       />,
@@ -62,6 +63,7 @@ describe("CloudMenu", () => {
         tripId={null}
         currentStep={1}
         onTripIdChange={vi.fn()}
+        onUpdateTrip={vi.fn()}
         onLoadTrip={onLoadTrip}
         onImportTrip={vi.fn()}
       />,
@@ -105,6 +107,7 @@ describe("CloudMenu", () => {
         tripId={null}
         currentStep={2}
         onTripIdChange={onTripIdChange}
+        onUpdateTrip={vi.fn()}
         onLoadTrip={vi.fn()}
         onImportTrip={vi.fn()}
       />,
@@ -141,6 +144,52 @@ describe("CloudMenu", () => {
     });
   });
 
+  it("saves under a custom name and applies it back to the trip being edited", async () => {
+    vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
+      callback({ uid: "uid-123", email: "user@example.com", displayName: "User" } as never);
+      return () => {};
+    });
+    vi.mocked(trips.listTrips).mockResolvedValue([]);
+    vi.mocked(trips.saveTrip).mockResolvedValue("trip-1");
+    const onUpdateTrip = vi.fn();
+
+    render(
+      <CloudMenu
+        tripData={sampleTrip}
+        appDesign={DEFAULT_APP_DESIGN}
+        tripId={null}
+        currentStep={1}
+        onTripIdChange={vi.fn()}
+        onUpdateTrip={onUpdateTrip}
+        onLoadTrip={vi.fn()}
+        onImportTrip={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("user@example.com")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("user@example.com"));
+
+    const nameInput = screen.getByPlaceholderText(/לדוגמה: טיול לרומא/) as HTMLInputElement;
+    // Defaults to the trip's current title.
+    expect(nameInput.value).toBe("Trip");
+    fireEvent.change(nameInput, { target: { value: "Rome Family Trip" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /שמירה/ }));
+
+    await waitFor(() => {
+      expect(trips.saveTrip).toHaveBeenCalledWith(
+        "uid-123",
+        { ...sampleTrip, title: "Rome Family Trip" },
+        { appDesign: DEFAULT_APP_DESIGN, tripId: undefined, stage: "step1" },
+      );
+    });
+    // The custom name must stick for the trip being edited too, not just the
+    // saved Firestore doc, so it doesn't get silently reverted on next save.
+    expect(onUpdateTrip).toHaveBeenCalledWith({ title: "Rome Family Trip" });
+  });
+
   it('saving as "Final app" also publishes the trip, not just labels it', async () => {
     vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
       callback({ uid: "uid-123", email: "user@example.com", displayName: "User" } as never);
@@ -157,6 +206,7 @@ describe("CloudMenu", () => {
         tripId={null}
         currentStep={4}
         onTripIdChange={vi.fn()}
+        onUpdateTrip={vi.fn()}
         onLoadTrip={vi.fn()}
         onImportTrip={vi.fn()}
       />,
@@ -215,6 +265,7 @@ describe("CloudMenu", () => {
         tripId={null}
         currentStep={1}
         onTripIdChange={vi.fn()}
+        onUpdateTrip={vi.fn()}
         onLoadTrip={onLoadTrip}
         onImportTrip={vi.fn()}
       />,
@@ -254,6 +305,7 @@ describe("CloudMenu", () => {
         tripId={null}
         currentStep={1}
         onTripIdChange={vi.fn()}
+        onUpdateTrip={vi.fn()}
         onLoadTrip={vi.fn()}
         onImportTrip={vi.fn()}
       />,
