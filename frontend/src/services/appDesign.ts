@@ -1,3 +1,5 @@
+import { safeUrl } from "./safeUrl";
+
 export type Theme = "blue" | "green" | "dark" | "coral" | "purple" | "sand";
 
 export type AppFont = "sans" | "rounded" | "serif";
@@ -235,9 +237,10 @@ export const DENSITY_CLASSES: Record<
 export function headerBackgroundStyle(design: AppDesign): Record<string, string> | undefined {
   const accent = resolveAccentColor(design);
   const accentDark = resolveAccentDark(design);
-  if (design.headerStyle === "photo" && design.headerImageUrl) {
+  const headerImageUrl = design.headerStyle === "photo" ? safeUrl(design.headerImageUrl) : null;
+  if (headerImageUrl) {
     return {
-      backgroundImage: `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url(${design.headerImageUrl})`,
+      backgroundImage: `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url(${headerImageUrl})`,
       backgroundSize: "cover",
       backgroundPosition: "center",
     };
@@ -271,7 +274,11 @@ export function formatTripDates(dates: string, format: DateFormatStyle): string 
 
 export function themeClassForDesign(design: AppDesign): string {
   if (design.customAccentColor && HEX_RE.test(design.customAccentColor)) return "";
-  if (design.headerStyle === "photo" && design.headerImageUrl) return "";
+  // Must agree with headerBackgroundStyle's own safeUrl() check — an unsafe
+  // headerImageUrl means no custom background is actually applied there, so
+  // this needs to fall through to the normal theme class too, not leave the
+  // header with neither.
+  if (design.headerStyle === "photo" && safeUrl(design.headerImageUrl)) return "";
   if (design.headerStyle === "gradient") return "";
   const swatch = THEME_SWATCH_CLASSES[design.theme];
   return swatch?.bg ?? THEME_SWATCH_CLASSES.blue.bg;

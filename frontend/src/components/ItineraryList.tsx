@@ -18,6 +18,7 @@ import { useI18n } from "../i18n/useI18n";
 import { type CardLayout, type CornerStyle, CORNER_CARD_CLASSES } from "../services/appDesign";
 import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABEL_KEYS } from "../services/activityTypes";
 import { newActivityId } from "../services/id";
+import { safeUrl } from "../services/safeUrl";
 import LocationPicker from "./LocationPicker";
 
 const ACTIVITY_ICONS: Record<Activity["type"], typeof Utensils> = {
@@ -250,9 +251,9 @@ export default function ItineraryList({
                         <span>{act.time}</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        {act.url && (
+                        {safeUrl(act.url) && (
                           <a
-                            href={act.url}
+                            href={safeUrl(act.url)!}
                             target="_blank"
                             rel="noopener noreferrer"
                             aria-label={t("itinerary.urlAria")}

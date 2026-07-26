@@ -8,6 +8,7 @@ the frontend, so there's no DB/auth to test here.
 import asyncio
 import json
 import os
+import time
 from unittest.mock import AsyncMock
 
 import httpx
@@ -16,6 +17,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+import services.llm as llm_module
 import services.tts as tts_module
 from models import Activity, AgentResponse, EnhanceOptions, ProviderCredentials, TripData, TripDay
 from routers.builder import TripBuilder
@@ -438,6 +440,81 @@ def test_execute_with_retry_preserves_413_payload_too_large(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# Total request deadline (bounds worst-case wall-clock time across every
+# provider group, key, and retry — see REQUEST_DEADLINE_SECONDS).
+# ---------------------------------------------------------------------------
+
+
+def test_execute_with_retry_raises_504_when_deadline_already_passed(monkeypatch):
+    called = False
+
+    class NeverCalledProvider:
+        async def complete_json(self, system_prompt, user_content, max_tokens=16384):
+            nonlocal called
+            called = True
+            return {}
+
+    monkeypatch.setattr(
+        LLMService,
+        "_get_provider",
+        staticmethod(lambda api_key=None, provider=None: NeverCalledProvider()),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            LLMService._execute_with_retry(
+                "sys", "user", api_keys=["k"], deadline=time.monotonic() - 1
+            )
+        )
+    assert exc_info.value.status_code == 504
+    # The deadline is checked before the call is even attempted — a request that
+    # arrives with no time left shouldn't spend another PER_CALL_TIMEOUT_SECONDS
+    # finding that out.
+    assert called is False
+
+
+def test_execute_stops_trying_further_provider_groups_once_deadline_exceeded(monkeypatch):
+    tried: list[str | None] = []
+
+    async def fake_retry(
+        system_prompt,
+        user_content,
+        api_keys=None,
+        provider=None,
+        max_retries=3,
+        max_tokens=16384,
+        deadline=None,
+    ):
+        tried.append(provider)
+        raise HTTPException(status_code=401, detail=f"bad {provider} key")
+
+    monkeypatch.setattr(LLMService, "_execute_with_retry", staticmethod(fake_retry))
+    # A deadline of 0s means it's already exceeded before the first provider
+    # group's turn even comes up.
+    monkeypatch.setattr(llm_module, "REQUEST_DEADLINE_SECONDS", 0)
+
+    creds = [
+        ProviderCredentials(provider="gemini", api_keys=["g1"]),
+        ProviderCredentials(provider="groq", api_keys=["q1"]),
+    ]
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(LLMService._execute("sys", "user", credentials=creds))
+    assert exc_info.value.status_code == 504
+    # No group was even attempted — the deadline check short-circuits first.
+    assert tried == []
+
+
+def test_sleep_within_deadline_clamps_to_remaining_time():
+    # A 16s backoff delay against a deadline only 0.01s away must not actually
+    # sleep anywhere near 16s — otherwise a single retry could blow the whole
+    # request budget just waiting, with no attempt left to show for it.
+    deadline = time.monotonic() + 0.01
+    start = time.monotonic()
+    asyncio.run(LLMService._sleep_within_deadline(16, deadline))
+    assert time.monotonic() - start < 1
+
+
+# ---------------------------------------------------------------------------
 # Cross-provider "use all saved keys" fallback
 # ---------------------------------------------------------------------------
 
@@ -472,7 +549,13 @@ def test_execute_falls_through_to_the_next_provider_when_one_fails(monkeypatch):
     tried: list[tuple[str | None, list[str | None] | None]] = []
 
     async def fake_retry(
-        system_prompt, user_content, api_keys=None, provider=None, max_retries=5, max_tokens=16384
+        system_prompt,
+        user_content,
+        api_keys=None,
+        provider=None,
+        max_retries=5,
+        max_tokens=16384,
+        deadline=None,
     ):
         tried.append((provider, api_keys))
         if provider == "gemini":
@@ -493,7 +576,13 @@ def test_execute_falls_through_to_the_next_provider_when_one_fails(monkeypatch):
 
 def test_execute_raises_only_after_every_provider_fails(monkeypatch):
     async def fake_retry(
-        system_prompt, user_content, api_keys=None, provider=None, max_retries=5, max_tokens=16384
+        system_prompt,
+        user_content,
+        api_keys=None,
+        provider=None,
+        max_retries=5,
+        max_tokens=16384,
+        deadline=None,
     ):
         raise HTTPException(status_code=401, detail=f"bad {provider} key")
 
@@ -1479,3 +1568,118 @@ def test_enhance_trip_raises_when_every_selected_option_fails(monkeypatch):
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(LLMService.enhance_trip(trip, EnhanceOptions(prices=True, links=True)))
     assert exc_info.value.status_code == 429
+
+
+# ---------------------------------------------------------------------------
+# Payload-size caps (models.py) — bound the cost/abuse surface of the public,
+# unauthenticated /api/trip/* endpoints, without constraining realistic input.
+# ---------------------------------------------------------------------------
+
+
+def test_parse_rejects_oversized_raw_text():
+    resp = client.post("/api/trip/parse", json={"raw_text": "x" * 20001})
+    assert resp.status_code == 422
+
+
+def test_parse_accepts_raw_text_at_the_limit(monkeypatch):
+    monkeypatch.setattr(LLMService, "parse_trip_text", AsyncMock(return_value=_sample_trip()))
+    resp = client.post("/api/trip/parse", json={"raw_text": "x" * 20000})
+    assert resp.status_code == 200
+
+
+def test_agent_rejects_oversized_user_message():
+    resp = client.post(
+        "/api/trip/agent",
+        json={"trip_data": _sample_trip().model_dump(), "user_message": "x" * 8001},
+    )
+    assert resp.status_code == 422
+
+
+def test_trip_data_rejects_too_many_days():
+    trip = _sample_trip()
+    trip.days = [TripDay(dayNum=n, activities=[]) for n in range(121)]
+    resp = client.post(
+        "/api/trip/agent", json={"trip_data": trip.model_dump(), "user_message": "hi"}
+    )
+    assert resp.status_code == 422
+
+
+def test_trip_day_rejects_too_many_activities():
+    trip = _sample_trip()
+    activity = trip.days[0].activities[0]
+    trip.days[0].activities = [activity.model_copy(update={"id": f"a{n}"}) for n in range(151)]
+    resp = client.post(
+        "/api/trip/agent", json={"trip_data": trip.model_dump(), "user_message": "hi"}
+    )
+    assert resp.status_code == 422
+
+
+def test_provider_credentials_rejects_too_many_groups():
+    trip = _sample_trip()
+    creds = [{"provider": f"p{n}", "api_keys": ["k"]} for n in range(11)]
+    resp = client.post(
+        "/api/trip/agent",
+        json={
+            "trip_data": trip.model_dump(),
+            "user_message": "hi",
+            "credentials": creds,
+        },
+    )
+    assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Opt-in rate limiter (services/rate_limit.py) — off by default, so tested
+# against an isolated app/client rather than the module-level `client` shared
+# by every other test in this file.
+# ---------------------------------------------------------------------------
+
+
+def test_rate_limit_middleware_disabled_by_default():
+    from services.rate_limit import RateLimitMiddleware
+
+    middleware = RateLimitMiddleware(app=None)
+    assert middleware.limit == 0
+
+
+def test_rate_limit_middleware_blocks_after_the_configured_limit():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient as _TestClient
+
+    from services.rate_limit import RateLimitMiddleware
+
+    limited_app = FastAPI()
+
+    @limited_app.get("/api/trip/ping")
+    def ping():
+        return {"ok": True}
+
+    limited_app.add_middleware(RateLimitMiddleware, limit_per_minute=2)
+    limited_client = _TestClient(limited_app)
+
+    assert limited_client.get("/api/trip/ping").status_code == 200
+    assert limited_client.get("/api/trip/ping").status_code == 200
+    third = limited_client.get("/api/trip/ping")
+    assert third.status_code == 429
+    assert "Too many requests" in third.json()["detail"]
+
+
+def test_rate_limit_middleware_only_covers_configured_path_prefix():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient as _TestClient
+
+    from services.rate_limit import RateLimitMiddleware
+
+    limited_app = FastAPI()
+
+    @limited_app.get("/health")
+    def health():
+        return {"ok": True}
+
+    limited_app.add_middleware(RateLimitMiddleware, limit_per_minute=1)
+    limited_client = _TestClient(limited_app)
+
+    # /health isn't under the /api/trip/ prefix the limiter guards, so it's
+    # never throttled regardless of how many times it's hit.
+    for _ in range(5):
+        assert limited_client.get("/health").status_code == 200

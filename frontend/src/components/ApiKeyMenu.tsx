@@ -114,6 +114,7 @@ export default function ApiKeyMenu() {
             </a>
             {t("apiKey.descriptionAfter")}
           </p>
+          <p className="text-[11px] text-ink-muted/80 mb-3">{t("apiKey.trustNote")}</p>
           <select
             value={provider}
             onChange={(e) => handleProviderChange(e.target.value as LLMProvider)}

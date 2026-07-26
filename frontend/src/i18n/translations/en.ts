@@ -222,6 +222,8 @@ export const en: Record<TranslationKey, string> = {
   "apiKey.descriptionBefore": "Choose a provider and paste your own API key — free at ",
   "apiKey.descriptionAfter":
     ". You can add several keys; when one hits its rate limit we switch to the next automatically. Everything is stored only in your browser.",
+  "apiKey.trustNote":
+    "Each key is sent with your requests to this app's own backend (never to a third party), only to be forwarded to the provider you picked — it's never stored on the server or logged in full.",
   "apiKey.removeAria": "Remove key {key}",
   "apiKey.showAria": "Show the key",
   "apiKey.hideAria": "Hide the key",

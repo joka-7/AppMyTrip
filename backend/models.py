@@ -8,10 +8,10 @@ from pydantic import BaseModel, Field
 class Activity(BaseModel):
     """Represents a single activity in the trip schedule."""
 
-    id: str = Field(..., description="Unique identifier for the activity")
-    time: str = Field(..., description="Time of the activity (HH:MM)")
-    title: str = Field(..., description="Title of the activity")
-    desc: str = Field(..., description="Detailed description of the activity")
+    id: str = Field(..., description="Unique identifier for the activity", max_length=200)
+    time: str = Field(..., description="Time of the activity (HH:MM)", max_length=20)
+    title: str = Field(..., description="Title of the activity", max_length=300)
+    desc: str = Field(..., description="Detailed description of the activity", max_length=4000)
     type: Literal["attraction", "food", "lodging", "transport"]
     hasPodcast: bool = Field(
         False,
@@ -43,31 +43,44 @@ class TripDay(BaseModel):
     """Represents a full day in the trip."""
 
     dayNum: int
-    activities: list[Activity] = Field(default_factory=list)
+    # 150 activities in a single day is already absurd for a real itinerary — the
+    # cap exists to bound the payload/token cost of a malicious or malformed
+    # request, not to constrain any real trip.
+    activities: list[Activity] = Field(default_factory=list, max_length=150)
 
 
 class TripData(BaseModel):
     """The complete trip model to be sent to the client application."""
 
-    title: str
-    dates: str
-    days: list[TripDay] = Field(default_factory=list)
+    title: str = Field(..., max_length=300)
+    dates: str = Field(..., max_length=200)
+    # 120 days covers any real trip with wide headroom; exists to bound request
+    # size/LLM cost, not to constrain legitimate use.
+    days: list[TripDay] = Field(default_factory=list, max_length=120)
     language: str = Field(
         "he",
+        max_length=10,
         description="ISO 639-1 code of the dominant language of the trip's source text "
         "(e.g. 'he' if most words/verbs are Hebrew, 'en' if mostly English). All "
         "generated content and agent chat replies should match this language.",
     )
     photo_album_url: str | None = Field(
-        None, description="Link to a shared photo album for the whole trip"
+        None, description="Link to a shared photo album for the whole trip", max_length=2000
     )
 
 
 class ProviderCredentials(BaseModel):
     """One LLM provider plus the caller's key(s) for it."""
 
-    provider: str = Field(..., description="Provider id: gemini/openai/anthropic/groq/…")
-    api_keys: list[str] = Field(default_factory=list, description="Keys to try, in order")
+    provider: str = Field(
+        ..., description="Provider id: gemini/openai/anthropic/groq/…", max_length=50
+    )
+    # A generous ceiling on how many keys one provider group can carry — well past
+    # any real user's key collection, just bounding the fan-out an abusive
+    # request could trigger (_execute_with_retry tries every key in turn).
+    api_keys: list[str] = Field(
+        default_factory=list, description="Keys to try, in order", max_length=20
+    )
 
 
 # Shared description for the `credentials` request field.
@@ -77,31 +90,45 @@ _CREDENTIALS_DESC = (
     "exhausted or invalid key/provider doesn't surface an error as long as another "
     "works. Takes precedence over the single-provider api_key/api_keys/provider fields."
 )
+# A generous ceiling — more than any real user configures — bounding how many
+# provider/key combinations one request can make _execute() fan out to.
+_MAX_CREDENTIAL_GROUPS = 10
+_MAX_LEGACY_API_KEYS = 20
+_MAX_PREFERENCES_LENGTH = 1000
 
 
 class AgentInteractRequest(BaseModel):
     """Payload for interacting with the AI Agent in Stage 3."""
 
     trip_data: TripData
-    user_message: str
+    # 8000 chars is a very long chat message; the cap bounds prompt size/cost,
+    # not realistic typing.
+    user_message: str = Field(..., max_length=8000)
     preferences: str | None = Field(
-        None, description="Free-text dietary/other preference (e.g. 'Vegan', 'gluten-free')"
+        None,
+        max_length=_MAX_PREFERENCES_LENGTH,
+        description="Free-text dietary/other preference (e.g. 'Vegan', 'gluten-free')",
     )
-    credentials: list[ProviderCredentials] | None = Field(None, description=_CREDENTIALS_DESC)
+    credentials: list[ProviderCredentials] | None = Field(
+        None, max_length=_MAX_CREDENTIAL_GROUPS, description=_CREDENTIALS_DESC
+    )
     api_key: str | None = Field(
         None,
+        max_length=2000,
         description="Caller's own LLM provider API key. Falls back to the server's "
         "GEMINI_API_KEY/OPENAI_API_KEY/ANTHROPIC_API_KEY/GROQ_API_KEY env var if omitted. "
         "Legacy single-key field; prefer `api_keys` for rotation across several keys.",
     )
     api_keys: list[str] | None = Field(
         None,
+        max_length=_MAX_LEGACY_API_KEYS,
         description="Caller's own LLM provider API keys, tried in order — when one is "
         "rate-limited (429) the server rotates to the next before failing. Merged with "
         "the legacy `api_key` field if both are sent.",
     )
     provider: str | None = Field(
         None,
+        max_length=50,
         description="Which LLM provider `api_key` belongs to: 'gemini', 'openai', "
         "'anthropic', or 'groq'. Falls back to the server's LLM_PROVIDER env var "
         "(default 'gemini') if omitted.",
@@ -111,25 +138,35 @@ class AgentInteractRequest(BaseModel):
 class ParseRequest(BaseModel):
     """Payload for the initial text parsing in Stage 1."""
 
-    raw_text: str
+    # 20000 chars comfortably covers a pasted WhatsApp thread for a long trip;
+    # the cap exists to bound prompt size/cost on an unauthenticated endpoint,
+    # not to constrain realistic input.
+    raw_text: str = Field(..., max_length=20000)
     preferences: str | None = Field(
-        None, description="Free-text dietary/other preference (e.g. 'Vegan', 'gluten-free')"
+        None,
+        max_length=_MAX_PREFERENCES_LENGTH,
+        description="Free-text dietary/other preference (e.g. 'Vegan', 'gluten-free')",
     )
-    credentials: list[ProviderCredentials] | None = Field(None, description=_CREDENTIALS_DESC)
+    credentials: list[ProviderCredentials] | None = Field(
+        None, max_length=_MAX_CREDENTIAL_GROUPS, description=_CREDENTIALS_DESC
+    )
     api_key: str | None = Field(
         None,
+        max_length=2000,
         description="Caller's own LLM provider API key. Falls back to the server's "
         "GEMINI_API_KEY/OPENAI_API_KEY/ANTHROPIC_API_KEY/GROQ_API_KEY env var if omitted. "
         "Legacy single-key field; prefer `api_keys` for rotation across several keys.",
     )
     api_keys: list[str] | None = Field(
         None,
+        max_length=_MAX_LEGACY_API_KEYS,
         description="Caller's own LLM provider API keys, tried in order — when one is "
         "rate-limited (429) the server rotates to the next before failing. Merged with "
         "the legacy `api_key` field if both are sent.",
     )
     provider: str | None = Field(
         None,
+        max_length=50,
         description="Which LLM provider `api_key` belongs to: 'gemini', 'openai', "
         "'anthropic', or 'groq'. Falls back to the server's LLM_PROVIDER env var "
         "(default 'gemini') if omitted.",
@@ -153,21 +190,26 @@ class EnhanceRequest(BaseModel):
 
     trip_data: TripData
     options: EnhanceOptions
-    credentials: list[ProviderCredentials] | None = Field(None, description=_CREDENTIALS_DESC)
+    credentials: list[ProviderCredentials] | None = Field(
+        None, max_length=_MAX_CREDENTIAL_GROUPS, description=_CREDENTIALS_DESC
+    )
     api_key: str | None = Field(
         None,
+        max_length=2000,
         description="Caller's own LLM provider API key. Falls back to the server's "
         "GEMINI_API_KEY/OPENAI_API_KEY/ANTHROPIC_API_KEY/GROQ_API_KEY env var if omitted. "
         "Legacy single-key field; prefer `api_keys` for rotation across several keys.",
     )
     api_keys: list[str] | None = Field(
         None,
+        max_length=_MAX_LEGACY_API_KEYS,
         description="Caller's own LLM provider API keys, tried in order — when one is "
         "rate-limited (429) the server rotates to the next before failing. Merged with "
         "the legacy `api_key` field if both are sent.",
     )
     provider: str | None = Field(
         None,
+        max_length=50,
         description="Which LLM provider `api_key` belongs to: 'gemini', 'openai', "
         "'anthropic', or 'groq'. Falls back to the server's LLM_PROVIDER env var "
         "(default 'gemini') if omitted.",

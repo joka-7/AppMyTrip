@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import re
+import time
 from typing import Protocol
 
 import httpx
@@ -64,6 +65,22 @@ def _mask_key(key: str | None) -> str:
 MAX_TOKENS_CLASSIFY = 1024  # tiny {action, day_numbers} JSON
 MAX_TOKENS_SCOPED_EDIT = 8192  # one or a few days' worth of activities
 MAX_TOKENS_FULL_TRIP = 16384  # a whole-trip echo-back can be large
+
+# Ceiling on a single provider HTTP call. Was 60s; most serverless hosts
+# (e.g. Vercel) cap a whole function invocation well under that, so one slow
+# call could already exceed the platform's own limit before our retry/
+# rotation logic ever got a say — it just showed up as an opaque platform 504
+# instead of the actionable message _execute produces below.
+PER_CALL_TIMEOUT_SECONDS = 20.0
+
+# Total wall-clock budget for one LLMService._execute() call, across every
+# provider group, key, and retry. Without a ceiling here, the worst case
+# (several saved providers x several keys each x 3 retries x up to
+# PER_CALL_TIMEOUT_SECONDS, plus exponential backoff between them) can run for
+# minutes — far past any serverless platform's execution limit. Configurable
+# via env so a long-lived host (Render/Fly, not time-boxed the same way) can
+# raise it if it's actually worth trying every saved key/provider to exhaustion.
+REQUEST_DEADLINE_SECONDS = float(os.environ.get("LLM_REQUEST_DEADLINE_SECONDS", "45"))
 
 
 def _describe_http_status_error(e: httpx.HTTPStatusError) -> str:
@@ -117,7 +134,7 @@ class GeminiProvider:
             },
         }
         async with httpx.AsyncClient() as client:
-            response = await client.post(url, json=payload, timeout=60.0)
+            response = await client.post(url, json=payload, timeout=PER_CALL_TIMEOUT_SECONDS)
             response.raise_for_status()
             result = response.json()
 
@@ -164,7 +181,9 @@ class _OpenAICompatibleProvider:
         }
         headers = {"Authorization": f"Bearer {self.api_key}"}
         async with httpx.AsyncClient() as client:
-            response = await client.post(self.url, json=payload, headers=headers, timeout=60.0)
+            response = await client.post(
+                self.url, json=payload, headers=headers, timeout=PER_CALL_TIMEOUT_SECONDS
+            )
             response.raise_for_status()
             result = response.json()
 
@@ -254,7 +273,9 @@ class AnthropicProvider:
             "messages": [{"role": "user", "content": user_content}],
         }
         async with httpx.AsyncClient() as client:
-            response = await client.post(self.url, json=payload, headers=headers, timeout=60.0)
+            response = await client.post(
+                self.url, json=payload, headers=headers, timeout=PER_CALL_TIMEOUT_SECONDS
+            )
             response.raise_for_status()
             result = response.json()
 
@@ -393,6 +414,7 @@ class LLMService:
         provider: str | None = None,
         max_retries: int = 3,
         max_tokens: int = 16384,
+        deadline: float | None = None,
     ) -> dict:
         # Try each supplied key in turn. Whatever the failure — 429, a 5xx, a
         # timeout, a malformed response — a key that isn't the last one gets
@@ -412,6 +434,12 @@ class LLMService:
             key_label = f"{provider or 'default'}/{_mask_key(key)}"
 
             for attempt in range(max_retries):
+                # Checked before every attempt (not just before sleeping) so a
+                # deadline that's already gone doesn't spend one more full
+                # PER_CALL_TIMEOUT_SECONDS on a call whose result we'd discard anyway.
+                if deadline is not None and time.monotonic() >= deadline:
+                    logger.info("llm attempt: %s skipped — request deadline exceeded", key_label)
+                    raise cls._deadline_exceeded()
                 logger.info("llm attempt: %s (try %d/%d)", key_label, attempt + 1, max_retries)
                 try:
                     result = await llm_provider.complete_json(
@@ -429,7 +457,7 @@ class LLMService:
                             raise cls._all_keys_rate_limited(e) from e
                         retry_after = e.response.headers.get("retry-after")
                         delay = float(retry_after) if retry_after else delays[attempt]
-                        await asyncio.sleep(delay)
+                        await cls._sleep_within_deadline(delay, deadline)
                         continue
                     logger.info(
                         "llm attempt: %s failed with HTTP %d: %s",
@@ -459,7 +487,7 @@ class LLMService:
                         raise HTTPException(
                             status_code=502, detail=_describe_http_status_error(e)
                         ) from e
-                    await asyncio.sleep(delays[attempt])
+                    await cls._sleep_within_deadline(delays[attempt], deadline)
                 except (httpx.HTTPError, ValueError, json.JSONDecodeError) as e:
                     logger.info("llm attempt: %s failed: %s", key_label, e)
                     if not is_last_key:
@@ -468,7 +496,7 @@ class LLMService:
                         raise HTTPException(
                             status_code=502, detail=f"LLM API failed after retries: {str(e)}"
                         ) from e
-                    await asyncio.sleep(delays[attempt])
+                    await cls._sleep_within_deadline(delays[attempt], deadline)
 
         # Reached only when every key broke out on a 429 without succeeding.
         if last_rate_limit is not None:
@@ -482,6 +510,25 @@ class LLMService:
             detail="All of your API keys are rate-limited right now. Add another key in "
             "settings, wait a bit before trying again, or switch provider.",
         )
+
+    @staticmethod
+    def _deadline_exceeded() -> HTTPException:
+        return HTTPException(
+            status_code=504,
+            detail="The AI took too long to respond. This can happen on a long trip or "
+            "a slow provider — try again, split your request into smaller steps, or "
+            "switch provider in settings.",
+        )
+
+    @staticmethod
+    async def _sleep_within_deadline(delay: float, deadline: float | None) -> None:
+        """Sleeps for `delay` seconds, clamped so it never overshoots `deadline` —
+        otherwise a full exponential-backoff sleep (up to 16s) could run well past
+        an already-exhausted budget before the next attempt even gets a chance to
+        notice and raise `_deadline_exceeded`."""
+        if deadline is not None:
+            delay = max(0.0, min(delay, deadline - time.monotonic()))
+        await asyncio.sleep(delay)
 
     @classmethod
     def _resolve_credential_groups(
@@ -540,15 +587,25 @@ class LLMService:
         `max_tokens` should reflect the caller's actual expected output size — see
         the MAX_TOKENS_* constants; passing the full-trip-sized default for a small
         scoped call risks a provider (Groq notably) rejecting the request outright
-        for asking too large a completion budget, regardless of prompt size."""
+        for asking too large a completion budget, regardless of prompt size.
+
+        The whole call — every provider group, every key, every retry — is bounded
+        by REQUEST_DEADLINE_SECONDS from the moment it starts, so a serverless host
+        can't be killed mid-request by its own execution-time limit; we give up on
+        our own terms first, with an explanation, instead."""
         groups = cls._resolve_credential_groups(credentials, api_key, api_keys, provider)
         logger.info(
             "llm request: trying %d provider group(s): %s",
             len(groups),
             ", ".join(f"{prov or 'default'} ({len(keys)} key(s))" for prov, keys in groups),
         )
+        deadline = time.monotonic() + REQUEST_DEADLINE_SECONDS
         errors: list[HTTPException] = []
         for prov, keys in groups:
+            if time.monotonic() >= deadline:
+                logger.info("llm request: deadline exceeded before trying group '%s'", prov)
+                errors.append(cls._deadline_exceeded())
+                break
             try:
                 result = await cls._execute_with_retry(
                     system_prompt,
@@ -557,6 +614,7 @@ class LLMService:
                     provider=prov,
                     max_retries=max_retries,
                     max_tokens=max_tokens,
+                    deadline=deadline,
                 )
                 logger.info("llm request: succeeded via provider group '%s'", prov or "default")
                 return result
