@@ -10,20 +10,37 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Publicly readable (no sign-in) once shared. Only the owner (by uid) can
-    // create or unpublish a share. Once shared, the owner or anyone listed in
-    // adminEmails (matched against the caller's verified sign-in email, so an
-    // admin only needs to be invited by address, never looked up) can update
-    // the trip's content in place and add further admins — that's what lets a
-    // dedicated trip link be edited and re-shared by more than one person.
+    // Publicly readable (no sign-in) once shared, EXCEPT once past its chosen
+    // expiresAt (see README "Trip storage" on share-link duration) — the
+    // client (loadSharedTrip) already rejects an expired link, but without
+    // this the doc stayed readable via direct Firestore access (e.g. the REST
+    // API) for however long it took the optional TTL policy to actually
+    // delete it, up to ~24h. A doc with no expiresAt (the "forever" default)
+    // is unaffected.
+    //
+    // Only the owner (by uid) can create or unpublish a share. Once shared,
+    // the owner or anyone listed in adminEmails (matched against the caller's
+    // verified sign-in email, so an admin only needs to be invited by
+    // address, never looked up) can update the trip's content in place —
+    // that's what lets a dedicated trip link be edited by more than one
+    // person. A non-owner admin's update may also *add* to adminEmails (the
+    // documented "invite another admin" feature — see README) but never
+    // remove/replace an existing entry, and may never touch expiresAt or
+    // ownerEmail — both are owner-only, set via the "share"/"re-share" flow.
+    // Without this, any one invited admin could revoke every other admin's
+    // access (including future ones) or silently strip/extend the link's
+    // expiry, none of which the app's own UI ever lets an admin do.
     match /sharedTrips/{tripId} {
-      allow read: if true;
+      allow read: if !('expiresAt' in resource.data) || resource.data.expiresAt > request.time;
       allow create: if request.auth != null
         && request.auth.uid == request.resource.data.ownerId;
       allow update: if request.auth != null
         && request.resource.data.ownerId == resource.data.ownerId
         && (request.auth.uid == resource.data.ownerId
-          || request.auth.token.email.lower() in resource.data.adminEmails);
+          || (request.auth.token.email.lower() in resource.data.adminEmails
+            && !request.resource.data.diff(resource.data).affectedKeys()
+                  .hasAny(['expiresAt', 'ownerEmail', 'ownerId'])
+            && request.resource.data.adminEmails.hasAll(resource.data.adminEmails)));
       allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId;
     }
   }

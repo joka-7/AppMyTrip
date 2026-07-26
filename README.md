@@ -201,16 +201,19 @@ this with normal usage — no billing account required.
 When sharing, the user picks a link lifetime (7 / 30 / 90 days, or "forever" — the
 default). A chosen duration is stored as an `expiresAt` timestamp on the
 `sharedTrips` doc; `loadSharedTrip` rejects the link client-side once that time has
-passed, even before Firestore physically deletes the document. For actual automatic
-deletion of expired share docs (so they don't sit around forever just unreadable),
-configure a free, built-in **Firestore TTL policy** on the `sharedTrips.expiresAt`
-field — Firebase console → Firestore Database → TTL tab → add a policy for that
-field/collection (or `gcloud firestore fields ttl-policies update`). This is a
-one-time infrastructure setting, not app code; it's included on the Spark plan (no
-billing upgrade, no Cloud Functions needed), though deletion can lag up to ~24h
-after `expiresAt` — the client-side check above covers that gap. Deleting a private
-trip (the "My Trips" list's ✕ button) also deletes its `sharedTrips` copy, so the
-share link stops working immediately rather than relying on TTL cleanup.
+passed, and `firestore.rules` enforces the same cutoff server-side (`allow read`
+requires either no `expiresAt` or one still in the future) — so an "expired" link is
+actually unreadable, including via direct Firestore access, not just hidden by the
+app's own UI. For actual automatic deletion of expired share docs (so they don't sit
+around forever just unreadable), configure a free, built-in **Firestore TTL policy**
+on the `sharedTrips.expiresAt` field — Firebase console → Firestore Database → TTL
+tab → add a policy for that field/collection (or `gcloud firestore fields
+ttl-policies update`). This is a one-time infrastructure setting, not app code; it's
+included on the Spark plan (no billing upgrade, no Cloud Functions needed), though
+deletion can lag up to ~24h after `expiresAt` — the read rule above already covers
+that gap regardless. Deleting a private trip (the "My Trips" list's ✕ button) also
+deletes its `sharedTrips` copy, so the share link stops working immediately rather
+than relying on TTL cleanup.
 
 **Editing a shared link in place (admins).** A `sharedTrips` doc also carries an
 `adminEmails` list, seeded with the owner's sign-in email the first time the trip is
@@ -222,10 +225,14 @@ person gets the same ability the next time they open the link signed in with tha
 account. `firestore.rules` enforces this server-side — an update to a `sharedTrips`
 doc is only allowed from the owner's uid or from a caller whose verified sign-in
 email (`request.auth.token.email`) is already in `adminEmails` — so the client-side
-check is a UI convenience, not the actual access control. Everyone (admin or not)
-also gets a "share new link" button that forks the current in-browser edits into a
-brand-new `sharedTrips` doc and copies its link, for when you'd rather hand out a
-separate link than overwrite the original.
+check is a UI convenience, not the actual access control. A non-owner admin's write
+is further scoped: it may only *add* to `adminEmails` (never remove or replace an
+existing entry) and can never touch `expiresAt` or `ownerEmail` — those stay
+owner-only, so one invited admin can't silently revoke everyone else's access or
+change how long the link lasts. Everyone (admin or not) also gets a "share new link"
+button that forks the current in-browser edits into a brand-new `sharedTrips` doc and
+copies its link, for when you'd rather hand out a separate link than overwrite the
+original.
 
 Setup (free, no billing required):
 1. Create a project at the [Firebase console](https://console.firebase.google.com/).
@@ -253,7 +260,14 @@ the current trip, browse/load previously saved trips, and share/delete them.
 - **Frontend → Vercel** (free Hobby tier): import the repo, set the root directory to
   `frontend/`, build command `npm run build`, output directory `dist`. Add the
   `VITE_FIREBASE_*` and `VITE_API_URL` env vars from above in the Vercel project
-  settings. A `frontend/vercel.json` is included so SPA routes don't 404 on refresh.
+  settings. A `frontend/vercel.json` is included so SPA routes don't 404 on refresh,
+  and adds a few response headers: `X-Content-Type-Options`, `Referrer-Policy`,
+  `Permissions-Policy`, and a `Content-Security-Policy-Report-Only` (deliberately
+  *report-only* — it logs violations to the browser console without blocking
+  anything, since a blocking policy needs to be checked against a real deployment
+  first, e.g. that your `VITE_API_URL` backend domain is covered by `connect-src`).
+  Once you've deployed and confirmed no unexpected violations show up, consider
+  changing the header key to `Content-Security-Policy` to actually enforce it.
 - **Backend → Vercel serverless functions** (free Hobby tier, no billing account):
   import the repo as a *second* Vercel project, set the root directory to `backend/`.
   `backend/vercel.json` + `backend/api/index.py` expose the FastAPI app as a Python

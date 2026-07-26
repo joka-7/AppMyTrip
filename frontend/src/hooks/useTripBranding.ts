@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import type { AppDesign } from "../services/appDesign";
+import { safeUrl } from "../services/safeUrl";
 
 /** Applies trip-specific PWA/document branding when viewing a shared trip. */
 export function useTripBranding(appDesign: AppDesign, tripTitle: string) {
@@ -13,10 +14,11 @@ export function useTripBranding(appDesign: AppDesign, tripTitle: string) {
     appleTitle?.setAttribute("content", shortName.slice(0, 12));
 
     let iconLink: HTMLLinkElement | null = null;
-    if (appDesign.pwaIconUrl) {
+    const iconUrl = safeUrl(appDesign.pwaIconUrl);
+    if (iconUrl) {
       iconLink = document.createElement("link");
       iconLink.rel = "icon";
-      iconLink.href = appDesign.pwaIconUrl;
+      iconLink.href = iconUrl;
       document.head.appendChild(iconLink);
     }
 

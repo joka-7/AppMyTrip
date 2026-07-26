@@ -228,6 +228,8 @@ export const fr: Record<TranslationKey, string> = {
     "Choisissez un fournisseur et collez votre propre clé API — gratuite sur ",
   "apiKey.descriptionAfter":
     ". Vous pouvez ajouter plusieurs clés ; quand l'une atteint sa limite, nous passons automatiquement à la suivante. Tout est stocké uniquement dans votre navigateur.",
+  "apiKey.trustNote":
+    "Chaque clé est envoyée avec vos requêtes au serveur de cette application (jamais à un tiers), uniquement pour être transmise au fournisseur choisi — elle n'est jamais stockée sur le serveur ni journalisée en entier.",
   "apiKey.removeAria": "Supprimer la clé {key}",
   "apiKey.showAria": "Afficher la clé",
   "apiKey.hideAria": "Masquer la clé",

@@ -30,6 +30,7 @@ import {
   themeClassForDesign,
 } from "../services/appDesign";
 import { hebrewWeekdayLetter, tripStartWeekdayIndex } from "../services/hebrewDate";
+import { safeUrl } from "../services/safeUrl";
 import type { AgentMessage } from "./ChatPanel";
 import ChatPanel from "./ChatPanel";
 import ItineraryList from "./ItineraryList";
@@ -139,6 +140,7 @@ export default function AppFrame({
     .filter(Boolean);
   const displayDates = formatTripDates(tripData.dates, appDesign.dateFormat);
   const currency = effectiveCurrency(appDesign);
+  const albumUrl = safeUrl(tripData.photo_album_url);
 
   // Only jump to the configured start day when the trip's day *count* changes
   // (a genuinely different/reloaded trip, or a day added/removed) — not on
@@ -267,9 +269,9 @@ export default function AppFrame({
                 <h2 className={`${density.headerTitle} font-bold`}>
                   {tripData.title || t("appFrame.titleFallback")}
                 </h2>
-                {tripData.photo_album_url && (
+                {albumUrl && (
                   <a
-                    href={tripData.photo_album_url}
+                    href={albumUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={t("appFrame.albumAria")}
