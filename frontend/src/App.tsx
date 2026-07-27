@@ -1,19 +1,14 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { lazy, Suspense, useState, useEffect, useRef } from "react";
 import { ChevronLeft, Smartphone, Wand2 } from "lucide-react";
 import { parseTrip, agentInteract, generateMedia, enhanceTrip, ApiError } from "./api";
 import type { Activity, EnhanceOptions, TripData } from "./api";
 import ApiKeyMenu from "./components/ApiKeyMenu";
 import ApiNotice from "./components/ApiNotice";
-import AppFrame from "./components/AppFrame";
 import BuilderStep1 from "./components/BuilderStep1";
-import BuilderStep2 from "./components/BuilderStep2";
-import BuilderStep3, { type AgentMessage } from "./components/BuilderStep3";
-import BuilderStep4 from "./components/BuilderStep4";
+import type { AgentMessage } from "./components/BuilderStep3";
 import CloudMenu from "./components/CloudMenu";
 import InstallAppButton from "./components/InstallAppButton";
-import PhonePreview from "./components/PhonePreview";
 import ProgressBar from "./components/ProgressBar";
-import SharedAppPage from "./components/SharedAppPage";
 import { DEFAULT_APP_DESIGN, type AppDesign } from "./services/appDesign";
 import { getApiKeys, getApiProvider, getAllCredentials } from "./services/apiKey";
 import { tripStartWeekdayIndex } from "./services/hebrewDate";
@@ -32,7 +27,20 @@ import {
 import { translate } from "./i18n/store";
 import { useI18n } from "./i18n/useI18n";
 import LanguageSwitcher from "./components/LanguageSwitcher";
-import "leaflet/dist/leaflet.css";
+
+// Step 1 stays eager (it's the first paint of the builder). Later steps, the
+// live phone preview (and thus AppFrame), and the shared-app shell are lazy
+// so their code stays out of the main chunk until needed.
+const AppFrame = lazy(() => import("./components/AppFrame"));
+const BuilderStep2 = lazy(() => import("./components/BuilderStep2"));
+const BuilderStep3 = lazy(() => import("./components/BuilderStep3"));
+const BuilderStep4 = lazy(() => import("./components/BuilderStep4"));
+const PhonePreview = lazy(() => import("./components/PhonePreview"));
+const SharedAppPage = lazy(() => import("./components/SharedAppPage"));
+
+function StepFallback() {
+  return <div className="min-h-[12rem] animate-pulse rounded-xl bg-surface-container" />;
+}
 
 // Present only on "?shared=<tripId>" links — those open straight into the
 // standalone generated app (no builder chrome), so people the trip is
@@ -600,47 +608,48 @@ function TripBuilder() {
                 onContinueWithoutReprocessing={() => goToStep(2)}
               />
             )}
+            <Suspense fallback={<StepFallback />}>
+              {step === 2 && (
+                <BuilderStep2
+                  onSubmit={handleEnhance}
+                  onSkip={() => goToStep(3)}
+                  onBack={() => goToStep(1)}
+                  isEnhancing={isEnhancing}
+                />
+              )}
 
-            {step === 2 && (
-              <BuilderStep2
-                onSubmit={handleEnhance}
-                onSkip={() => goToStep(3)}
-                onBack={() => goToStep(1)}
-                isEnhancing={isEnhancing}
-              />
-            )}
+              {step === 3 && (
+                <BuilderStep3
+                  agentMessages={agentMessages}
+                  chatEndRef={chatEndRef}
+                  chatInput={chatInput}
+                  onChangeChatInput={setChatInput}
+                  onSendMessage={handleSendMessage}
+                  isSendingMessage={isSendingMessage}
+                  onContinue={handleContinueToDesign}
+                  onBack={() => goToStep(2)}
+                  isGeneratingMedia={isGeneratingMedia}
+                  tripDates={tripData.dates}
+                  onChangeTripDates={(dates) => handleUpdateTrip({ dates })}
+                  language={tripData.language}
+                />
+              )}
 
-            {step === 3 && (
-              <BuilderStep3
-                agentMessages={agentMessages}
-                chatEndRef={chatEndRef}
-                chatInput={chatInput}
-                onChangeChatInput={setChatInput}
-                onSendMessage={handleSendMessage}
-                isSendingMessage={isSendingMessage}
-                onContinue={handleContinueToDesign}
-                onBack={() => goToStep(2)}
-                isGeneratingMedia={isGeneratingMedia}
-                tripDates={tripData.dates}
-                onChangeTripDates={(dates) => handleUpdateTrip({ dates })}
-                language={tripData.language}
-              />
-            )}
-
-            {step === 4 && (
-              <BuilderStep4
-                appDesign={appDesign}
-                onChangeAppDesign={(patch) => setAppDesign((prev) => ({ ...prev, ...patch }))}
-                tripData={tripData}
-                onUpdateTrip={(patch) => handleUpdateTrip(patch)}
-                tripId={tripId}
-                onSaved={(savedId, title) => {
-                  setTripId(savedId);
-                  setTripData((prev) => ({ ...prev, title }));
-                }}
-                onBack={() => goToStep(3)}
-              />
-            )}
+              {step === 4 && (
+                <BuilderStep4
+                  appDesign={appDesign}
+                  onChangeAppDesign={(patch) => setAppDesign((prev) => ({ ...prev, ...patch }))}
+                  tripData={tripData}
+                  onUpdateTrip={(patch) => handleUpdateTrip(patch)}
+                  tripId={tripId}
+                  onSaved={(savedId, title) => {
+                    setTripId(savedId);
+                    setTripData((prev) => ({ ...prev, title }));
+                  }}
+                  onBack={() => goToStep(3)}
+                />
+              )}
+            </Suspense>
           </div>
         </div>
 
@@ -650,20 +659,26 @@ function TripBuilder() {
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
             Live Preview
           </div>
-          <PhonePreview
-            tripData={tripData}
-            appDesign={appDesign}
-            agentMessages={agentMessages}
-            chatInput={chatInput}
-            onChangeChatInput={setChatInput}
-            onSendMessage={handleSendMessage}
-            chatEndRef={chatEndRef}
-            isSendingMessage={isSendingMessage}
-            onUpdateActivity={handleUpdateActivity}
-            onAddActivity={handleAddActivity}
-            onDeleteActivity={handleDeleteActivity}
-            onUpdateTrip={handleUpdateTrip}
-          />
+          <Suspense
+            fallback={
+              <div className="w-[350px] h-[700px] rounded-[2.5rem] animate-pulse bg-surface-container-high" />
+            }
+          >
+            <PhonePreview
+              tripData={tripData}
+              appDesign={appDesign}
+              agentMessages={agentMessages}
+              chatInput={chatInput}
+              onChangeChatInput={setChatInput}
+              onSendMessage={handleSendMessage}
+              chatEndRef={chatEndRef}
+              isSendingMessage={isSendingMessage}
+              onUpdateActivity={handleUpdateActivity}
+              onAddActivity={handleAddActivity}
+              onDeleteActivity={handleDeleteActivity}
+              onUpdateTrip={handleUpdateTrip}
+            />
+          </Suspense>
         </div>
       </div>
 
@@ -683,20 +698,22 @@ function TripBuilder() {
               </button>
             </div>
             <div className="flex-1 min-h-0">
-              <AppFrame
-                tripData={tripData}
-                appDesign={appDesign}
-                agentMessages={agentMessages}
-                chatInput={chatInput}
-                onChangeChatInput={setChatInput}
-                onSendMessage={handleSendMessage}
-                chatEndRef={chatEndRef}
-                isSendingMessage={isSendingMessage}
-                onUpdateActivity={handleUpdateActivity}
-                onAddActivity={handleAddActivity}
-                onDeleteActivity={handleDeleteActivity}
-                onUpdateTrip={handleUpdateTrip}
-              />
+              <Suspense fallback={<StepFallback />}>
+                <AppFrame
+                  tripData={tripData}
+                  appDesign={appDesign}
+                  agentMessages={agentMessages}
+                  chatInput={chatInput}
+                  onChangeChatInput={setChatInput}
+                  onSendMessage={handleSendMessage}
+                  chatEndRef={chatEndRef}
+                  isSendingMessage={isSendingMessage}
+                  onUpdateActivity={handleUpdateActivity}
+                  onAddActivity={handleAddActivity}
+                  onDeleteActivity={handleDeleteActivity}
+                  onUpdateTrip={handleUpdateTrip}
+                />
+              </Suspense>
             </div>
           </div>
         </div>
@@ -912,30 +929,32 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
   }
 
   return (
-    <SharedAppPage
-      tripData={trip}
-      appDesign={appDesign}
-      tripId={tripId}
-      agentMessages={agentMessages}
-      chatInput={chatInput}
-      onChangeChatInput={setChatInput}
-      onSendMessage={handleSendMessage}
-      chatEndRef={chatEndRef}
-      isSendingMessage={isSendingMessage}
-      chatNotice={chatNotice}
-      onUpdateActivity={handleUpdateActivity}
-      onAddActivity={handleAddActivity}
-      onDeleteActivity={handleDeleteActivity}
-      onUpdateTrip={handleUpdateTrip}
-      onImportTrip={(importedTrip, importedAppDesign) => {
-        setTrip(importedTrip);
-        setAppDesign(importedAppDesign);
-      }}
-      isAdmin={isAdmin}
-      onSaveChanges={handleSaveChanges}
-      onAddAdmin={handleAddAdmin}
-      onCreateNewLink={handleCreateNewLink}
-    />
+    <Suspense fallback={<StepFallback />}>
+      <SharedAppPage
+        tripData={trip}
+        appDesign={appDesign}
+        tripId={tripId}
+        agentMessages={agentMessages}
+        chatInput={chatInput}
+        onChangeChatInput={setChatInput}
+        onSendMessage={handleSendMessage}
+        chatEndRef={chatEndRef}
+        isSendingMessage={isSendingMessage}
+        chatNotice={chatNotice}
+        onUpdateActivity={handleUpdateActivity}
+        onAddActivity={handleAddActivity}
+        onDeleteActivity={handleDeleteActivity}
+        onUpdateTrip={handleUpdateTrip}
+        onImportTrip={(importedTrip, importedAppDesign) => {
+          setTrip(importedTrip);
+          setAppDesign(importedAppDesign);
+        }}
+        isAdmin={isAdmin}
+        onSaveChanges={handleSaveChanges}
+        onAddAdmin={handleAddAdmin}
+        onCreateNewLink={handleCreateNewLink}
+      />
+    </Suspense>
   );
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import {
   Calendar,
@@ -34,9 +34,12 @@ import { safeUrl } from "../services/safeUrl";
 import type { AgentMessage } from "./ChatPanel";
 import ChatPanel from "./ChatPanel";
 import ItineraryList from "./ItineraryList";
-import MapView from "./MapView";
 import PodcastPlayer from "./PodcastPlayer";
 import PriceSummary from "./PriceSummary";
+
+// Leaflet + react-leaflet are large and only needed on the map tab — keep them
+// out of the initial AppFrame chunk.
+const MapView = lazy(() => import("./MapView"));
 
 const SCROLL_ARROW_THRESHOLD = 4;
 
@@ -410,16 +413,24 @@ export default function AppFrame({
 
         {hasTrip && activeTab === "map" && appDesign.visibleTabs.map && (
           <div className="h-full w-full animate-fade-in">
-            <MapView
-              activities={day.activities}
-              onUpdateActivity={handleUpdateActivity}
-              onAddActivity={onAddActivity ? handleAddActivity : undefined}
-              focusActivityId={focusActivityId}
-              onClearFocus={() => setFocusActivityId(null)}
-              mapTileStyle={appDesign.mapTileStyle}
-              showRoutes={appDesign.showMapRoutes}
-              routeColor={accentColor}
-            />
+            <Suspense
+              fallback={
+                <div className="h-full flex items-center justify-center text-ink-muted text-sm">
+                  …
+                </div>
+              }
+            >
+              <MapView
+                activities={day.activities}
+                onUpdateActivity={handleUpdateActivity}
+                onAddActivity={onAddActivity ? handleAddActivity : undefined}
+                focusActivityId={focusActivityId}
+                onClearFocus={() => setFocusActivityId(null)}
+                mapTileStyle={appDesign.mapTileStyle}
+                showRoutes={appDesign.showMapRoutes}
+                routeColor={accentColor}
+              />
+            </Suspense>
           </div>
         )}
 

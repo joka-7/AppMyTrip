@@ -4,39 +4,51 @@
 // firestore.rules). Sharing copies the trip into the top-level sharedTrips
 // collection, which anyone can read (no sign-in required) but only the
 // owner can write — that's what makes "anyone with the link" work.
-import {
-  GoogleAuthProvider,
-  getAuth,
-  onAuthStateChanged,
-  signInWithPopup,
-  signOut,
-  type User as FirebaseUser,
-} from "firebase/auth";
-import {
-  arrayUnion,
-  collection,
-  deleteDoc,
-  deleteField,
-  doc,
-  getDoc,
-  getDocs,
-  getFirestore,
-  orderBy,
-  query,
-  serverTimestamp,
-  setDoc,
-  Timestamp,
-  updateDoc,
-} from "firebase/firestore";
-import { firebaseApp } from "../firebase";
+//
+// Firebase auth/firestore modules are loaded on first use (sign-in, shared
+// trip load, etc.) so the SDK stays out of the critical first-paint path.
+import type { Auth, User as FirebaseUser } from "firebase/auth";
+import type { Firestore, Timestamp as TimestampType } from "firebase/firestore";
+import { getFirebaseApp, isFirebaseConfigured } from "../firebase";
 import type { TripData } from "../api";
 import type { Theme } from "../components/ThemeSelector";
 import { type AppDesign, DEFAULT_APP_DESIGN, normalizeAppDesign } from "./appDesign";
 import { ensureStartWeekday, normalizeTripForLoad } from "./normalizeTrip";
 
-// Only initialized when Firebase is configured (see README "Trip storage").
-const auth = firebaseApp ? getAuth(firebaseApp) : null;
-const db = firebaseApp ? getFirestore(firebaseApp) : null;
+export type { FirebaseUser };
+
+let authPromise: Promise<Auth | null> | null = null;
+let dbPromise: Promise<Firestore | null> | null = null;
+let cachedAuth: Auth | null = null;
+
+async function getAuthInstance(): Promise<Auth | null> {
+  if (!isFirebaseConfigured) return null;
+  if (!authPromise) {
+    authPromise = (async () => {
+      const app = await getFirebaseApp();
+      if (!app) return null;
+      const { getAuth } = await import("firebase/auth");
+      cachedAuth = getAuth(app);
+      return cachedAuth;
+    })();
+  }
+  return authPromise;
+}
+
+async function getDb(): Promise<Firestore> {
+  if (!isFirebaseConfigured) throw new Error("Firestore is not configured.");
+  if (!dbPromise) {
+    dbPromise = (async () => {
+      const app = await getFirebaseApp();
+      if (!app) return null;
+      const { getFirestore } = await import("firebase/firestore");
+      return getFirestore(app);
+    })();
+  }
+  const db = await dbPromise;
+  if (!db) throw new Error("Firestore is not configured.");
+  return db;
+}
 
 export interface CloudSession {
   uid: string;
@@ -69,26 +81,41 @@ export interface SharedTripMeta {
 }
 
 export function onAuthChange(callback: (user: FirebaseUser | null) => void): () => void {
-  if (!auth) {
-    callback(null);
-    return () => {};
-  }
-  return onAuthStateChanged(auth, callback);
+  let unsub = () => {};
+  let cancelled = false;
+  void (async () => {
+    const auth = await getAuthInstance();
+    if (cancelled) return;
+    if (!auth) {
+      callback(null);
+      return;
+    }
+    const { onAuthStateChanged } = await import("firebase/auth");
+    if (cancelled) return;
+    unsub = onAuthStateChanged(auth, callback);
+  })();
+  return () => {
+    cancelled = true;
+    unsub();
+  };
 }
 
-/** Returns the signed-in user, if any, without triggering a sign-in popup. */
+/** Returns the signed-in user, if any, without triggering a sign-in popup.
+ * Returns null until auth has been initialized (see onAuthChange). */
 export function getCurrentSession(): CloudSession | null {
-  const user = auth?.currentUser;
+  const user = cachedAuth?.currentUser;
   if (!user) return null;
   return { uid: user.uid, email: user.email, displayName: user.displayName };
 }
 
 export async function signInWithGoogle(): Promise<CloudSession> {
+  const auth = await getAuthInstance();
   if (!auth) {
     throw new Error(
       "Google sign-in is not configured — set VITE_FIREBASE_* env vars (see README).",
     );
   }
+  const { GoogleAuthProvider, signInWithPopup } = await import("firebase/auth");
   const result = await signInWithPopup(auth, new GoogleAuthProvider());
   return {
     uid: result.user.uid,
@@ -98,16 +125,30 @@ export async function signInWithGoogle(): Promise<CloudSession> {
 }
 
 export async function signOutOfGoogle(): Promise<void> {
-  if (auth) await signOut(auth);
+  const auth = await getAuthInstance();
+  if (!auth) return;
+  const { signOut } = await import("firebase/auth");
+  await signOut(auth);
 }
 
-function tripsCollection(uid: string) {
-  if (!db) throw new Error("Firestore is not configured.");
+async function tripsCollection(uid: string) {
+  const db = await getDb();
+  const { collection } = await import("firebase/firestore");
   return collection(db, "users", uid, "trips");
 }
 
 function timestampToIso(value: unknown): string {
-  return value instanceof Timestamp ? value.toDate().toISOString() : new Date().toISOString();
+  // Timestamp is only available after the firestore module loads — duck-type
+  // the toDate() method so we don't need a sync import just for this check.
+  if (
+    value &&
+    typeof value === "object" &&
+    "toDate" in value &&
+    typeof (value as TimestampType).toDate === "function"
+  ) {
+    return (value as TimestampType).toDate().toISOString();
+  }
+  return new Date().toISOString();
 }
 
 const TRIP_STAGES: readonly TripStage[] = ["step1", "step2", "step3", "step4", "final"];
@@ -117,7 +158,8 @@ function stageFromStored(value: unknown): TripStage | null {
 }
 
 export async function listTrips(uid: string): Promise<CloudTripSummary[]> {
-  const snap = await getDocs(query(tripsCollection(uid), orderBy("updatedAt", "desc")));
+  const { getDocs, orderBy, query } = await import("firebase/firestore");
+  const snap = await getDocs(query(await tripsCollection(uid), orderBy("updatedAt", "desc")));
   return snap.docs.map((d) => ({
     id: d.id,
     name: (d.data().title as string) || "Untitled trip",
@@ -140,9 +182,9 @@ export async function saveTrip(
   trip: TripData,
   options?: { appDesign?: AppDesign; tripId?: string; stage?: TripStage },
 ): Promise<string> {
-  const ref = options?.tripId
-    ? doc(tripsCollection(uid), options.tripId)
-    : doc(tripsCollection(uid));
+  const { doc, serverTimestamp, setDoc } = await import("firebase/firestore");
+  const col = await tripsCollection(uid);
+  const ref = options?.tripId ? doc(col, options.tripId) : doc(col);
   const tripToSave = ensureStartWeekday(trip);
   const appDesign = options?.appDesign ?? DEFAULT_APP_DESIGN;
   await setDoc(ref, {
@@ -159,14 +201,16 @@ export async function loadTrip(
   uid: string,
   tripId: string,
 ): Promise<{ trip: TripData; appDesign: AppDesign }> {
-  const snap = await getDoc(doc(tripsCollection(uid), tripId));
+  const { doc, getDoc } = await import("firebase/firestore");
+  const snap = await getDoc(doc(await tripsCollection(uid), tripId));
   if (!snap.exists()) throw new Error("Trip not found.");
   const data = snap.data() as StoredTrip;
   return { trip: normalizeTripForLoad(data), appDesign: appDesignFromStored(data) };
 }
 
 export async function deleteTrip(uid: string, tripId: string): Promise<void> {
-  await deleteDoc(doc(tripsCollection(uid), tripId));
+  const { deleteDoc, doc } = await import("firebase/firestore");
+  await deleteDoc(doc(await tripsCollection(uid), tripId));
 }
 
 /**
@@ -188,13 +232,15 @@ export async function shareTrip(
   appDesign?: AppDesign,
   expiresInDays?: number,
 ): Promise<string> {
-  if (!db) throw new Error("Firestore is not configured.");
+  const db = await getDb();
+  const { deleteField, doc, getDoc, serverTimestamp, setDoc, Timestamp } =
+    await import("firebase/firestore");
   const design = appDesign ?? DEFAULT_APP_DESIGN;
   const ref = doc(db, "sharedTrips", tripId);
   const existing = await getDoc(ref);
   const existingAdminEmails = existing.exists() ? existing.data().adminEmails : undefined;
   const hasAdmins = Array.isArray(existingAdminEmails) && existingAdminEmails.length > 0;
-  const ownerEmail = auth?.currentUser?.email ?? null;
+  const ownerEmail = cachedAuth?.currentUser?.email ?? null;
   await setDoc(
     ref,
     {
@@ -225,11 +271,12 @@ export async function shareTrip(
 export async function loadSharedTrip(
   tripId: string,
 ): Promise<{ trip: TripData; appDesign: AppDesign; meta: SharedTripMeta }> {
-  if (!db) throw new Error("Firestore is not configured.");
+  const db = await getDb();
+  const { doc, getDoc } = await import("firebase/firestore");
   const snap = await getDoc(doc(db, "sharedTrips", tripId));
   if (!snap.exists()) throw new Error("Shared trip not found.");
   const data = snap.data() as StoredTrip & {
-    expiresAt?: Timestamp;
+    expiresAt?: TimestampType;
     ownerId?: string;
     ownerEmail?: string | null;
     adminEmails?: string[];
@@ -261,7 +308,8 @@ export async function saveSharedTrip(
   trip: TripData,
   appDesign?: AppDesign,
 ): Promise<void> {
-  if (!db) throw new Error("Firestore is not configured.");
+  const db = await getDb();
+  const { doc, serverTimestamp, setDoc } = await import("firebase/firestore");
   const design = appDesign ?? DEFAULT_APP_DESIGN;
   await setDoc(
     doc(db, "sharedTrips", tripId),
@@ -282,7 +330,8 @@ export async function saveSharedTrip(
  * not looked up, so the added account only gains access once they actually sign in with it.
  */
 export async function addSharedTripAdmin(tripId: string, email: string): Promise<void> {
-  if (!db) throw new Error("Firestore is not configured.");
+  const db = await getDb();
+  const { arrayUnion, doc, updateDoc } = await import("firebase/firestore");
   const normalized = email.trim().toLowerCase();
   if (!normalized) throw new Error("Enter an email address.");
   await updateDoc(doc(db, "sharedTrips", tripId), {
@@ -292,6 +341,7 @@ export async function addSharedTripAdmin(tripId: string, email: string): Promise
 
 /** Revokes a public share link by deleting its sharedTrips doc (no-op if it was never shared). */
 export async function deleteSharedTrip(tripId: string): Promise<void> {
-  if (!db) throw new Error("Firestore is not configured.");
+  const db = await getDb();
+  const { deleteDoc, doc } = await import("firebase/firestore");
   await deleteDoc(doc(db, "sharedTrips", tripId));
 }

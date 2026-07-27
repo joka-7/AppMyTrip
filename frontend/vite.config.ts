@@ -43,8 +43,28 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,png,svg,ico}"],
+        // Include font files so self-hosted @fontsource faces stay available
+        // offline with the rest of the app shell.
+        globPatterns: ["**/*.{js,css,html,png,svg,ico,woff,woff2}"],
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        // Keep the heavy vendors out of the main entry chunk so first paint
+        // doesn't download Firebase/Leaflet/React-DOM until they're needed
+        // (lazy routes + dynamic imports below still decide *when*).
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("firebase")) return "firebase";
+          if (id.includes("leaflet") || id.includes("react-leaflet")) return "leaflet";
+          if (id.includes("/react/") || id.includes("/react-dom/") || id.includes("/scheduler/")) {
+            return "react-vendor";
+          }
+          if (id.includes("@fontsource")) return "fonts";
+        },
+      },
+    },
+  },
 });

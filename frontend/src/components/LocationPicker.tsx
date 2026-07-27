@@ -1,5 +1,6 @@
 import { MapContainer, Marker, TileLayer, useMapEvents } from "react-leaflet";
 import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import { useI18n } from "../i18n/useI18n";
 
 const PICKER_ICON = L.divIcon({
