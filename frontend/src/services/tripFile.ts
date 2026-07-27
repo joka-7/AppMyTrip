@@ -1,5 +1,5 @@
 import type { TripData } from "../api";
-import type { Theme } from "../components/ThemeSelector";
+import type { Theme } from "./appDesign";
 import { type AppDesign, normalizeAppDesign } from "./appDesign";
 import { t } from "../i18n/store";
 import { ensureStartWeekday, normalizeTripForLoad } from "./normalizeTrip";

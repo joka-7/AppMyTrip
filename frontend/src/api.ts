@@ -153,7 +153,6 @@ export function agentInteract(
 export function generateMedia(tripData: TripData): Promise<GenerateMediaResponse> {
   return postJSON<GenerateMediaResponse>("/api/trip/generate-media", {
     trip_data: tripData,
-    user_message: "",
   });
 }
 

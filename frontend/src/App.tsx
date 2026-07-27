@@ -1,7 +1,15 @@
-import React, { lazy, Suspense, useState, useEffect, useRef } from "react";
+import React, {
+  lazy,
+  Suspense,
+  useState,
+  useEffect,
+  useRef,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { ChevronLeft, Smartphone, Wand2 } from "lucide-react";
 import { parseTrip, agentInteract, generateMedia, enhanceTrip, ApiError } from "./api";
-import type { Activity, EnhanceOptions, TripData } from "./api";
+import type { EnhanceOptions, TripData } from "./api";
 import ApiKeyMenu from "./components/ApiKeyMenu";
 import ApiNotice from "./components/ApiNotice";
 import BuilderStep1 from "./components/BuilderStep1";
@@ -9,6 +17,7 @@ import type { AgentMessage } from "./components/BuilderStep3";
 import CloudMenu from "./components/CloudMenu";
 import InstallAppButton from "./components/InstallAppButton";
 import ProgressBar from "./components/ProgressBar";
+import { useTripEditing } from "./hooks/useTripEditing";
 import { DEFAULT_APP_DESIGN, type AppDesign } from "./services/appDesign";
 import { getApiKeys, getApiProvider, getAllCredentials } from "./services/apiKey";
 import {
@@ -18,8 +27,14 @@ import {
   saveDraft,
   type BuilderDraft,
 } from "./services/draftStore";
-import { tripStartWeekdayIndex } from "./services/hebrewDate";
 import { normalizeTripForLoad } from "./services/normalizeTrip";
+import {
+  ALL_ENHANCE_OPTIONS,
+  effectiveEnhanceOptions,
+  enhanceActivities,
+  findNewActivities,
+  mergeEnhancedActivities,
+} from "./services/tripEnhance";
 import {
   addSharedTripAdmin,
   getCurrentSession,
@@ -118,79 +133,6 @@ function appendErrorDetail(message: string, detail: string): string {
   const LRI = "⁦";
   const PDI = "⁩";
   return `${message}\n${label} ${LRI}${short}${PDI}`;
-}
-
-// Fallback used to enrich activities added after Step 2 (via chat or the "+" button)
-// when the user skipped Step 2 entirely and so never chose any extras to remember.
-const ALL_ENHANCE_OPTIONS: EnhanceOptions = {
-  directions_car: true,
-  directions_transit: true,
-  prices: true,
-  podcast: true,
-  links: true,
-};
-
-/** The remembered Step 2 selections, or every extra if none were ever chosen
- * (e.g. Step 2 was skipped) — TripBuilder's own fallback rule. The shared-trip
- * viewer has no Step 2 of its own to remember, so it always uses every extra. */
-const effectiveEnhanceOptions = (options: EnhanceOptions): EnhanceOptions =>
-  Object.values(options).some(Boolean) ? options : ALL_ENHANCE_OPTIONS;
-
-/** Activities present in `after` but not in `before`, by id — used to find what
- * a chat turn or a manual "+" add just introduced, so only those (not the whole
- * trip) get sent through the enhancement pass below. */
-function findNewActivities(before: TripData, after: TripData): Activity[] {
-  const priorIds = new Set(before.days.flatMap((d) => d.activities.map((a) => a.id)));
-  return after.days.flatMap((d) => d.activities).filter((a) => !priorIds.has(a.id));
-}
-
-/**
- * Sends just the given (newly-added) activities through /api/trip/enhance so
- * they get the same extras (directions/prices/podcast briefs/links, plus
- * always real map coordinates) as everything else — without re-sending the
- * whole trip. Returns an id -> enhanced-Activity map (empty on failure, so a
- * failed enhancement never blocks the add itself) for the caller to merge into
- * whatever the *current* trip state is by the time it resolves, rather than
- * overwriting it with a snapshot captured before the `await`.
- */
-async function enhanceActivities(
-  activities: Activity[],
-  tripMeta: Pick<TripData, "title" | "dates" | "language">,
-  options: EnhanceOptions,
-): Promise<Map<string, Activity>> {
-  if (activities.length === 0) return new Map();
-  try {
-    const res = await enhanceTrip(
-      {
-        title: tripMeta.title,
-        dates: tripMeta.dates,
-        language: tripMeta.language,
-        days: [{ dayNum: 1, activities }],
-      },
-      options,
-      getApiKeys(),
-      getApiProvider(),
-      getAllCredentials(),
-    );
-    return new Map(res.trip_data.days.flatMap((d) => d.activities).map((a) => [a.id, a]));
-  } catch (err) {
-    console.error("Failed to enhance newly added activities:", err);
-    return new Map();
-  }
-}
-
-/** Merges an id -> Activity map (see enhanceActivities) into a trip's
- * activities wherever the id matches; a no-op (returns `trip` unchanged) when
- * the map is empty, e.g. after a failed enhancement. */
-function mergeEnhancedActivities(trip: TripData, enhancedById: Map<string, Activity>): TripData {
-  if (enhancedById.size === 0) return trip;
-  return {
-    ...trip,
-    days: trip.days.map((d) => ({
-      ...d,
-      activities: d.activities.map((a) => enhancedById.get(a.id) ?? a),
-    })),
-  };
 }
 
 // Generic sample trip used as an offline demo / fallback when the backend is
@@ -518,66 +460,8 @@ function TripBuilder() {
     await sendChatMessage(failedChatText);
   };
 
-  const handleUpdateActivity = (dayIndex: number, activityId: string, patch: Partial<Activity>) => {
-    setTripData((prev) => ({
-      ...prev,
-      days: prev.days.map((d, idx) =>
-        idx !== dayIndex
-          ? d
-          : {
-              ...d,
-              activities: d.activities.map((a) => (a.id === activityId ? { ...a, ...patch } : a)),
-            },
-      ),
-    }));
-  };
-
-  const handleAddActivity = async (dayIndex: number, activity: Activity) => {
-    const priorTrip = tripData;
-    // Applied immediately via a functional update — safe against whatever
-    // else happens to tripData while the enhancement call below is in flight.
-    setTripData((prev) =>
-      normalizeTripForLoad({
-        ...prev,
-        days: prev.days.map((d, idx) =>
-          idx !== dayIndex ? d : { ...d, activities: [...d.activities, activity] },
-        ),
-      }),
-    );
-    const enhancedById = await enhanceActivities(
-      [activity],
-      priorTrip,
-      effectiveEnhanceOptions(enhanceOptions),
-    );
-    if (enhancedById.size === 0) return;
-    // Patches the newly-added activity by id into whatever tripData looks
-    // like *now* — not the snapshot captured before the await above — so any
-    // edit made in the meantime (e.g. deleting a different activity) survives.
-    setTripData((prev) => normalizeTripForLoad(mergeEnhancedActivities(prev, enhancedById)));
-  };
-
-  const handleDeleteActivity = (dayIndex: number, activityId: string) => {
-    setTripData((prev) => ({
-      ...prev,
-      days: prev.days.map((d, idx) =>
-        idx !== dayIndex
-          ? d
-          : { ...d, activities: d.activities.filter((a) => a.id !== activityId) },
-      ),
-    }));
-  };
-
-  const handleUpdateTrip = (
-    patch: Partial<Pick<TripData, "title" | "dates" | "photo_album_url">>,
-  ) => {
-    setTripData((prev) => {
-      const next = { ...prev, ...patch };
-      if (patch.dates !== undefined) {
-        next.startWeekday = tripStartWeekdayIndex(patch.dates);
-      }
-      return next;
-    });
-  };
+  const { handleUpdateActivity, handleAddActivity, handleDeleteActivity, handleUpdateTrip } =
+    useTripEditing(setTripData, effectiveEnhanceOptions(enhanceOptions));
 
   const handleContinueToDesign = async () => {
     setIsGeneratingMedia(true);
@@ -942,68 +826,14 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
     await sendChatMessage(failedChatText);
   };
 
-  const handleUpdateActivity = (dayIndex: number, activityId: string, patch: Partial<Activity>) => {
-    setTrip((prev) =>
-      prev
-        ? {
-            ...prev,
-            days: prev.days.map((d, idx) =>
-              idx !== dayIndex
-                ? d
-                : {
-                    ...d,
-                    activities: d.activities.map((a) =>
-                      a.id === activityId ? { ...a, ...patch } : a,
-                    ),
-                  },
-            ),
-          }
-        : prev,
-    );
+  const setLoadedTrip: Dispatch<SetStateAction<TripData>> = (action) => {
+    setTrip((prev) => {
+      if (!prev) return prev;
+      return typeof action === "function" ? action(prev) : action;
+    });
   };
-
-  const handleAddActivity = async (dayIndex: number, activity: Activity) => {
-    // Applied immediately via a functional update — safe against whatever
-    // else happens to `trip` while the enhancement call below is in flight.
-    setTrip((prev) =>
-      prev
-        ? normalizeTripForLoad({
-            ...prev,
-            days: prev.days.map((d, idx) =>
-              idx !== dayIndex ? d : { ...d, activities: [...d.activities, activity] },
-            ),
-          })
-        : prev,
-    );
-    if (!trip) return;
-    // No Step 2 of its own — always fetch every extra (see handleSendMessage above).
-    const enhancedById = await enhanceActivities([activity], trip, ALL_ENHANCE_OPTIONS);
-    if (enhancedById.size === 0) return;
-    setTrip((prev) =>
-      prev ? normalizeTripForLoad(mergeEnhancedActivities(prev, enhancedById)) : prev,
-    );
-  };
-
-  const handleDeleteActivity = (dayIndex: number, activityId: string) => {
-    setTrip((prev) =>
-      prev
-        ? {
-            ...prev,
-            days: prev.days.map((d, idx) =>
-              idx !== dayIndex
-                ? d
-                : { ...d, activities: d.activities.filter((a) => a.id !== activityId) },
-            ),
-          }
-        : prev,
-    );
-  };
-
-  const handleUpdateTrip = (
-    patch: Partial<Pick<TripData, "title" | "dates" | "photo_album_url">>,
-  ) => {
-    setTrip((prev) => (prev ? { ...prev, ...patch } : prev));
-  };
+  const { handleUpdateActivity, handleAddActivity, handleDeleteActivity, handleUpdateTrip } =
+    useTripEditing(setLoadedTrip, ALL_ENHANCE_OPTIONS);
 
   if (error) {
     return (

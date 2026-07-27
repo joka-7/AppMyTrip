@@ -7,6 +7,7 @@ from models import (
     AgentInteractRequest,
     EnhanceOptions,
     EnhanceRequest,
+    GenerateMediaRequest,
     ParseRequest,
     ProviderCredentials,
     TripData,
@@ -406,7 +407,7 @@ async def enhance_trip_endpoint(request: EnhanceRequest) -> dict:
 
 
 @router.post("/generate-media", response_model=dict)
-async def generate_media_endpoint(request: AgentInteractRequest) -> dict:
+async def generate_media_endpoint(request: GenerateMediaRequest) -> dict:
     """
     Endpoint for Stage 4:
     Generates rich media (like TTS Podcasts) for the final app build.
