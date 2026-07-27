@@ -198,9 +198,17 @@ export default function CloudMenu({
     setShareUrl(null);
     try {
       const link = await shareTrip(uid, tripId, tripData, appDesign, shareDays || undefined);
-      await navigator.clipboard.writeText(link).catch(() => {});
       setShareUrl(link);
-      setNotice(t("cloud.shareCopied"));
+      // The share itself succeeded regardless of whether the clipboard write
+      // does — LinkDisplay renders the link below either way, so a clipboard
+      // failure just needs its own honest notice instead of claiming success.
+      try {
+        await navigator.clipboard.writeText(link);
+        setNotice(t("cloud.shareCopied"));
+      } catch (clipboardErr) {
+        console.error(clipboardErr);
+        setNotice(t("cloud.shareCopyFailed"));
+      }
     } catch (err) {
       console.error(err);
       setNotice(t("cloud.shareFailed"));

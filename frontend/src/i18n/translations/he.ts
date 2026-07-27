@@ -75,6 +75,7 @@ export const he = {
   "step4.deploying": "משגר...",
   "step4.deploy": "שגר למכשיר! שמרו ושתפו את הטיול",
   "step4.copied": "הועתק!",
+  "step4.copyFailed": "ההעתקה ללוח נכשלה",
   "step4.copyLink": "העתק קישור",
   "step4.openLink": "מעבר לקישור",
   "step4.deployError": "משהו השתבש בעת השמירה והשיתוף. נסו שוב בעוד רגע.",
@@ -238,6 +239,7 @@ export const he = {
   "cloud.saveFailed": "שמירת הטיול נכשלה.",
   "cloud.shareBeforeSave": "שמרו את הטיול לפני שיתופו.",
   "cloud.shareCopied": "קישור השיתוף הועתק ללוח.",
+  "cloud.shareCopyFailed": "קישור השיתוף נוצר, אך ההעתקה ללוח נכשלה — אפשר להעתיק אותו ידנית למטה.",
   "cloud.shareFailed": "שיתוף הטיול נכשל.",
   "cloud.loadFailed": "טעינת הטיול נכשלה.",
   "cloud.deleteFailed": "מחיקת הטיול נכשלה.",
@@ -293,6 +295,8 @@ export const he = {
   "sharedPage.addAdminFailed": "הוספת המנהל נכשלה. נסו שוב.",
   "sharedPage.shareNewLink": "שיתוף קישור חדש",
   "sharedPage.newLinkCopied": "קישור חדש עם השינויים שלכם הועתק ללוח.",
+  "sharedPage.newLinkCopyFailed":
+    "קישור חדש נוצר, אך ההעתקה ללוח נכשלה — אפשר להעתיק אותו ידנית למטה.",
   "sharedPage.newLinkFailed": "יצירת קישור חדש נכשלה. נסו שוב.",
 
   // Trip file import/export
@@ -324,6 +328,7 @@ export const he = {
     "ספק ה-AI מגביל קצב בקשות כרגע — נסו שוב בעוד דקה. בינתיים נטען טיול לדוגמה.",
   "notice.unreachableDemo": "לא הצלחנו להתחבר לשרת ה-AI — נטען טיול לדוגמה.",
   "notice.enhanceFailed": 'הוספת הפרטים הנוספים נכשלה — ממשיכים עם הלו"ז הנוכחי.',
+  "notice.retry": "נסו שוב",
   "notice.updateFailed": 'העדכון נכשל — הלו"ז לא השתנה.',
   "notice.mediaFailed": "יצירת המדיה בשרת נכשלה — ממשיכים ללא קבצי אודיו.",
   "agent.initial": 'זיהיתי את הטיול! עברו על הלו"ז ותקנו מה שצריך.',

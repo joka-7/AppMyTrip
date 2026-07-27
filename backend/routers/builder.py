@@ -1,3 +1,6 @@
+import re
+import unicodedata
+
 from fastapi import APIRouter, HTTPException
 
 from models import (
@@ -23,6 +26,10 @@ def _activity_count(trip: TripData) -> int:
 # truncation bug, so the guard below should not fire. Not tied to the trip's
 # `language` field on purpose: users often type a chat message in a different
 # language than the itinerary's dominant one, so we match broadly instead.
+#
+# Matched as whole words (see _mentions_deletion below), not as a plain
+# substring — e.g. English "remove" used to also fire on any unrelated word
+# that merely *contained* "remove" as a substring.
 _DELETION_KEYWORDS = (
     # Hebrew
     "מחק",
@@ -64,10 +71,10 @@ _DELETION_KEYWORDS = (
     "cancellare",
     "rimuovi",
     "rimuovere",
-    # Portuguese
+    # Portuguese (English "remove" above is spelled identically in Portuguese
+    # — intentionally not repeated here)
     "apaga",
     "apagar",
-    "remove",
     "remover",
     "cancela",
     "cancelar",
@@ -113,6 +120,65 @@ _DELETION_KEYWORDS = (
     "रद्द",
 )
 
+# Chinese/Japanese/Korean don't delimit words with spaces or punctuation the
+# way the other languages above do, so a `\b`-anchored regex can't reliably
+# match a keyword sitting inside a longer, unspaced sentence — unlike the
+# other scripts, that's *normal*, expected CJK phrasing, not a false-positive
+# substring collision. Plain substring matching is the correct approach here.
+_CJK_DELETION_KEYWORDS = (
+    "删除",
+    "取消",
+    "移除",
+    "削除",
+    "取り消",
+    "キャンセル",
+    "삭제",
+    "취소",
+    "제거",
+)
+_WORD_BOUNDARY_DELETION_KEYWORDS = tuple(
+    kw for kw in _DELETION_KEYWORDS if kw not in _CJK_DELETION_KEYWORDS
+)
+
+
+def _strip_trailing_combining_marks(word: str) -> str:
+    """Drops trailing Unicode combining marks (diacritics/vowel signs) from a
+    word before it's used to build a `\\b`-anchored regex.
+
+    Python's `\\b` boundary is defined by transitions to/from `\\w`, and
+    combining-mark characters (Unicode categories Mn/Mc — an Arabic diacritic
+    like the one on "ألغِ", or a Hindi vowel sign like the "ा" in "हटाना")
+    don't count as `\\w`. A keyword ending in one of these would then need its
+    *trailing* `\\b` to fall one character short of where the word actually
+    ends, so it would never match even when the keyword is properly delimited
+    by spaces in real text. Anchoring right after the last base character
+    instead (see `_WORD_BOUNDARY_DELETION_PATTERN`) sidesteps that without
+    weakening the match anywhere else.
+    """
+    end = len(word)
+    while end > 0 and unicodedata.combining(word[end - 1]):
+        end -= 1
+    return word[:end]
+
+
+_WORD_BOUNDARY_DELETION_PATTERN = re.compile(
+    "|".join(
+        rf"\b{re.escape(_strip_trailing_combining_marks(kw))}(?!\w)"
+        for kw in _WORD_BOUNDARY_DELETION_KEYWORDS
+    ),
+    re.IGNORECASE,
+)
+
+
+def _mentions_deletion(user_message: str) -> bool:
+    """True if the user's message contains one of `_DELETION_KEYWORDS` as a
+    whole word (or, for CJK scripts, anywhere at all — see
+    `_CJK_DELETION_KEYWORDS`)."""
+    lowered = user_message.lower()
+    if any(keyword in lowered for keyword in _CJK_DELETION_KEYWORDS):
+        return True
+    return bool(_WORD_BOUNDARY_DELETION_PATTERN.search(lowered))
+
 
 def _looks_truncated(previous: TripData, updated: TripData, user_message: str = "") -> bool:
     """Heuristic guard against a truncated/hallucinated agent response that
@@ -126,8 +192,7 @@ def _looks_truncated(previous: TripData, updated: TripData, user_message: str = 
     only fire on near-total collapses (>65% dropped, on trips with at least
     6 activities to begin with) so legitimate large restructurings (e.g.
     "shorten this to just the weekend") aren't mistaken for truncation."""
-    lowered = user_message.lower()
-    if any(keyword in lowered for keyword in _DELETION_KEYWORDS):
+    if _mentions_deletion(user_message):
         return False
     prev_count = _activity_count(previous)
     if prev_count < 6:

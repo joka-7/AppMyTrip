@@ -136,6 +136,56 @@ describe("App builder flow", () => {
     });
   });
 
+  it("offers a one-click retry when Step 2's enhancement call fails, and it works", async () => {
+    vi.mocked(api.parseTrip).mockResolvedValue({
+      trip_data: sampleTrip,
+      initial_agent_message: "Welcome!",
+    });
+    vi.mocked(api.enhanceTrip).mockRejectedValueOnce(new Error("network down"));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /צור מבנה אפליקציה ראשוני/ }));
+    await waitFor(() => {
+      expect(screen.getByText("שיפורים נוספים (אופציונלי)")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("הוספת מחירים משוערים"));
+    fireEvent.click(screen.getByRole("button", { name: /הוסף את הפרטים שנבחרו/ }));
+
+    // The failure notice must not block the wizard from moving on...
+    await waitFor(() => {
+      expect(screen.getByText("סוכן השלמות AI")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText('הוספת הפרטים הנוספים נכשלה — ממשיכים עם הלו"ז הנוכחי.'),
+    ).toBeInTheDocument();
+
+    // ...but a retry button must be offered, re-running the exact same options.
+    vi.mocked(api.enhanceTrip).mockResolvedValueOnce({
+      trip_data: { ...sampleTrip, title: "Enhanced Trip" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "נסו שוב" }));
+
+    await waitFor(() => {
+      expect(api.enhanceTrip).toHaveBeenLastCalledWith(
+        expect.objectContaining(sampleTrip),
+        { prices: true },
+        [],
+        "gemini",
+        [],
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Enhanced Trip")).toBeInTheDocument();
+    });
+    // The notice (and its retry button) must clear on success.
+    expect(
+      screen.queryByText('הוספת הפרטים הנוספים נכשלה — ממשיכים עם הלו"ז הנוכחי.'),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "נסו שוב" })).not.toBeInTheDocument();
+  });
+
   it("re-applies the chosen Step 2 enhancements to activities the chat agent adds later", async () => {
     vi.mocked(api.parseTrip).mockResolvedValue({
       trip_data: sampleTrip,

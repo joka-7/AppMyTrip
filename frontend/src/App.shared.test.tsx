@@ -224,3 +224,205 @@ describe("App shared-trip viewer", () => {
     });
   });
 });
+
+// B1/B2/B7: on a shared link there's no Step 2 of its own to remember
+// enhancement choices from, and no wizard state to accidentally clobber — but
+// the same two bugs (missing enrichment, stale-snapshot overwrites) applied
+// here just as much as in the builder, since SharedTripViewer reimplements
+// the same handlers. These lock in the fixes.
+describe("App shared-trip viewer activity enrichment", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    window.history.pushState({}, "", "/?shared=trip-1");
+  });
+
+  it('enriches an activity added via the shared page\'s "+" button', async () => {
+    const trips = await import("./services/tripsStore");
+    const api = await import("./api");
+    vi.mocked(trips.onAuthChange).mockImplementation(() => () => {});
+    vi.mocked(trips.getCurrentSession).mockReturnValue(null);
+    vi.mocked(trips.loadSharedTrip).mockResolvedValue({
+      trip: { title: "Shared Trip", dates: "Mon - Wed", days: [{ dayNum: 1, activities: [] }] },
+      appDesign: { ...DEFAULT_APP_DESIGN, theme: "green" },
+      meta: emptyMeta,
+    });
+    vi.mocked(api.enhanceTrip).mockImplementation(async (trip) => ({
+      trip_data: {
+        ...trip,
+        days: trip.days.map((d) => ({
+          ...d,
+          activities: d.activities.map((a) => ({ ...a, price: 20 })),
+        })),
+      },
+    }));
+
+    const { default: App } = await import("./App");
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "הוספת פעילות ליום זה" })).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "הוספת פעילות ליום זה" }));
+    fireEvent.change(screen.getByPlaceholderText("שם הפעילות"), {
+      target: { value: "Manually Added Spot" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "הוספה" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Manually Added Spot")).toBeInTheDocument();
+    });
+
+    expect(api.enhanceTrip).toHaveBeenCalledTimes(1);
+    const [tripArg] = vi.mocked(api.enhanceTrip).mock.calls[0];
+    expect(tripArg.days[0].activities.map((a) => a.title)).toEqual(["Manually Added Spot"]);
+    await waitFor(() => {
+      expect(screen.getByText("₪20")).toBeInTheDocument();
+    });
+  });
+
+  it("enriches an activity the chat agent adds on a shared link", async () => {
+    const trips = await import("./services/tripsStore");
+    const api = await import("./api");
+    vi.mocked(trips.onAuthChange).mockImplementation(() => () => {});
+    vi.mocked(trips.getCurrentSession).mockReturnValue(null);
+    vi.mocked(trips.loadSharedTrip).mockResolvedValue({
+      trip: { title: "Shared Trip", dates: "Mon - Wed", days: [{ dayNum: 1, activities: [] }] },
+      appDesign: { ...DEFAULT_APP_DESIGN, theme: "green" },
+      meta: emptyMeta,
+    });
+    const newActivity = {
+      id: "a2",
+      time: "13:00",
+      title: "Restaurant",
+      desc: "lunch",
+      type: "food" as const,
+      hasPodcast: false,
+    };
+    vi.mocked(api.agentInteract).mockResolvedValue({
+      trip_data: {
+        title: "Shared Trip",
+        dates: "Mon - Wed",
+        days: [{ dayNum: 1, activities: [newActivity] }],
+      },
+      agent_reply: "Added it!",
+    });
+    vi.mocked(api.enhanceTrip).mockResolvedValueOnce({
+      trip_data: {
+        title: "Shared Trip",
+        dates: "Mon - Wed",
+        days: [{ dayNum: 1, activities: [{ ...newActivity, price: 20 }] }],
+      },
+    });
+
+    const { default: App } = await import("./App");
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Shared Trip")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "צ'אט AI" }));
+
+    const chatInput = await screen.findByPlaceholderText(/ענה לסוכן/);
+    fireEvent.change(chatInput, { target: { value: "תוסיף מסעדה" } });
+    fireEvent.submit(chatInput.closest("form")!);
+
+    await waitFor(() => {
+      expect(api.enhanceTrip).toHaveBeenCalledTimes(1);
+    });
+    const [tripArg] = vi.mocked(api.enhanceTrip).mock.calls[0];
+    expect(tripArg.days[0].activities.map((a) => a.id)).toEqual(["a2"]);
+
+    fireEvent.click(screen.getByRole("button", { name: 'לו"ז' }));
+    await waitFor(() => {
+      expect(screen.getByText("Restaurant")).toBeInTheDocument();
+    });
+    expect(screen.getByText("₪20")).toBeInTheDocument();
+  });
+
+  it("normalizes duplicate/empty ids in an agent response so each activity stays independently actionable", async () => {
+    const trips = await import("./services/tripsStore");
+    const api = await import("./api");
+    vi.mocked(trips.onAuthChange).mockImplementation(() => () => {});
+    vi.mocked(trips.getCurrentSession).mockReturnValue(null);
+    vi.mocked(trips.loadSharedTrip).mockResolvedValue({
+      trip: { title: "Shared Trip", dates: "Mon - Wed", days: [{ dayNum: 1, activities: [] }] },
+      appDesign: { ...DEFAULT_APP_DESIGN, theme: "green" },
+      meta: emptyMeta,
+    });
+    // Simulates a chat turn whose response has duplicate/empty activity ids —
+    // exactly what normalizeTripForLoad (B1) needs to fix up before the app
+    // uses those ids as React keys / map badge / edit targets.
+    vi.mocked(api.agentInteract).mockResolvedValue({
+      trip_data: {
+        title: "Shared Trip",
+        dates: "Mon - Wed",
+        days: [
+          {
+            dayNum: 1,
+            activities: [
+              {
+                id: "",
+                time: "09:00",
+                title: "First Stop",
+                desc: "",
+                type: "attraction",
+                hasPodcast: false,
+              },
+              {
+                id: "",
+                time: "10:00",
+                title: "Second Stop",
+                desc: "",
+                type: "attraction",
+                hasPodcast: false,
+              },
+            ],
+          },
+        ],
+      },
+      agent_reply: "Added both!",
+    });
+    vi.mocked(api.enhanceTrip).mockResolvedValue({
+      trip_data: {
+        title: "Shared Trip",
+        dates: "Mon - Wed",
+        days: [{ dayNum: 1, activities: [] }],
+      },
+    });
+
+    const { default: App } = await import("./App");
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Shared Trip")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "צ'אט AI" }));
+
+    const chatInput = await screen.findByPlaceholderText(/ענה לסוכן/);
+    fireEvent.change(chatInput, { target: { value: "תוסיף שתי עצירות" } });
+    fireEvent.submit(chatInput.closest("form")!);
+
+    await waitFor(() => {
+      expect(screen.getByText("Added both!")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: 'לו"ז' }));
+    await waitFor(() => {
+      expect(screen.getByText("First Stop")).toBeInTheDocument();
+      expect(screen.getByText("Second Stop")).toBeInTheDocument();
+    });
+
+    // Both activities must be independently actionable — normalization must
+    // have assigned them distinct, non-empty ids rather than leaving both "".
+    const deleteButtons = screen.getAllByRole("button", { name: "מחיקת פעילות" });
+    expect(deleteButtons).toHaveLength(2);
+    fireEvent.click(deleteButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.queryByText("First Stop")).not.toBeInTheDocument();
+    });
+    // Deleting the first must not have removed the second (would happen if
+    // both shared the same empty id).
+    expect(screen.getByText("Second Stop")).toBeInTheDocument();
+  });
+});

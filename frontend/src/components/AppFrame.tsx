@@ -122,7 +122,13 @@ export default function AppFrame({
   const [datesDraft, setDatesDraft] = useState("");
   const [albumUrlDraft, setAlbumUrlDraft] = useState("");
   const [showWelcome, setShowWelcome] = useState(false);
-  const { playingPodcast, progress, error: podcastError, togglePlay, stop } = usePodcastPlayer();
+  const {
+    playingPodcast,
+    progress,
+    error: podcastError,
+    togglePlay,
+    stop,
+  } = usePodcastPlayer(tripData.language);
   const tabsRef = useRef<HTMLDivElement>(null);
 
   const themeClass = themeClassForDesign(appDesign);

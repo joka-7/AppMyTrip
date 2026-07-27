@@ -115,6 +115,69 @@ const ALL_ENHANCE_OPTIONS: EnhanceOptions = {
   links: true,
 };
 
+/** The remembered Step 2 selections, or every extra if none were ever chosen
+ * (e.g. Step 2 was skipped) — TripBuilder's own fallback rule. The shared-trip
+ * viewer has no Step 2 of its own to remember, so it always uses every extra. */
+const effectiveEnhanceOptions = (options: EnhanceOptions): EnhanceOptions =>
+  Object.values(options).some(Boolean) ? options : ALL_ENHANCE_OPTIONS;
+
+/** Activities present in `after` but not in `before`, by id — used to find what
+ * a chat turn or a manual "+" add just introduced, so only those (not the whole
+ * trip) get sent through the enhancement pass below. */
+function findNewActivities(before: TripData, after: TripData): Activity[] {
+  const priorIds = new Set(before.days.flatMap((d) => d.activities.map((a) => a.id)));
+  return after.days.flatMap((d) => d.activities).filter((a) => !priorIds.has(a.id));
+}
+
+/**
+ * Sends just the given (newly-added) activities through /api/trip/enhance so
+ * they get the same extras (directions/prices/podcast briefs/links, plus
+ * always real map coordinates) as everything else — without re-sending the
+ * whole trip. Returns an id -> enhanced-Activity map (empty on failure, so a
+ * failed enhancement never blocks the add itself) for the caller to merge into
+ * whatever the *current* trip state is by the time it resolves, rather than
+ * overwriting it with a snapshot captured before the `await`.
+ */
+async function enhanceActivities(
+  activities: Activity[],
+  tripMeta: Pick<TripData, "title" | "dates" | "language">,
+  options: EnhanceOptions,
+): Promise<Map<string, Activity>> {
+  if (activities.length === 0) return new Map();
+  try {
+    const res = await enhanceTrip(
+      {
+        title: tripMeta.title,
+        dates: tripMeta.dates,
+        language: tripMeta.language,
+        days: [{ dayNum: 1, activities }],
+      },
+      options,
+      getApiKeys(),
+      getApiProvider(),
+      getAllCredentials(),
+    );
+    return new Map(res.trip_data.days.flatMap((d) => d.activities).map((a) => [a.id, a]));
+  } catch (err) {
+    console.error("Failed to enhance newly added activities:", err);
+    return new Map();
+  }
+}
+
+/** Merges an id -> Activity map (see enhanceActivities) into a trip's
+ * activities wherever the id matches; a no-op (returns `trip` unchanged) when
+ * the map is empty, e.g. after a failed enhancement. */
+function mergeEnhancedActivities(trip: TripData, enhancedById: Map<string, Activity>): TripData {
+  if (enhancedById.size === 0) return trip;
+  return {
+    ...trip,
+    days: trip.days.map((d) => ({
+      ...d,
+      activities: d.activities.map((a) => enhancedById.get(a.id) ?? a),
+    })),
+  };
+}
+
 // Generic sample trip used as an offline demo / fallback when the backend is
 // unreachable (e.g. no GEMINI_API_KEY). Intentionally not tied to a specific
 // real destination; coordinates are clustered so the auto-fit map looks sensible.
@@ -267,6 +330,7 @@ function TripBuilder() {
     if (!rawText.trim()) return;
     setIsProcessing(true);
     setApiNotice(null);
+    setFailedEnhanceOptions(null);
     try {
       const res = await parseTrip(
         rawText,
@@ -286,6 +350,7 @@ function TripBuilder() {
     } catch (err) {
       console.error(err);
       setApiNotice(isRateLimited(err) ? t("notice.rateLimitedDemo") : t("notice.unreachableDemo"));
+      setFailedEnhanceOptions(null);
       setTripData(normalizeTripForLoad(buildDemoTrip()));
       setAgentMessages([{ role: "agent", text: t("agent.demo") }]);
       goToStep(2);
@@ -296,6 +361,11 @@ function TripBuilder() {
 
   // Remembered so activities added later via chat can get the same Step 2 extras.
   const [enhanceOptions, setEnhanceOptions] = useState<EnhanceOptions>({});
+  // Set only when handleEnhance fails, so ApiNotice can offer a one-click
+  // retry with the same options — the wizard still moves on to step 3 either
+  // way (a failed "nice to have" pass shouldn't block editing), but losing
+  // the chosen extras with no easy way back was worse than necessary.
+  const [failedEnhanceOptions, setFailedEnhanceOptions] = useState<EnhanceOptions | null>(null);
 
   const handleEnhance = async (options: EnhanceOptions) => {
     setEnhanceOptions(options);
@@ -309,56 +379,15 @@ function TripBuilder() {
         getAllCredentials(),
       );
       setTripData(normalizeTripForLoad(res.trip_data));
+      setFailedEnhanceOptions(null);
+      setApiNotice(null);
     } catch (err) {
       console.error(err);
       setApiNotice(t("notice.enhanceFailed"));
+      setFailedEnhanceOptions(options);
     } finally {
       setIsEnhancing(false);
       goToStep(3);
-    }
-  };
-
-  // Re-runs the remembered Step 2 enhancements (or, if the user skipped Step 2 and so
-  // never chose any, every extra) on activities just added, whether by the chat agent
-  // or manually via the "+" button in the live preview — manual adds also have no real
-  // location yet, which the backend always fills in regardless of which options apply.
-  const enhanceNewActivities = async (before: TripData, after: TripData): Promise<TripData> => {
-    const priorIds = new Set(before.days.flatMap((d) => d.activities.map((a) => a.id)));
-    const newActivities = after.days
-      .flatMap((d) => d.activities)
-      .filter((a) => !priorIds.has(a.id));
-    if (newActivities.length === 0) return after;
-
-    const options = Object.values(enhanceOptions).some(Boolean)
-      ? enhanceOptions
-      : ALL_ENHANCE_OPTIONS;
-
-    try {
-      const res = await enhanceTrip(
-        {
-          title: after.title,
-          dates: after.dates,
-          language: after.language,
-          days: [{ dayNum: 1, activities: newActivities }],
-        },
-        options,
-        getApiKeys(),
-        getApiProvider(),
-        getAllCredentials(),
-      );
-      const enhancedById = new Map(
-        res.trip_data.days.flatMap((d) => d.activities).map((a) => [a.id, a]),
-      );
-      return {
-        ...after,
-        days: after.days.map((day) => ({
-          ...day,
-          activities: day.activities.map((a) => enhancedById.get(a.id) ?? a),
-        })),
-      };
-    } catch (err) {
-      console.error("Failed to enhance newly added activities:", err);
-      return after;
     }
   };
 
@@ -367,25 +396,44 @@ function TripBuilder() {
     if (!chatInput.trim()) return;
 
     const userText = chatInput;
+    const priorTrip = tripData;
     setAgentMessages((prev) => [...prev, { role: "user", text: userText }]);
     setChatInput("");
     setIsSendingMessage(true);
 
     try {
       const res = await agentInteract(
-        tripData,
+        priorTrip,
         userText,
         preferences || null,
         getApiKeys(),
         getApiProvider(),
         getAllCredentials(),
       );
-      setTripData(normalizeTripForLoad(await enhanceNewActivities(tripData, res.trip_data)));
+      // Applied right away — the agent's edit is the authoritative new state,
+      // not something to hold back while the (slower) enhancement pass below
+      // runs. That second pass only ever *patches* newly-added activities by
+      // id into whatever the trip looks like by the time it resolves, so it
+      // can never clobber an edit made while it was in flight.
+      setTripData(normalizeTripForLoad(res.trip_data));
       setAgentMessages((prev) => [...prev, { role: "agent", text: res.agent_reply }]);
+
+      const newActivities = findNewActivities(priorTrip, res.trip_data);
+      if (newActivities.length > 0) {
+        const enhancedById = await enhanceActivities(
+          newActivities,
+          res.trip_data,
+          effectiveEnhanceOptions(enhanceOptions),
+        );
+        if (enhancedById.size > 0) {
+          setTripData((prev) => normalizeTripForLoad(mergeEnhancedActivities(prev, enhancedById)));
+        }
+      }
     } catch (err) {
       console.error(err);
       const message = describeApiError(err, t("notice.updateFailed"));
       setApiNotice(message);
+      setFailedEnhanceOptions(null);
       setAgentMessages((prev) => [...prev, { role: "agent", text: message }]);
     } finally {
       setIsSendingMessage(false);
@@ -407,15 +455,27 @@ function TripBuilder() {
   };
 
   const handleAddActivity = async (dayIndex: number, activity: Activity) => {
-    const before = tripData;
-    const after: TripData = {
-      ...tripData,
-      days: tripData.days.map((d, idx) =>
-        idx !== dayIndex ? d : { ...d, activities: [...d.activities, activity] },
-      ),
-    };
-    setTripData(after);
-    setTripData(normalizeTripForLoad(await enhanceNewActivities(before, after)));
+    const priorTrip = tripData;
+    // Applied immediately via a functional update — safe against whatever
+    // else happens to tripData while the enhancement call below is in flight.
+    setTripData((prev) =>
+      normalizeTripForLoad({
+        ...prev,
+        days: prev.days.map((d, idx) =>
+          idx !== dayIndex ? d : { ...d, activities: [...d.activities, activity] },
+        ),
+      }),
+    );
+    const enhancedById = await enhanceActivities(
+      [activity],
+      priorTrip,
+      effectiveEnhanceOptions(enhanceOptions),
+    );
+    if (enhancedById.size === 0) return;
+    // Patches the newly-added activity by id into whatever tripData looks
+    // like *now* — not the snapshot captured before the await above — so any
+    // edit made in the meantime (e.g. deleting a different activity) survives.
+    setTripData((prev) => normalizeTripForLoad(mergeEnhancedActivities(prev, enhancedById)));
   };
 
   const handleDeleteActivity = (dayIndex: number, activityId: string) => {
@@ -449,6 +509,7 @@ function TripBuilder() {
     } catch (err) {
       console.error(err);
       setApiNotice(t("notice.mediaFailed"));
+      setFailedEnhanceOptions(null);
     } finally {
       setIsGeneratingMedia(false);
       goToStep(4);
@@ -510,7 +571,15 @@ function TripBuilder() {
         </div>
       </nav>
 
-      <ApiNotice message={apiNotice} onDismiss={() => setApiNotice(null)} />
+      <ApiNotice
+        message={apiNotice}
+        onDismiss={() => {
+          setApiNotice(null);
+          setFailedEnhanceOptions(null);
+        }}
+        actionLabel={failedEnhanceOptions ? t("notice.retry") : undefined}
+        onAction={failedEnhanceOptions ? () => handleEnhance(failedEnhanceOptions) : undefined}
+      />
 
       <div className="max-w-7xl mx-auto p-6 flex flex-col lg:flex-row gap-8">
         {/* Left Side: Builder Interface */}
@@ -715,6 +784,7 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
     if (!chatInput.trim() || !trip) return;
 
     const userText = chatInput;
+    const priorTrip = trip;
     setAgentMessages((prev) => [...prev, { role: "user", text: userText }]);
     setChatInput("");
     setIsSendingMessage(true);
@@ -722,15 +792,35 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
 
     try {
       const res = await agentInteract(
-        trip,
+        priorTrip,
         userText,
         null,
         getApiKeys(),
         getApiProvider(),
         getAllCredentials(),
       );
-      setTrip(res.trip_data);
+      // See TripBuilder's own handleSendMessage for why this is normalized and
+      // applied immediately, with new activities enhanced (and merged in) as a
+      // separate, non-blocking step below.
+      setTrip(normalizeTripForLoad(res.trip_data));
       setAgentMessages((prev) => [...prev, { role: "agent", text: res.agent_reply }]);
+
+      const newActivities = findNewActivities(priorTrip, res.trip_data);
+      if (newActivities.length > 0) {
+        // No Step 2 of its own to remember a subset of extras from — always
+        // fetch every extra, same as TripBuilder's own no-Step-2-selection
+        // fallback.
+        const enhancedById = await enhanceActivities(
+          newActivities,
+          res.trip_data,
+          ALL_ENHANCE_OPTIONS,
+        );
+        if (enhancedById.size > 0) {
+          setTrip((prev) =>
+            prev ? normalizeTripForLoad(mergeEnhancedActivities(prev, enhancedById)) : prev,
+          );
+        }
+      }
     } catch (err) {
       console.error(err);
       setChatNotice(describeApiError(err, t("notice.updateFailed")));
@@ -759,16 +849,25 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
     );
   };
 
-  const handleAddActivity = (dayIndex: number, activity: Activity) => {
+  const handleAddActivity = async (dayIndex: number, activity: Activity) => {
+    // Applied immediately via a functional update — safe against whatever
+    // else happens to `trip` while the enhancement call below is in flight.
     setTrip((prev) =>
       prev
-        ? {
+        ? normalizeTripForLoad({
             ...prev,
             days: prev.days.map((d, idx) =>
               idx !== dayIndex ? d : { ...d, activities: [...d.activities, activity] },
             ),
-          }
+          })
         : prev,
+    );
+    if (!trip) return;
+    // No Step 2 of its own — always fetch every extra (see handleSendMessage above).
+    const enhancedById = await enhanceActivities([activity], trip, ALL_ENHANCE_OPTIONS);
+    if (enhancedById.size === 0) return;
+    setTrip((prev) =>
+      prev ? normalizeTripForLoad(mergeEnhancedActivities(prev, enhancedById)) : prev,
     );
   };
 

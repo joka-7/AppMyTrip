@@ -76,6 +76,7 @@ export const en: Record<TranslationKey, string> = {
   "step4.deploying": "Deploying...",
   "step4.deploy": "Deploy to device! Save and share the trip",
   "step4.copied": "Copied!",
+  "step4.copyFailed": "Copy to clipboard failed",
   "step4.copyLink": "Copy link",
   "step4.openLink": "Open link",
   "step4.deployError": "Something went wrong while saving and sharing. Try again in a moment.",
@@ -241,6 +242,8 @@ export const en: Record<TranslationKey, string> = {
   "cloud.saveFailed": "Saving the trip failed.",
   "cloud.shareBeforeSave": "Save the trip before sharing it.",
   "cloud.shareCopied": "The share link was copied to the clipboard.",
+  "cloud.shareCopyFailed":
+    "The share link was created, but copying it to the clipboard failed — you can copy it manually below.",
   "cloud.shareFailed": "Sharing the trip failed.",
   "cloud.loadFailed": "Loading the trip failed.",
   "cloud.deleteFailed": "Deleting the trip failed.",
@@ -296,6 +299,8 @@ export const en: Record<TranslationKey, string> = {
   "sharedPage.addAdminFailed": "Adding that admin failed. Please try again.",
   "sharedPage.shareNewLink": "Share new link",
   "sharedPage.newLinkCopied": "A new link with your changes was copied to the clipboard.",
+  "sharedPage.newLinkCopyFailed":
+    "A new link was created, but copying it to the clipboard failed — you can copy it manually below.",
   "sharedPage.newLinkFailed": "Creating a new link failed. Please try again.",
 
   // Trip file import/export
@@ -332,6 +337,7 @@ export const en: Record<TranslationKey, string> = {
   "notice.unreachableDemo": "We couldn't connect to the AI server — a sample trip was loaded.",
   "notice.enhanceFailed":
     "Adding the extra details failed — continuing with the current itinerary.",
+  "notice.retry": "Retry",
   "notice.updateFailed": "The update failed — the itinerary didn't change.",
   "notice.mediaFailed": "Generating media on the server failed — continuing without audio files.",
   "agent.initial": "I recognized the trip! Go over the itinerary and fix anything you need.",

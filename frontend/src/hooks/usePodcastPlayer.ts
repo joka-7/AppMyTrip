@@ -30,8 +30,13 @@ function waitForVoices(): Promise<SpeechSynthesisVoice[]> {
  * (reading `desc` aloud) when there's no URL yet, or the audio fails to load
  * (e.g. the mock TTS provider's placeholder CDN URL) — so something is always
  * actually audible instead of just an animated progress bar.
+ *
+ * @param language ISO 639-1 code of the trip's dominant language (he/en/fr) —
+ * used to pick a matching browser TTS voice for the fallback narration.
+ * Defaults to Hebrew when the trip has none set, matching this app's
+ * original (pre-i18n) behavior.
  */
-export function usePodcastPlayer() {
+export function usePodcastPlayer(language?: string | null) {
   const [playingPodcast, setPlayingPodcast] = useState<Activity | null>(null);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -67,12 +72,16 @@ export function usePodcastPlayer() {
       // Forcing an unsupported lang (e.g. "he-IL" with no matching voice
       // installed) makes speak() fail almost immediately on some browsers.
       // Only set lang to a voice that's actually available; otherwise leave
-      // it unset so the browser uses its own default voice.
+      // it unset so the browser uses its own default voice. Matched against
+      // the *trip's* language (he/en/fr), not the UI language or a
+      // hardcoded "he" — a French trip's podcast should be narrated in
+      // French even if the app chrome is in Hebrew.
       let cancelled = false;
+      const targetLang = (language || "he").toLowerCase();
       waitForVoices().then((voices) => {
         if (cancelled) return;
-        const hebrewVoice = voices.find((v) => v.lang.toLowerCase().startsWith("he"));
-        if (hebrewVoice) utterance.voice = hebrewVoice;
+        const matchingVoice = voices.find((v) => v.lang.toLowerCase().startsWith(targetLang));
+        if (matchingVoice) utterance.voice = matchingVoice;
         utterance.onend = () => {
           if (!stopped) setPlayingPodcast(null);
         };
@@ -125,7 +134,7 @@ export function usePodcastPlayer() {
       audio.pause();
       fallbackCleanup?.();
     };
-  }, [playingPodcast]);
+  }, [playingPodcast, language]);
 
   const togglePlay = (act: Activity) => {
     setPlayingPodcast((prev) => (prev?.id === act.id ? null : act));

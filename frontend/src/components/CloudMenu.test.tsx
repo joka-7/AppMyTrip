@@ -242,6 +242,55 @@ describe("CloudMenu", () => {
     });
   });
 
+  it("shares an already-saved trip and shows a distinct notice when the clipboard copy fails", async () => {
+    vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
+      callback({ uid: "uid-123", email: "user@example.com", displayName: "User" } as never);
+      return () => {};
+    });
+    vi.mocked(trips.listTrips).mockResolvedValue([]);
+    vi.mocked(trips.shareTrip).mockResolvedValue("https://example.com/?shared=trip-1");
+    const originalClipboard = navigator.clipboard;
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: vi.fn().mockRejectedValue(new Error("denied")) },
+      configurable: true,
+    });
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    render(
+      <CloudMenu
+        tripData={sampleTrip}
+        appDesign={DEFAULT_APP_DESIGN}
+        tripId="trip-1"
+        currentStep={4}
+        onTripIdChange={vi.fn()}
+        onUpdateTrip={vi.fn()}
+        onLoadTrip={vi.fn()}
+        onImportTrip={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("user@example.com")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("user@example.com"));
+    fireEvent.click(screen.getByRole("button", { name: /שיתוף/ }));
+
+    // The share itself succeeded — the link must still be shown as a manual
+    // fallback — but the notice must be honest that the clipboard copy failed,
+    // not the normal "copied to clipboard" success text.
+    await waitFor(() => {
+      expect(screen.getByText(/ההעתקה ללוח נכשלה/)).toBeInTheDocument();
+    });
+    expect(screen.getByText("https://example.com/?shared=trip-1")).toBeInTheDocument();
+    expect(screen.queryByText("קישור השיתוף הועתק ללוח.")).not.toBeInTheDocument();
+
+    Object.defineProperty(navigator, "clipboard", {
+      value: originalClipboard,
+      configurable: true,
+    });
+    consoleErrorSpy.mockRestore();
+  });
+
   it('opening a trip saved as "Final app" goes to its real shared link, not the builder', async () => {
     vi.mocked(trips.listTrips).mockResolvedValue([
       { id: "trip-9", name: "Finished Trip", modifiedTime: "2024-01-01", stage: "final" },

@@ -7,6 +7,7 @@ model download, see README).
 """
 
 import asyncio
+import hashlib
 import os
 import re
 from pathlib import Path
@@ -62,8 +63,19 @@ class PiperTTSProvider:
 
 
 def _slugify(title: str) -> str:
+    """Builds a filesystem-safe, collision-resistant slug for an activity title.
+
+    Stripping everything outside `[a-z0-9]` collapses any title written in a
+    non-Latin script (Hebrew, etc.) to an empty string, so every such activity
+    used to fall back to the literal name "podcast" — meaning a second
+    non-Latin activity silently overwrote the first one's audio file. A short
+    hash of the original (pre-slugify) title is appended so two different
+    titles never collide, regardless of script, while ASCII titles keep a
+    readable slug prefix.
+    """
     normalized = re.sub(r"[^a-z0-9]+", "_", title.lower().strip()).strip("_")
-    return normalized or "podcast"
+    digest = hashlib.sha1(title.strip().encode("utf-8")).hexdigest()[:8]
+    return f"{normalized}_{digest}" if normalized else f"podcast_{digest}"
 
 
 _PROVIDERS: dict[str, type] = {
