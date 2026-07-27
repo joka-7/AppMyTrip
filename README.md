@@ -56,16 +56,18 @@ AppMyTrip/
 │   ├── requirements.txt
 │   └── requirements-dev.txt
 ├── frontend/         Vite + React + TypeScript + Tailwind prototype
-│   ├── src/App.tsx             4-step builder UI + live preview
+│   ├── src/App.tsx             4-step builder UI + live preview / shared-trip viewer
 │   ├── src/firebase.ts         Firebase init (Google sign-in + Firestore)
-│   ├── src/services/tripsStore.ts   save/load/share trips in Firestore
+│   ├── src/i18n/               UI language store + he/en/fr dictionaries
+│   ├── src/hooks/              podcast player, install prompt, trip branding, …
+│   ├── src/services/           tripsStore, appDesign, tripFile, apiKey, …
+│   ├── src/components/         builder steps, AppFrame, MapView, CloudMenu, …
 │   ├── firestore.rules         Firestore security rules (per-user + public shares)
 │   └── e2e/                    Playwright end-to-end tests (real browser, backend mocked)
 ├── docs/             design documentation
 │   ├── hld/hld.md              High-Level Design (architecture + flows)
 │   └── lld/lld.md              Low-Level Design (modules, classes, contracts)
-├── .run/             shared PyCharm/WebStorm run configurations
-└── main.py           (legacy scaffold placeholder)
+└── .run/             shared PyCharm/WebStorm run configurations
 ```
 
 ## Backend

@@ -153,7 +153,7 @@ describe("api client", () => {
       `${API_BASE_URL}/api/trip/generate-media`,
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ trip_data: sampleTrip, user_message: "" }),
+        body: JSON.stringify({ trip_data: sampleTrip }),
       }),
     );
     expect(result).toEqual(responseBody);

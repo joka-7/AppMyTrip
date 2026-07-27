@@ -10,7 +10,7 @@ venv/
 backend/static/podcasts/*
 !backend/static/podcasts/.gitkeep
 
-# SQLite database (backend/db.py)
+# Local SQLite leftovers (if any; the app is Firestore-backed, not SQLite)
 *.db
 
 # Node / frontend

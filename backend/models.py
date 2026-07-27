@@ -216,6 +216,16 @@ class EnhanceRequest(BaseModel):
     )
 
 
+class GenerateMediaRequest(BaseModel):
+    """Payload for Stage 4 TTS/podcast generation.
+
+    Unlike agent chat, this endpoint only needs the trip — there is no user
+    message to process.
+    """
+
+    trip_data: TripData
+
+
 class AgentResponse(BaseModel):
     """Structured response expected from the LLM during Stage 3 chat."""
 
