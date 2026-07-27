@@ -77,8 +77,11 @@ describe("App builder flow", () => {
     });
 
     expect(screen.getByText("Welcome!")).toBeInTheDocument();
-    expect(screen.getByText("Sample Trip")).toBeInTheDocument();
-    expect(screen.getByText("Museum")).toBeInTheDocument();
+    // Live phone preview (AppFrame) is code-split — wait for it to mount.
+    await waitFor(() => {
+      expect(screen.getByText("Sample Trip")).toBeInTheDocument();
+      expect(screen.getByText("Museum")).toBeInTheDocument();
+    });
     expect(screen.queryByText(/לא הצלחנו להתחבר לשרת ה-AI/)).not.toBeInTheDocument();
   });
 
@@ -99,7 +102,9 @@ describe("App builder flow", () => {
     await waitFor(() => {
       expect(screen.getByText("סוכן השלמות AI")).toBeInTheDocument();
     });
-    expect(screen.getByText("טיול לדוגמה ✨")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("טיול לדוגמה ✨")).toBeInTheDocument();
+    });
   });
 
   it("selects every enhancement option with the 'select all' checkbox", async () => {

@@ -9,8 +9,8 @@ import {
 } from "react-leaflet";
 import { useEffect, useState } from "react";
 import L from "leaflet";
-import { renderToStaticMarkup } from "react-dom/server";
-import { ArrowRight, ExternalLink, MapPinPlus, Utensils, Bed, Landmark, Plane } from "lucide-react";
+import "leaflet/dist/leaflet.css";
+import { ArrowRight, ExternalLink, MapPinPlus } from "lucide-react";
 import type { Activity } from "../api";
 import { useI18n } from "../i18n/useI18n";
 import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABEL_KEYS } from "../services/activityTypes";
@@ -20,62 +20,59 @@ import { type MapTileStyle, MAP_TILE_URLS } from "../services/appDesign";
 import { sequenceLabel } from "../services/sequenceLabel";
 
 const MARKER_COLORS: Record<Activity["type"], string> = {
-  food: "bg-secondary",
-  lodging: "bg-indigo-500",
-  attraction: "bg-emerald-500",
-  transport: "bg-sky-500",
+  food: "#fe7e4f",
+  lodging: "#6366f1",
+  attraction: "#10b981",
+  transport: "#0ea5e9",
 };
 
-const MARKER_ICONS: Record<Activity["type"], typeof Utensils> = {
-  food: Utensils,
-  lodging: Bed,
-  attraction: Landmark,
-  transport: Plane,
+// Lucide path data (viewBox 0 0 24 24) for the four activity types — inlined as
+// SVG strings so we don't need react-dom/server just to render a marker.
+const MARKER_SVG_PATHS: Record<Activity["type"], string> = {
+  food: '<path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>',
+  lodging:
+    '<path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/>',
+  attraction:
+    '<line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/>',
+  transport:
+    '<path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/>',
 };
+
+// Cache divIcons by type+label so re-renders don't rebuild DOM for every
+// marker (Leaflet would otherwise treat each new L.divIcon as a different
+// icon and re-mount the marker HTML).
+const markerIconCache = new Map<string, L.DivIcon>();
 
 // Each stop's marker keeps its type colour + icon, plus an order badge (A, B,
 // C …) matching the sequence Google Maps shows when the "directions" link opens
 // the same stops — so the visit order is visible on the in-app map too.
-function markerIcon(type: Activity["type"], label: string) {
-  const Icon = MARKER_ICONS[type] ?? Landmark;
-  const html = renderToStaticMarkup(
-    <div style={{ position: "relative", display: "inline-flex" }}>
-      <div
-        className={`p-1.5 rounded-full text-white shadow-lg ${MARKER_COLORS[type]}`}
-        style={{ display: "inline-flex" }}
-      >
-        <Icon size={14} />
-      </div>
-      <span
-        style={{
-          position: "absolute",
-          top: -6,
-          right: -6,
-          minWidth: 16,
-          height: 16,
-          padding: "0 3px",
-          boxSizing: "border-box",
-          borderRadius: 9999,
-          background: "#ffffff",
-          color: "#1a1a1a",
-          fontSize: 10,
-          fontWeight: 700,
-          lineHeight: "14px",
-          textAlign: "center",
-          border: "1px solid rgba(0,0,0,0.15)",
-          boxShadow: "0 1px 2px rgba(0,0,0,0.3)",
-        }}
-      >
-        {label}
-      </span>
-    </div>,
-  );
-  return L.divIcon({
+function markerIcon(type: Activity["type"], label: string): L.DivIcon {
+  const cacheKey = `${type}:${label}`;
+  const cached = markerIconCache.get(cacheKey);
+  if (cached) return cached;
+
+  const color = MARKER_COLORS[type] ?? MARKER_COLORS.attraction;
+  const paths = MARKER_SVG_PATHS[type] ?? MARKER_SVG_PATHS.attraction;
+  const safeLabel = label
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+  const html = `<div style="position:relative;display:inline-flex">
+  <div style="display:inline-flex;padding:6px;border-radius:9999px;color:#fff;background:${color};box-shadow:0 4px 14px rgba(0,0,0,.18)">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>
+  </div>
+  <span style="position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;padding:0 3px;box-sizing:border-box;border-radius:9999px;background:#fff;color:#1a1a1a;font-size:10px;font-weight:700;line-height:14px;text-align:center;border:1px solid rgba(0,0,0,.15);box-shadow:0 1px 2px rgba(0,0,0,.3)">${safeLabel}</span>
+</div>`;
+
+  const icon = L.divIcon({
     html,
     className: "",
     iconSize: [28, 28],
     iconAnchor: [14, 28],
   });
+  markerIconCache.set(cacheKey, icon);
+  return icon;
 }
 
 const PENDING_ICON = L.divIcon({
