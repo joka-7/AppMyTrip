@@ -20,6 +20,7 @@ export default function ChatPanel({
   onSendMessage,
   isSending,
   notice,
+  onRetry,
   language,
 }: {
   agentMessages: AgentMessage[];
@@ -29,6 +30,8 @@ export default function ChatPanel({
   onSendMessage: (e: React.FormEvent) => void;
   isSending?: boolean;
   notice?: string | null;
+  /** Shown next to a failed-turn notice so the user can resend without retyping. */
+  onRetry?: () => void;
   language?: string | null;
 }) {
   const { t } = useI18n();
@@ -66,7 +69,21 @@ export default function ChatPanel({
         <div ref={chatEndRef} />
       </div>
 
-      {notice && <p className="text-xs text-amber-700 mb-2">{notice}</p>}
+      {notice && (
+        <div className="flex items-center gap-2 mb-2">
+          <p className="text-xs text-amber-700 flex-1">{notice}</p>
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              disabled={isSending}
+              className="shrink-0 text-xs font-medium text-primary hover:text-primary-dark disabled:opacity-60 px-2 py-1 rounded-lg bg-primary/10"
+            >
+              {t("notice.retry")}
+            </button>
+          )}
+        </div>
+      )}
 
       <form onSubmit={onSendMessage} className="flex gap-2">
         <input

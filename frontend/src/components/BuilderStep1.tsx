@@ -1,5 +1,12 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useI18n } from "../i18n/useI18n";
+import { useI18n, type TranslationKey } from "../i18n/useI18n";
+import { useRotatingHint } from "../hooks/useRotatingHint";
+
+const PARSE_HINTS: readonly TranslationKey[] = [
+  "step1.hint.reading",
+  "step1.hint.structuring",
+  "step1.hint.activities",
+];
 
 export default function BuilderStep1({
   rawText,
@@ -22,6 +29,8 @@ export default function BuilderStep1({
   onContinueWithoutReprocessing: () => void;
 }) {
   const { t } = useI18n();
+  const waitHint = useRotatingHint(isProcessing, PARSE_HINTS);
+
   return (
     <div className="animate-fade-in">
       <h2 className="text-2xl font-bold mb-4">{t("step1.heading")}</h2>
@@ -56,6 +65,7 @@ export default function BuilderStep1({
         <button
           onClick={onSubmit}
           disabled={isProcessing}
+          aria-busy={isProcessing}
           className="bg-primary hover:bg-primary-dark text-white px-8 py-3 rounded-xl font-medium flex items-center gap-2 flex-1 justify-center transition-colors shadow-md"
         >
           {isProcessing
@@ -66,6 +76,11 @@ export default function BuilderStep1({
           {!isProcessing && <ChevronRight size={20} />}
         </button>
       </div>
+      {waitHint && (
+        <p className="mt-3 text-sm text-ink-muted text-center animate-fade-in" aria-live="polite">
+          {t(waitHint)}
+        </p>
+      )}
     </div>
   );
 }

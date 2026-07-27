@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // firebase.ts wrapper so these stay unit tests (no network, no real app).
 vi.mock("../firebase", () => ({
   isFirebaseConfigured: true,
-  firebaseApp: { name: "test-app" },
+  getFirebaseApp: vi.fn(async () => ({ name: "test-app" })),
 }));
 
 const authState: { currentUser: { uid: string; email: string; displayName: string } | null } = {

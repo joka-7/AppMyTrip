@@ -86,6 +86,7 @@ export default function AppFrame({
   chatEndRef,
   isSendingMessage,
   chatNotice,
+  onRetryChat,
   onUpdateActivity,
   onAddActivity,
   onDeleteActivity,
@@ -103,6 +104,7 @@ export default function AppFrame({
   chatEndRef: RefObject<HTMLDivElement>;
   isSendingMessage?: boolean;
   chatNotice?: string | null;
+  onRetryChat?: () => void;
   onUpdateActivity: (dayIndex: number, activityId: string, patch: Partial<Activity>) => void;
   onAddActivity?: (dayIndex: number, activity: Activity) => void;
   onDeleteActivity?: (dayIndex: number, activityId: string) => void;
@@ -346,10 +348,13 @@ export default function AppFrame({
               <ChevronRight size={18} />
             </button>
           )}
-          <div ref={tabsRef} className="flex gap-2 overflow-x-auto hide-scrollbar">
+          <div ref={tabsRef} role="tablist" className="flex gap-2 overflow-x-auto hide-scrollbar">
             {days.map((d, idx) => (
               <button
                 key={idx}
+                role="tab"
+                aria-selected={safeDayIdx === idx}
+                aria-label={t("appFrame.day", { num: d.dayNum })}
                 onClick={() => {
                   setActiveDay(idx);
                   setFocusActivityId(null);
@@ -450,6 +455,7 @@ export default function AppFrame({
               onSendMessage={onSendMessage}
               isSending={isSendingMessage}
               notice={chatNotice}
+              onRetry={onRetryChat}
               language={tripData.language}
             />
           </div>
@@ -471,9 +477,11 @@ export default function AppFrame({
             <button
               key={id}
               onClick={() => setActiveTab(id)}
+              aria-current={activeTab === id ? "page" : undefined}
+              aria-label={t(labelKey)}
               className={`flex flex-col items-center gap-1 ${activeTab === id ? "text-secondary-dark" : "text-ink-muted"}`}
             >
-              <Icon size={20} />
+              <Icon size={20} aria-hidden />
               <span className={density.navLabel}>{t(labelKey)}</span>
             </button>
           ))}
