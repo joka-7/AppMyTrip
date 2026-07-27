@@ -10,7 +10,12 @@ export default defineConfig({
     baseURL: "http://localhost:5173",
     trace: "on-first-retry",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    // Catch layout/overflow regressions that only show up on a phone-sized
+    // viewport — the app's primary surface for shared-trip links.
+    { name: "mobile-chrome", use: { ...devices["Pixel 5"] } },
+  ],
   webServer: {
     command: "npm run dev -- --port 5173 --strictPort",
     url: "http://localhost:5173",
