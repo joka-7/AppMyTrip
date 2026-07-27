@@ -258,6 +258,8 @@ export const en: Record<TranslationKey, string> = {
   "cloud.deleteConfirmAria": "Confirm delete trip {name}",
   "cloud.deleteConfirm": "Delete?",
   "cloud.export": "Export",
+  "cloud.exportIcs": "Export calendar",
+  "cloud.print": "Print",
   "cloud.import": "Import",
   "cloud.signingIn": "Signing in...",
   "cloud.signIn": "Sign in with Google",
@@ -291,6 +293,8 @@ export const en: Record<TranslationKey, string> = {
   "sharedPage.settingsAria": "Trip settings",
   "sharedPage.myTripsAria": "Go to My Trips",
   "sharedPage.export": "Export to file",
+  "sharedPage.exportIcs": "Export calendar (.ics)",
+  "sharedPage.print": "Print itinerary",
   "sharedPage.import": "Import from file",
   "sharedPage.saving": "Saving...",
   "sharedPage.saveToAccount": "Save to my account",
@@ -321,6 +325,10 @@ export const en: Record<TranslationKey, string> = {
   "podcastPlayer.noTTS": "This browser doesn't support text-to-speech.",
   "podcastPlayer.ttsFailed":
     "Reading the podcast aloud failed. This browser may not have a suitable voice.",
+
+  // Builder draft recovery (localStorage)
+  "draft.recoverPrompt": "A saved draft from last time was found — restore it?",
+  "draft.restore": "Restore draft",
 
   // Language indicator (agent reply language)
   "languageIndicator.explainer":

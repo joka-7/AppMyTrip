@@ -1,10 +1,22 @@
 import { useCallback, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { Download, Home, Save, Settings, Share2, Upload, UserCog, UserPlus } from "lucide-react";
+import {
+  Download,
+  Home,
+  Printer,
+  Save,
+  Settings,
+  Share2,
+  Upload,
+  UserCog,
+  UserPlus,
+  Calendar,
+} from "lucide-react";
 import type { Activity, TripData } from "../api";
 import { useDismissable } from "../hooks/useDismissable";
 import { useI18n } from "../i18n/useI18n";
 import type { AppDesign } from "../services/appDesign";
+import { exportTripToIcs } from "../services/icsExport";
 import { exportTripToFile, importTripFromFile } from "../services/tripFile";
 import { getCurrentSession, saveTrip, shareTrip, signInWithGoogle } from "../services/tripsStore";
 import { useTripBranding } from "../hooks/useTripBranding";
@@ -183,12 +195,15 @@ export default function SharedAppPage({
   };
 
   return (
-    <div className="h-dvh overflow-hidden bg-surface-container flex justify-center" dir={dir}>
+    <div
+      className="h-dvh overflow-hidden bg-surface-container flex justify-center print:h-auto print:overflow-visible print:bg-white"
+      dir={dir}
+    >
       {/* max-w-md only kicks in from the "sm" breakpoint up — on an actual
           phone (which is what this view is really for) it should fill the
           whole screen; the phone-frame look is purely a desktop preview. */}
-      <div className="w-full sm:max-w-md h-dvh bg-surface shadow-2xl flex flex-col overflow-hidden">
-        <div className="shrink-0 flex items-center justify-end gap-2 p-2 bg-white border-b border-outline/20">
+      <div className="w-full sm:max-w-md h-dvh bg-surface shadow-2xl flex flex-col overflow-hidden print:max-w-none print:h-auto print:shadow-none print:overflow-visible">
+        <div className="no-print shrink-0 flex items-center justify-end gap-2 p-2 bg-white border-b border-outline/20">
           <a
             href={homeHref}
             aria-label={t("sharedPage.myTripsAria")}
@@ -222,6 +237,20 @@ export default function SharedAppPage({
                 >
                   <Download size={14} />
                   {t("sharedPage.export")}
+                </button>
+                <button
+                  onClick={() => exportTripToIcs(tripData)}
+                  className="flex items-center gap-1.5 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg"
+                >
+                  <Calendar size={14} />
+                  {t("sharedPage.exportIcs")}
+                </button>
+                <button
+                  onClick={() => window.print()}
+                  className="flex items-center gap-1.5 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg"
+                >
+                  <Printer size={14} />
+                  {t("sharedPage.print")}
                 </button>
                 <button
                   onClick={() => fileInputRef.current?.click()}

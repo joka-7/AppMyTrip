@@ -254,6 +254,8 @@ export const he = {
   "cloud.deleteConfirmAria": "אישור מחיקת הטיול {name}",
   "cloud.deleteConfirm": "למחוק?",
   "cloud.export": "ייצוא",
+  "cloud.exportIcs": "ייצוא ליומן",
+  "cloud.print": "הדפסה",
   "cloud.import": "ייבוא",
   "cloud.signingIn": "מתחבר...",
   "cloud.signIn": "התחברות עם Google",
@@ -287,6 +289,8 @@ export const he = {
   "sharedPage.settingsAria": "הגדרות הטיול",
   "sharedPage.myTripsAria": "מעבר לטיולים שלי",
   "sharedPage.export": "ייצוא לקובץ",
+  "sharedPage.exportIcs": "ייצוא ליומן (.ics)",
+  "sharedPage.print": "הדפסת הלו״ז",
   "sharedPage.import": "ייבוא מקובץ",
   "sharedPage.saving": "שומר...",
   "sharedPage.saveToAccount": "שמירה לחשבון שלי",
@@ -316,6 +320,10 @@ export const he = {
   // Podcast (browser TTS) errors
   "podcastPlayer.noTTS": "הדפדפן הזה לא תומך בהקראת טקסט.",
   "podcastPlayer.ttsFailed": "הקראת הפודקאסט נכשלה. ייתכן שלדפדפן הזה אין קול מתאים.",
+
+  // Builder draft recovery (localStorage)
+  "draft.recoverPrompt": "נמצאה טיוטה שמורה מהפעם הקודמת — לשחזר אותה?",
+  "draft.restore": "שחזור טיוטה",
 
   // Language indicator (agent reply language)
   "languageIndicator.explainer":

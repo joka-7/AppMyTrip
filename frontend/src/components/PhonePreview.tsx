@@ -36,7 +36,7 @@ export default function PhonePreview({
   onUpdateTrip: (patch: Partial<Pick<TripData, "title" | "dates">>) => void;
 }) {
   return (
-    <div className="w-[350px] h-[700px] border-[12px] border-ink rounded-[2.5rem] overflow-hidden flex flex-col bg-surface shadow-2xl relative mx-auto">
+    <div className="w-[350px] h-[700px] border-[12px] border-ink rounded-[2.5rem] overflow-hidden flex flex-col bg-surface shadow-2xl relative mx-auto print:w-full print:h-auto print:border-0 print:rounded-none print:shadow-none print:overflow-visible">
       <AppFrame
         tripData={tripData}
         appDesign={appDesign}

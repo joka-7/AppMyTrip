@@ -228,7 +228,7 @@ export default function AppFrame({
   const useCustomHeader = Boolean(headerStyle);
 
   return (
-    <div className={`w-full h-full flex flex-col ${fontClass}`}>
+    <div className={`w-full h-full flex flex-col ${fontClass} print:h-auto`}>
       <div
         className={`${useCustomHeader ? "" : themeClass} shrink-0 text-white pt-10 pb-4 px-6 shadow-md transition-colors duration-300 relative`}
         style={headerStyle}
@@ -332,13 +332,13 @@ export default function AppFrame({
       )}
 
       {isLocalOnly && hasTrip && (
-        <p className="shrink-0 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs text-center py-1.5 px-3">
+        <p className="no-print shrink-0 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs text-center py-1.5 px-3">
           {localOnlyNoticeText ?? t("appFrame.localOnlyNotice")}
         </p>
       )}
 
       {hasTrip && (
-        <div className="shrink-0 flex items-center gap-2 bg-white border-b border-outline/40 px-3 py-2.5">
+        <div className="no-print shrink-0 flex items-center gap-2 bg-white border-b border-outline/40 px-3 py-2.5">
           {days.length > SCROLL_ARROW_THRESHOLD && (
             <button
               onClick={() => scrollTabs(-1)}
@@ -388,7 +388,9 @@ export default function AppFrame({
         </div>
       )}
 
-      <div className={`flex-1 overflow-y-auto ${density.contentPad} ${bgClass} pb-24`}>
+      <div
+        className={`flex-1 overflow-y-auto ${density.contentPad} ${bgClass} pb-24 print:overflow-visible print:pb-0 print:bg-white`}
+      >
         {!hasTrip && (
           <div className="h-full flex flex-col items-center justify-center text-center text-ink-muted gap-3 px-6">
             <Smartphone size={40} className="opacity-40" />
@@ -396,28 +398,56 @@ export default function AppFrame({
           </div>
         )}
 
-        {hasTrip && activeTab === "itinerary" && appDesign.visibleTabs.itinerary && (
-          <ItineraryList
-            activities={day.activities}
-            themeClass={themeClass}
-            accentColor={accentColor}
-            playingPodcast={playingPodcast}
-            onPlayPodcast={togglePlay}
-            onUpdateActivity={handleUpdateActivity}
-            onAddActivity={onAddActivity ? handleAddActivity : undefined}
-            onDeleteActivity={onDeleteActivity ? handleDeleteActivity : undefined}
-            onShowOnMap={appDesign.visibleTabs.map ? handleShowOnMap : undefined}
-            isLocalOnly={isLocalOnly}
-            currency={currency}
-            cardPad={density.cardPad}
-            cardLayout={appDesign.cardLayout}
-            cornerStyle={appDesign.cornerStyle}
-            showPodcasts={appDesign.showPodcasts}
-          />
+        {/* One list per day: inactive days stay display:none on screen (so
+            Testing Library / a11y tree only see the active day) and are forced
+            visible again by the print stylesheet so the full itinerary prints. */}
+        {hasTrip && appDesign.visibleTabs.itinerary && (
+          <div
+            className={activeTab === "itinerary" ? "space-y-8" : "space-y-8 print-only-block"}
+            style={activeTab === "itinerary" ? undefined : { display: "none" }}
+          >
+            {days.map((d, idx) => (
+              <section
+                key={d.dayNum}
+                className="break-inside-avoid print-day"
+                style={idx === safeDayIdx ? undefined : { display: "none" }}
+              >
+                <h2
+                  className="text-lg font-bold mb-3"
+                  style={idx === safeDayIdx ? { display: "none" } : undefined}
+                >
+                  {t("appFrame.day", { num: d.dayNum })}
+                </h2>
+                <ItineraryList
+                  activities={d.activities}
+                  themeClass={themeClass}
+                  accentColor={accentColor}
+                  playingPodcast={idx === safeDayIdx ? playingPodcast : null}
+                  onPlayPodcast={togglePlay}
+                  onUpdateActivity={idx === safeDayIdx ? handleUpdateActivity : () => {}}
+                  onAddActivity={
+                    idx === safeDayIdx && onAddActivity ? handleAddActivity : undefined
+                  }
+                  onDeleteActivity={
+                    idx === safeDayIdx && onDeleteActivity ? handleDeleteActivity : undefined
+                  }
+                  onShowOnMap={
+                    idx === safeDayIdx && appDesign.visibleTabs.map ? handleShowOnMap : undefined
+                  }
+                  isLocalOnly={isLocalOnly}
+                  currency={currency}
+                  cardPad={density.cardPad}
+                  cardLayout={appDesign.cardLayout}
+                  cornerStyle={appDesign.cornerStyle}
+                  showPodcasts={appDesign.showPodcasts}
+                />
+              </section>
+            ))}
+          </div>
         )}
 
         {hasTrip && activeTab === "map" && appDesign.visibleTabs.map && (
-          <div className="h-full w-full animate-fade-in">
+          <div className="h-full w-full animate-fade-in print:hidden">
             <Suspense
               fallback={
                 <div className="h-full flex items-center justify-center text-ink-muted text-sm">
@@ -440,13 +470,13 @@ export default function AppFrame({
         )}
 
         {hasTrip && activeTab === "price" && appDesign.visibleTabs.price && (
-          <div className="h-full animate-fade-in">
+          <div className="h-full animate-fade-in print:hidden">
             <PriceSummary tripData={tripData} currency={currency} />
           </div>
         )}
 
         {hasTrip && activeTab === "chat" && appDesign.visibleTabs.chat && (
-          <div className="h-full animate-fade-in">
+          <div className="h-full animate-fade-in print:hidden">
             <ChatPanel
               agentMessages={agentMessages}
               chatEndRef={chatEndRef}
@@ -463,16 +493,18 @@ export default function AppFrame({
       </div>
 
       {playingPodcast && (
-        <PodcastPlayer
-          activity={playingPodcast}
-          progress={progress}
-          error={podcastError}
-          onClose={stop}
-        />
+        <div className="no-print">
+          <PodcastPlayer
+            activity={playingPodcast}
+            progress={progress}
+            error={podcastError}
+            onClose={stop}
+          />
+        </div>
       )}
 
       {visibleNavTabs.length > 0 && (
-        <div className="shrink-0 bg-white border-t border-outline/40 flex justify-around p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 relative shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <div className="no-print shrink-0 bg-white border-t border-outline/40 flex justify-around p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 relative shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
           {visibleNavTabs.map(({ id, icon: Icon, labelKey }) => (
             <button
               key={id}

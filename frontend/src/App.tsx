@@ -11,6 +11,13 @@ import InstallAppButton from "./components/InstallAppButton";
 import ProgressBar from "./components/ProgressBar";
 import { DEFAULT_APP_DESIGN, type AppDesign } from "./services/appDesign";
 import { getApiKeys, getApiProvider, getAllCredentials } from "./services/apiKey";
+import {
+  clearDraft,
+  isRecoverableDraft,
+  loadDraft,
+  saveDraft,
+  type BuilderDraft,
+} from "./services/draftStore";
 import { tripStartWeekdayIndex } from "./services/hebrewDate";
 import { normalizeTripForLoad } from "./services/normalizeTrip";
 import {
@@ -313,6 +320,14 @@ function TripBuilder() {
   const [previewOpen, setPreviewOpen] = useState(false);
 
   const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([]);
+  // Offer to restore a mid-build draft after a refresh — only set once on mount.
+  const [pendingDraft, setPendingDraft] = useState<BuilderDraft | null>(() => {
+    const draft = loadDraft();
+    return isRecoverableDraft(draft) ? draft : null;
+  });
+  // Skip the first autosave tick so mounting with an empty builder does not
+  // overwrite a recoverable draft before the user chooses Restore / Discard.
+  const draftReadyRef = useRef(!pendingDraft);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -378,6 +393,46 @@ function TripBuilder() {
   // way (a failed "nice to have" pass shouldn't block editing), but losing
   // the chosen extras with no easy way back was worse than necessary.
   const [failedEnhanceOptions, setFailedEnhanceOptions] = useState<EnhanceOptions | null>(null);
+
+  const applyDraft = (draft: BuilderDraft) => {
+    rawTextTouchedRef.current = draft.rawTextTouched;
+    setRawText(draft.rawText);
+    setPreferences(draft.preferences);
+    setTripData(draft.tripData);
+    setAppDesign(draft.appDesign);
+    setTripId(draft.tripId);
+    setAgentMessages(draft.agentMessages);
+    setEnhanceOptions(draft.enhanceOptions);
+    setStep(draft.step);
+    window.history.replaceState({ appStep: draft.step }, "");
+    draftReadyRef.current = true;
+    setPendingDraft(null);
+  };
+
+  const discardDraft = () => {
+    clearDraft();
+    draftReadyRef.current = true;
+    setPendingDraft(null);
+  };
+
+  // Debounced local draft so a refresh mid-build can offer recovery.
+  useEffect(() => {
+    if (!draftReadyRef.current) return;
+    const timer = window.setTimeout(() => {
+      saveDraft({
+        step,
+        rawText,
+        rawTextTouched: rawTextTouchedRef.current,
+        preferences,
+        tripData,
+        appDesign,
+        tripId,
+        agentMessages,
+        enhanceOptions,
+      });
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [step, rawText, preferences, tripData, appDesign, tripId, agentMessages, enhanceOptions]);
 
   const handleEnhance = async (options: EnhanceOptions) => {
     setEnhanceOptions(options);
@@ -542,7 +597,7 @@ function TripBuilder() {
   return (
     <div className="min-h-screen bg-surface font-sans" dir={dir}>
       {/* Top Navbar */}
-      <nav className="bg-white shadow-card border-b border-outline/20 px-4 sm:px-6 py-4 flex flex-wrap justify-between items-center gap-3 sticky top-0 z-30">
+      <nav className="no-print bg-white shadow-card border-b border-outline/20 px-4 sm:px-6 py-4 flex flex-wrap justify-between items-center gap-3 sticky top-0 z-30">
         <div className="flex items-center gap-2">
           <AppLogo />
           <h1 className="text-lg sm:text-xl font-bold text-ink">{t("nav.title")}</h1>
@@ -594,6 +649,15 @@ function TripBuilder() {
         </div>
       </nav>
 
+      {pendingDraft && (
+        <ApiNotice
+          message={t("draft.recoverPrompt")}
+          onDismiss={discardDraft}
+          actionLabel={t("draft.restore")}
+          onAction={() => applyDraft(pendingDraft)}
+        />
+      )}
+
       <ApiNotice
         message={apiNotice}
         onDismiss={() => {
@@ -604,9 +668,9 @@ function TripBuilder() {
         onAction={failedEnhanceOptions ? () => handleEnhance(failedEnhanceOptions) : undefined}
       />
 
-      <div className="max-w-7xl mx-auto p-6 flex flex-col lg:flex-row gap-8">
+      <div className="max-w-7xl mx-auto p-6 flex flex-col lg:flex-row gap-8 print:block print:max-w-none print:p-0">
         {/* Left Side: Builder Interface */}
-        <div className="flex-1 bg-white rounded-2xl shadow-card border border-outline/20 p-8 flex flex-col">
+        <div className="no-print flex-1 bg-white rounded-2xl shadow-card border border-outline/20 p-8 flex flex-col">
           <ProgressBar step={step} />
 
           {/* Dynamic Content based on Step */}
@@ -671,8 +735,8 @@ function TripBuilder() {
         </div>
 
         {/* Right Side: App Live Preview */}
-        <div className="flex-1 flex justify-center items-center bg-surface-container rounded-2xl border border-outline/20 py-10 relative overflow-hidden">
-          <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-4 py-1.5 rounded-full text-xs font-bold text-ink-muted uppercase tracking-wider shadow-sm z-10 flex items-center gap-2 border border-outline/20">
+        <div className="flex-1 flex justify-center items-center bg-surface-container rounded-2xl border border-outline/20 py-10 relative overflow-hidden print:bg-white print:border-0 print:rounded-none print:py-0 print:shadow-none print:block">
+          <div className="no-print absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-4 py-1.5 rounded-full text-xs font-bold text-ink-muted uppercase tracking-wider shadow-sm z-10 flex items-center gap-2 border border-outline/20">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
             Live Preview
           </div>
