@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Cloud, Download, LogIn, LogOut, Save, Share2, FolderOpen, Upload, X } from "lucide-react";
 import type { TripData } from "../api";
+import { useDismissable } from "../hooks/useDismissable";
 import { useI18n, type TranslationKey } from "../i18n/useI18n";
 import { exportTripToFile, importTripFromFile } from "../services/tripFile";
 import LinkDisplay from "./LinkDisplay";
@@ -79,8 +80,14 @@ export default function CloudMenu({
   const [uid, setUid] = useState<string | null>(null);
   const [trips, setTrips] = useState<CloudTripSummary[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const closeMenu = useCallback(() => {
+    setIsOpen(false);
+    setConfirmDeleteId(null);
+  }, []);
+  const menuRef = useDismissable(isOpen, closeMenu);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [shareDays, setShareDays] = useState(0);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [saveStage, setSaveStage] = useState<TripStage>(() => stageForStep(currentStep));
@@ -245,7 +252,15 @@ export default function CloudMenu({
 
   const handleDelete = async (trip: CloudTripSummary) => {
     if (!uid) return;
+    // Two-step confirm: first click arms the button, second click deletes.
+    // Accidental hover-clicks used to wipe both the private trip and its
+    // public share link with no undo.
+    if (confirmDeleteId !== trip.id) {
+      setConfirmDeleteId(trip.id);
+      return;
+    }
     setBusy(true);
+    setConfirmDeleteId(null);
     try {
       await deleteTrip(uid, trip.id);
       // Best-effort: also revoke any public share link so it doesn't outlive the trip.
@@ -305,9 +320,11 @@ export default function CloudMenu({
   return (
     <div className="flex items-center gap-2">
       {fileImportControls}
-      <div className="relative">
+      <div className="relative" ref={menuRef}>
         <button
           onClick={() => setIsOpen((v) => !v)}
+          aria-expanded={isOpen}
+          aria-haspopup="menu"
           className="flex items-center gap-2 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-full transition-colors"
         >
           <Cloud size={16} />
@@ -315,7 +332,10 @@ export default function CloudMenu({
         </button>
 
         {isOpen && (
-          <div className="absolute end-0 mt-2 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-lg border border-outline/20 p-4 z-40 text-start">
+          <div
+            role="menu"
+            className="absolute end-0 mt-2 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-lg border border-outline/20 p-4 z-40 text-start"
+          >
             {notice && <p className="text-xs text-amber-700 mb-2">{notice}</p>}
             {shareUrl && (
               <div className="mb-3">
@@ -404,9 +424,18 @@ export default function CloudMenu({
                   <button
                     onClick={() => handleDelete(trip)}
                     disabled={busy}
-                    className="opacity-0 group-hover:opacity-100 text-ink-muted hover:text-red-500 p-1"
+                    aria-label={
+                      confirmDeleteId === trip.id
+                        ? t("cloud.deleteConfirmAria", { name: trip.name })
+                        : t("cloud.deleteAria", { name: trip.name })
+                    }
+                    className={`p-1 ${
+                      confirmDeleteId === trip.id
+                        ? "opacity-100 text-red-600 font-semibold text-[10px] px-1.5"
+                        : "opacity-0 group-hover:opacity-100 focus:opacity-100 text-ink-muted hover:text-red-500"
+                    }`}
                   >
-                    <X size={14} />
+                    {confirmDeleteId === trip.id ? t("cloud.deleteConfirm") : <X size={14} />}
                   </button>
                 </li>
               ))}

@@ -12,6 +12,8 @@ export default function BuilderStep3({
   onChangeChatInput,
   onSendMessage,
   isSendingMessage,
+  chatNotice,
+  onRetryChat,
   onContinue,
   onBack,
   isGeneratingMedia,
@@ -25,6 +27,8 @@ export default function BuilderStep3({
   onChangeChatInput: (text: string) => void;
   onSendMessage: (e: React.FormEvent) => void;
   isSendingMessage?: boolean;
+  chatNotice?: string | null;
+  onRetryChat?: () => void;
   onContinue: () => void;
   onBack: () => void;
   isGeneratingMedia: boolean;
@@ -57,6 +61,8 @@ export default function BuilderStep3({
           onChangeChatInput={onChangeChatInput}
           onSendMessage={onSendMessage}
           isSending={isSendingMessage}
+          notice={chatNotice}
+          onRetry={onRetryChat}
           language={language}
         />
       </div>

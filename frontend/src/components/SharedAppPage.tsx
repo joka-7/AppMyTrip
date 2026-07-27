@@ -1,7 +1,8 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { Download, Home, Save, Settings, Share2, Upload, UserCog, UserPlus } from "lucide-react";
 import type { Activity, TripData } from "../api";
+import { useDismissable } from "../hooks/useDismissable";
 import { useI18n } from "../i18n/useI18n";
 import type { AppDesign } from "../services/appDesign";
 import { exportTripToFile, importTripFromFile } from "../services/tripFile";
@@ -35,6 +36,7 @@ export default function SharedAppPage({
   chatEndRef,
   isSendingMessage,
   chatNotice,
+  onRetryChat,
   onUpdateActivity,
   onAddActivity,
   onDeleteActivity,
@@ -55,6 +57,7 @@ export default function SharedAppPage({
   chatEndRef: RefObject<HTMLDivElement>;
   isSendingMessage?: boolean;
   chatNotice?: string | null;
+  onRetryChat?: () => void;
   onUpdateActivity: (dayIndex: number, activityId: string, patch: Partial<Activity>) => void;
   onAddActivity: (dayIndex: number, activity: Activity) => void;
   onDeleteActivity?: (dayIndex: number, activityId: string) => void;
@@ -69,6 +72,8 @@ export default function SharedAppPage({
   const { t, dir } = useI18n();
   useTripBranding(appDesign, tripData.title);
   const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  const menuRef = useDismissable(menuOpen, closeMenu);
   const [saveStatus, setSaveStatus] = useState<"idle" | "working" | "done" | "error">("idle");
   const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -194,10 +199,12 @@ export default function SharedAppPage({
           </a>
           <ApiKeyMenu />
           <InstallAppButton />
-          <div className="relative">
+          <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen((v) => !v)}
               aria-label={t("sharedPage.settingsAria")}
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
               className="flex items-center gap-1 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg text-xs"
             >
               <Settings size={14} />
@@ -205,7 +212,10 @@ export default function SharedAppPage({
             </button>
 
             {menuOpen && (
-              <div className="absolute end-0 mt-2 w-80 max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto bg-white rounded-xl shadow-lg border border-outline/20 p-3 z-40 text-start text-xs flex flex-col gap-1.5">
+              <div
+                role="menu"
+                className="absolute end-0 mt-2 w-80 max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto bg-white rounded-xl shadow-lg border border-outline/20 p-3 z-40 text-start text-xs flex flex-col gap-1.5"
+              >
                 <button
                   onClick={() => exportTripToFile(tripData, appDesign)}
                   className="flex items-center gap-1.5 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg"
@@ -351,6 +361,7 @@ export default function SharedAppPage({
             chatEndRef={chatEndRef}
             isSendingMessage={isSendingMessage}
             chatNotice={chatNotice}
+            onRetryChat={onRetryChat}
             onUpdateActivity={onUpdateActivity}
             onAddActivity={onAddActivity}
             onDeleteActivity={onDeleteActivity}

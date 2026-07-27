@@ -293,6 +293,10 @@ function TripBuilder() {
   const [chatInput, setChatInput] = useState("");
   // Set when a backend call fails and we fall back to local mock behaviour.
   const [apiNotice, setApiNotice] = useState<string | null>(null);
+  // Chat-turn failures stay in the chat panel (with a Retry button) rather than
+  // competing with the top ApiNotice used for parse/enhance/media.
+  const [chatNotice, setChatNotice] = useState<string | null>(null);
+  const [failedChatText, setFailedChatText] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Starts empty; populated by /api/trip/parse (or DEMO_TRIP on fallback).
@@ -399,14 +403,13 @@ function TripBuilder() {
     }
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim()) return;
+  const sendChatMessage = async (userText: string) => {
+    if (!userText.trim()) return;
 
-    const userText = chatInput;
     const priorTrip = tripData;
     setAgentMessages((prev) => [...prev, { role: "user", text: userText }]);
     setChatInput("");
+    setChatNotice(null);
     setIsSendingMessage(true);
 
     try {
@@ -425,6 +428,7 @@ function TripBuilder() {
       // can never clobber an edit made while it was in flight.
       setTripData(normalizeTripForLoad(res.trip_data));
       setAgentMessages((prev) => [...prev, { role: "agent", text: res.agent_reply }]);
+      setFailedChatText(null);
 
       const newActivities = findNewActivities(priorTrip, res.trip_data);
       if (newActivities.length > 0) {
@@ -440,12 +444,23 @@ function TripBuilder() {
     } catch (err) {
       console.error(err);
       const message = describeApiError(err, t("notice.updateFailed"));
-      setApiNotice(message);
+      setChatNotice(message);
+      setFailedChatText(userText);
       setFailedEnhanceOptions(null);
       setAgentMessages((prev) => [...prev, { role: "agent", text: message }]);
     } finally {
       setIsSendingMessage(false);
     }
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await sendChatMessage(chatInput);
+  };
+
+  const handleRetryChat = async () => {
+    if (!failedChatText) return;
+    await sendChatMessage(failedChatText);
   };
 
   const handleUpdateActivity = (dayIndex: number, activityId: string, patch: Partial<Activity>) => {
@@ -626,6 +641,8 @@ function TripBuilder() {
                   onChangeChatInput={setChatInput}
                   onSendMessage={handleSendMessage}
                   isSendingMessage={isSendingMessage}
+                  chatNotice={chatNotice}
+                  onRetryChat={failedChatText ? handleRetryChat : undefined}
                   onContinue={handleContinueToDesign}
                   onBack={() => goToStep(2)}
                   isGeneratingMedia={isGeneratingMedia}
@@ -673,6 +690,8 @@ function TripBuilder() {
               onSendMessage={handleSendMessage}
               chatEndRef={chatEndRef}
               isSendingMessage={isSendingMessage}
+              chatNotice={chatNotice}
+              onRetryChat={failedChatText ? handleRetryChat : undefined}
               onUpdateActivity={handleUpdateActivity}
               onAddActivity={handleAddActivity}
               onDeleteActivity={handleDeleteActivity}
@@ -708,6 +727,8 @@ function TripBuilder() {
                   onSendMessage={handleSendMessage}
                   chatEndRef={chatEndRef}
                   isSendingMessage={isSendingMessage}
+                  chatNotice={chatNotice}
+                  onRetryChat={failedChatText ? handleRetryChat : undefined}
                   onUpdateActivity={handleUpdateActivity}
                   onAddActivity={handleAddActivity}
                   onDeleteActivity={handleDeleteActivity}
@@ -740,6 +761,7 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
   const [chatInput, setChatInput] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [chatNotice, setChatNotice] = useState<string | null>(null);
+  const [failedChatText, setFailedChatText] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [session, setSession] = useState<CloudSession | null>(getCurrentSession());
   const [adminEmails, setAdminEmails] = useState<string[]>([]);
@@ -796,11 +818,9 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
     return shareTrip(currentSession.uid, newTripId, trip, appDesign);
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim() || !trip) return;
+  const sendChatMessage = async (userText: string) => {
+    if (!userText.trim() || !trip) return;
 
-    const userText = chatInput;
     const priorTrip = trip;
     setAgentMessages((prev) => [...prev, { role: "user", text: userText }]);
     setChatInput("");
@@ -821,6 +841,7 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
       // separate, non-blocking step below.
       setTrip(normalizeTripForLoad(res.trip_data));
       setAgentMessages((prev) => [...prev, { role: "agent", text: res.agent_reply }]);
+      setFailedChatText(null);
 
       const newActivities = findNewActivities(priorTrip, res.trip_data);
       if (newActivities.length > 0) {
@@ -841,9 +862,20 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
     } catch (err) {
       console.error(err);
       setChatNotice(describeApiError(err, t("notice.updateFailed")));
+      setFailedChatText(userText);
     } finally {
       setIsSendingMessage(false);
     }
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await sendChatMessage(chatInput);
+  };
+
+  const handleRetryChat = async () => {
+    if (!failedChatText) return;
+    await sendChatMessage(failedChatText);
   };
 
   const handleUpdateActivity = (dayIndex: number, activityId: string, patch: Partial<Activity>) => {
@@ -941,6 +973,7 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
         chatEndRef={chatEndRef}
         isSendingMessage={isSendingMessage}
         chatNotice={chatNotice}
+        onRetryChat={failedChatText ? handleRetryChat : undefined}
         onUpdateActivity={handleUpdateActivity}
         onAddActivity={handleAddActivity}
         onDeleteActivity={handleDeleteActivity}

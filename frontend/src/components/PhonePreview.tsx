@@ -14,6 +14,7 @@ export default function PhonePreview({
   chatEndRef,
   isSendingMessage,
   chatNotice,
+  onRetryChat,
   onUpdateActivity,
   onAddActivity,
   onDeleteActivity,
@@ -28,6 +29,7 @@ export default function PhonePreview({
   chatEndRef: RefObject<HTMLDivElement>;
   isSendingMessage?: boolean;
   chatNotice?: string | null;
+  onRetryChat?: () => void;
   onUpdateActivity: (dayIndex: number, activityId: string, patch: Partial<Activity>) => void;
   onAddActivity: (dayIndex: number, activity: Activity) => void;
   onDeleteActivity?: (dayIndex: number, activityId: string) => void;
@@ -45,6 +47,7 @@ export default function PhonePreview({
         chatEndRef={chatEndRef}
         isSendingMessage={isSendingMessage}
         chatNotice={chatNotice}
+        onRetryChat={onRetryChat}
         onUpdateActivity={onUpdateActivity}
         onAddActivity={onAddActivity}
         onDeleteActivity={onDeleteActivity}

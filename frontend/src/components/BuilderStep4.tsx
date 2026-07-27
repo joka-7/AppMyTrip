@@ -321,7 +321,7 @@ export default function BuilderStep4({
                   onClick={() => patchDesign({ customAccentColor: null })}
                   className="text-xs text-ink-muted hover:text-primary px-2 py-1"
                 >
-                  {t("common.cancel")}
+                  {t("step4.accentColorReset")}
                 </button>
               </div>
             </label>
