@@ -18,7 +18,7 @@ from pydantic import ValidationError
 
 import services.tts as tts_module
 from models import Activity, AgentResponse, EnhanceOptions, ProviderCredentials, TripData, TripDay
-from routers.builder import TripBuilder
+from routers.builder import TripBuilder, _looks_truncated, _mentions_deletion
 from services.llm import (
     MAX_TOKENS_CLASSIFY,
     MAX_TOKENS_FULL_TRIP,
@@ -129,6 +129,50 @@ def test_tts_generates_url():
     url = asyncio.run(TTSService.generate_podcast_for_activity("Spanish Steps", "history"))
     assert url.startswith("https://cdn.tripweaver.ai/podcasts/")
     assert "spanish_steps" in url
+
+
+def test_slugify_gives_distinct_slugs_for_different_non_latin_titles():
+    # B5: every character of a Hebrew (or other non-Latin) title used to be
+    # stripped by _slugify, so any two such activities both collapsed to the
+    # literal slug "podcast" and the second one's synthesized audio silently
+    # overwrote the first's file on disk (TTS_PROVIDER=piper only).
+    first = tts_module._slugify("מדרגות ספרד")
+    second = tts_module._slugify("הקולוסיאום")
+    assert first != second
+    assert first.startswith("podcast_")
+    assert second.startswith("podcast_")
+
+
+def test_slugify_is_stable_for_the_same_title():
+    assert tts_module._slugify("מדרגות ספרד") == tts_module._slugify("מדרגות ספרד")
+
+
+def test_generate_media_gives_distinct_urls_for_non_latin_titles():
+    trip = _sample_trip()
+    trip.days[0].activities = [
+        Activity(
+            id="a1",
+            time="09:00",
+            title="מדרגות ספרד",
+            desc="d",
+            type="attraction",
+            hasPodcast=True,
+        ),
+        Activity(
+            id="a2",
+            time="11:00",
+            title="הקולוסיאום",
+            desc="d",
+            type="attraction",
+            hasPodcast=True,
+        ),
+    ]
+    builder = TripBuilder().load_existing_trip(trip)
+    asyncio.run(builder.generate_media())
+    urls = [act.podcast_url for act in builder.get_trip().days[0].activities]
+    assert urls[0] is not None
+    assert urls[1] is not None
+    assert urls[0] != urls[1]
 
 
 def test_generate_media_fills_podcast_urls():
@@ -682,6 +726,64 @@ def test_agent_endpoint_recognizes_deletion_keywords_in_other_languages(monkeypa
         },
     )
     assert resp.status_code == 200
+
+
+def test_mentions_deletion_matches_whole_words_only():
+    # B8: a plain substring check would fire on "removed" (contains "remove")
+    # even though it isn't the imperative "remove" the keyword list means.
+    assert _mentions_deletion("please remove the museum") is True
+    assert _mentions_deletion("I already removed my suitcase from the list") is False
+    assert _mentions_deletion("this is unrelated text") is False
+
+
+def test_agent_endpoint_still_rejects_truncation_when_deletion_word_is_only_a_substring(
+    monkeypatch,
+):
+    # The word "remove" only appears as a substring of "removed" here — the
+    # truncation guard must still fire (and reject with 409), not be fooled
+    # into thinking this was an intentional bulk-delete request.
+    collapsed = _multi_day_trip(1)
+    collapsed.days[0].dayNum = 9
+    monkeypatch.setattr(
+        LLMService,
+        "agent_interaction",
+        AsyncMock(return_value=AgentResponse(updated_trip=collapsed, agent_reply="עדכנתי")),
+    )
+    resp = client.post(
+        "/api/trip/agent",
+        json={
+            "trip_data": _multi_day_trip(9).model_dump(),
+            "user_message": "I already removed my suitcase from the list, don't touch the trip",
+        },
+    )
+    assert resp.status_code == 409
+
+
+def test_mentions_deletion_handles_combining_marks_in_arabic_and_hindi_keywords():
+    # These keywords end in a Unicode combining mark (an Arabic diacritic /
+    # Hindi vowel sign) that Python's `\b` doesn't treat as a word character —
+    # a naive `\bKEYWORD\b` regex would never match them even when correctly
+    # space-delimited in real text.
+    assert _mentions_deletion("من فضلك ألغِ هذا") is True
+    assert _mentions_deletion("कृपया हटाना इसे") is True
+
+
+def test_mentions_deletion_matches_cjk_keywords_without_surrounding_spaces():
+    # Chinese/Japanese/Korean don't delimit words with spaces at all, so
+    # requiring word boundaries would break normal usage — plain substring
+    # matching is intentional for these scripts.
+    assert _mentions_deletion("请删除这个活动") is True
+    assert _mentions_deletion("これを削除してください") is True
+    assert _mentions_deletion("이것을 삭제해주세요") is True
+
+
+def test_looks_truncated_ignores_deletion_word_embedded_in_unrelated_word():
+    # Direct unit-level check of the guard itself, independent of the API
+    # retry/HTTP wiring exercised above.
+    previous = _multi_day_trip(9)
+    collapsed = _multi_day_trip(1)
+    assert _looks_truncated(previous, collapsed, "I removed my suitcase already") is True
+    assert _looks_truncated(previous, collapsed, "please remove everything") is False
 
 
 def test_agent_endpoint_retries_once_before_rejecting_a_truncated_response(monkeypatch):

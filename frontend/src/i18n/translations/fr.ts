@@ -76,6 +76,7 @@ export const fr: Record<TranslationKey, string> = {
   "step4.deploying": "Déploiement...",
   "step4.deploy": "Déployer sur l'appareil ! Enregistrez et partagez le voyage",
   "step4.copied": "Copié !",
+  "step4.copyFailed": "La copie dans le presse-papiers a échoué",
   "step4.copyLink": "Copier le lien",
   "step4.openLink": "Ouvrir le lien",
   "step4.deployError":
@@ -245,6 +246,8 @@ export const fr: Record<TranslationKey, string> = {
   "cloud.saveFailed": "L'enregistrement du voyage a échoué.",
   "cloud.shareBeforeSave": "Enregistrez le voyage avant de le partager.",
   "cloud.shareCopied": "Le lien de partage a été copié dans le presse-papiers.",
+  "cloud.shareCopyFailed":
+    "Le lien de partage a été créé, mais la copie dans le presse-papiers a échoué — vous pouvez le copier manuellement ci-dessous.",
   "cloud.shareFailed": "Le partage du voyage a échoué.",
   "cloud.loadFailed": "Le chargement du voyage a échoué.",
   "cloud.deleteFailed": "La suppression du voyage a échoué.",
@@ -302,6 +305,8 @@ export const fr: Record<TranslationKey, string> = {
   "sharedPage.shareNewLink": "Partager un nouveau lien",
   "sharedPage.newLinkCopied":
     "Un nouveau lien avec vos modifications a été copié dans le presse-papiers.",
+  "sharedPage.newLinkCopyFailed":
+    "Un nouveau lien a été créé, mais la copie dans le presse-papiers a échoué — vous pouvez le copier manuellement ci-dessous.",
   "sharedPage.newLinkFailed": "La création d'un nouveau lien a échoué. Réessayez.",
 
   // Trip file import/export
@@ -339,6 +344,7 @@ export const fr: Record<TranslationKey, string> = {
     "Impossible de se connecter au serveur d'IA — un voyage d'exemple a été chargé.",
   "notice.enhanceFailed":
     "L'ajout des détails supplémentaires a échoué — nous continuons avec l'itinéraire actuel.",
+  "notice.retry": "Réessayer",
   "notice.updateFailed": "La mise à jour a échoué — l'itinéraire n'a pas changé.",
   "notice.mediaFailed":
     "La génération des médias sur le serveur a échoué — nous continuons sans fichiers audio.",

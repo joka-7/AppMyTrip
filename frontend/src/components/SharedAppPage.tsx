@@ -75,7 +75,9 @@ export default function SharedAppPage({
   const [saveChangesStatus, setSaveChangesStatus] = useState<"idle" | "working" | "done" | "error">(
     "idle",
   );
-  const [newLinkStatus, setNewLinkStatus] = useState<"idle" | "working" | "done" | "error">("idle");
+  const [newLinkStatus, setNewLinkStatus] = useState<
+    "idle" | "working" | "done" | "copy-failed" | "error"
+  >("idle");
   const [addAdminStatus, setAddAdminStatus] = useState<"idle" | "working" | "done" | "error">(
     "idle",
   );
@@ -131,9 +133,17 @@ export default function SharedAppPage({
     setNewLinkUrl(null);
     try {
       const link = await onCreateNewLink();
-      await navigator.clipboard.writeText(link).catch(() => {});
       setNewLinkUrl(link);
-      setNewLinkStatus("done");
+      // The new link was created regardless of whether the clipboard write
+      // does — LinkDisplay renders it below either way, so a clipboard
+      // failure just needs its own honest status instead of claiming success.
+      try {
+        await navigator.clipboard.writeText(link);
+        setNewLinkStatus("done");
+      } catch (clipboardErr) {
+        console.error(clipboardErr);
+        setNewLinkStatus("copy-failed");
+      }
     } catch (err) {
       console.error(err);
       setNewLinkStatus("error");
@@ -262,9 +272,17 @@ export default function SharedAppPage({
                     ? t("sharedPage.saving")
                     : t("sharedPage.shareNewLink")}
                 </button>
-                {newLinkStatus === "done" && newLinkUrl && (
+                {(newLinkStatus === "done" || newLinkStatus === "copy-failed") && newLinkUrl && (
                   <div className="flex flex-col gap-1">
-                    <p className="text-green-700 px-1">{t("sharedPage.newLinkCopied")}</p>
+                    <p
+                      className={
+                        newLinkStatus === "done" ? "text-green-700 px-1" : "text-amber-700 px-1"
+                      }
+                    >
+                      {newLinkStatus === "done"
+                        ? t("sharedPage.newLinkCopied")
+                        : t("sharedPage.newLinkCopyFailed")}
+                    </p>
                     <LinkDisplay url={newLinkUrl} />
                   </div>
                 )}

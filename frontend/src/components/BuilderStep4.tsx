@@ -11,6 +11,7 @@ import {
   Settings,
   Sparkles,
   User,
+  X,
 } from "lucide-react";
 import type { TripData } from "../api";
 import { useI18n } from "../i18n/useI18n";
@@ -82,7 +83,7 @@ export default function BuilderStep4({
   }, [lang, t]);
   const [status, setStatus] = useState<"idle" | "working" | "done" | "error">("idle");
   const [shareUrl, setShareUrl] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
   const [shareDays, setShareDays] = useState(0);
 
   const patchDesign = (patch: Partial<AppDesign>) => onChangeAppDesign(patch);
@@ -162,9 +163,17 @@ export default function BuilderStep4({
 
   const handleCopy = async () => {
     if (!shareUrl) return;
-    await navigator.clipboard.writeText(shareUrl).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    // See LinkDisplay's handleCopy for why the rejection can't just be
+    // swallowed here — the link stays visible in the readonly field above
+    // either way, so a failed copy isn't a dead end, just needs saying so.
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopyStatus("copied");
+    } catch (err) {
+      console.error(err);
+      setCopyStatus("failed");
+    }
+    setTimeout(() => setCopyStatus("idle"), 2000);
   };
 
   return (
@@ -611,8 +620,18 @@ export default function BuilderStep4({
             onClick={handleCopy}
             className="bg-primary hover:bg-primary-dark text-white px-3 py-2 rounded-lg flex items-center gap-1 text-sm font-medium transition-colors"
           >
-            {copied ? <Check size={16} /> : <Copy size={16} />}
-            {copied ? t("step4.copied") : t("step4.copyLink")}
+            {copyStatus === "copied" ? (
+              <Check size={16} />
+            ) : copyStatus === "failed" ? (
+              <X size={16} />
+            ) : (
+              <Copy size={16} />
+            )}
+            {copyStatus === "copied"
+              ? t("step4.copied")
+              : copyStatus === "failed"
+                ? t("step4.copyFailed")
+                : t("step4.copyLink")}
           </button>
           <a
             href={shareUrl}

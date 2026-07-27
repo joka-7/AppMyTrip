@@ -330,6 +330,7 @@ function TripBuilder() {
     if (!rawText.trim()) return;
     setIsProcessing(true);
     setApiNotice(null);
+    setFailedEnhanceOptions(null);
     try {
       const res = await parseTrip(
         rawText,
@@ -349,6 +350,7 @@ function TripBuilder() {
     } catch (err) {
       console.error(err);
       setApiNotice(isRateLimited(err) ? t("notice.rateLimitedDemo") : t("notice.unreachableDemo"));
+      setFailedEnhanceOptions(null);
       setTripData(normalizeTripForLoad(buildDemoTrip()));
       setAgentMessages([{ role: "agent", text: t("agent.demo") }]);
       goToStep(2);
@@ -359,6 +361,11 @@ function TripBuilder() {
 
   // Remembered so activities added later via chat can get the same Step 2 extras.
   const [enhanceOptions, setEnhanceOptions] = useState<EnhanceOptions>({});
+  // Set only when handleEnhance fails, so ApiNotice can offer a one-click
+  // retry with the same options — the wizard still moves on to step 3 either
+  // way (a failed "nice to have" pass shouldn't block editing), but losing
+  // the chosen extras with no easy way back was worse than necessary.
+  const [failedEnhanceOptions, setFailedEnhanceOptions] = useState<EnhanceOptions | null>(null);
 
   const handleEnhance = async (options: EnhanceOptions) => {
     setEnhanceOptions(options);
@@ -372,9 +379,12 @@ function TripBuilder() {
         getAllCredentials(),
       );
       setTripData(normalizeTripForLoad(res.trip_data));
+      setFailedEnhanceOptions(null);
+      setApiNotice(null);
     } catch (err) {
       console.error(err);
       setApiNotice(t("notice.enhanceFailed"));
+      setFailedEnhanceOptions(options);
     } finally {
       setIsEnhancing(false);
       goToStep(3);
@@ -423,6 +433,7 @@ function TripBuilder() {
       console.error(err);
       const message = describeApiError(err, t("notice.updateFailed"));
       setApiNotice(message);
+      setFailedEnhanceOptions(null);
       setAgentMessages((prev) => [...prev, { role: "agent", text: message }]);
     } finally {
       setIsSendingMessage(false);
@@ -498,6 +509,7 @@ function TripBuilder() {
     } catch (err) {
       console.error(err);
       setApiNotice(t("notice.mediaFailed"));
+      setFailedEnhanceOptions(null);
     } finally {
       setIsGeneratingMedia(false);
       goToStep(4);
@@ -559,7 +571,15 @@ function TripBuilder() {
         </div>
       </nav>
 
-      <ApiNotice message={apiNotice} onDismiss={() => setApiNotice(null)} />
+      <ApiNotice
+        message={apiNotice}
+        onDismiss={() => {
+          setApiNotice(null);
+          setFailedEnhanceOptions(null);
+        }}
+        actionLabel={failedEnhanceOptions ? t("notice.retry") : undefined}
+        onAction={failedEnhanceOptions ? () => handleEnhance(failedEnhanceOptions) : undefined}
+      />
 
       <div className="max-w-7xl mx-auto p-6 flex flex-col lg:flex-row gap-8">
         {/* Left Side: Builder Interface */}
