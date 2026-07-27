@@ -1,8 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Cloud, Download, LogIn, LogOut, Save, Share2, FolderOpen, Upload, X } from "lucide-react";
+import {
+  Cloud,
+  Calendar,
+  Download,
+  LogIn,
+  LogOut,
+  Printer,
+  Save,
+  Share2,
+  FolderOpen,
+  Upload,
+  X,
+} from "lucide-react";
 import type { TripData } from "../api";
 import { useDismissable } from "../hooks/useDismissable";
 import { useI18n, type TranslationKey } from "../i18n/useI18n";
+import { exportTripToIcs } from "../services/icsExport";
 import { exportTripToFile, importTripFromFile } from "../services/tripFile";
 import LinkDisplay from "./LinkDisplay";
 import {
@@ -290,6 +303,22 @@ export default function CloudMenu({
       >
         <Download size={16} />
         {t("cloud.export")}
+      </button>
+      <button
+        onClick={() => exportTripToIcs(tripData)}
+        disabled={tripData.days.length === 0}
+        className="flex items-center gap-1.5 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high disabled:opacity-50 px-3 py-1.5 rounded-full transition-colors"
+      >
+        <Calendar size={16} />
+        {t("cloud.exportIcs")}
+      </button>
+      <button
+        onClick={() => window.print()}
+        disabled={tripData.days.length === 0}
+        className="flex items-center gap-1.5 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high disabled:opacity-50 px-3 py-1.5 rounded-full transition-colors"
+      >
+        <Printer size={16} />
+        {t("cloud.print")}
       </button>
       <button
         onClick={() => fileInputRef.current?.click()}

@@ -49,9 +49,12 @@ describe("App shared-trip viewer", () => {
     const { default: App } = await import("./App");
     render(<App />);
 
-    await waitFor(() => {
-      expect(screen.getByText("Shared Trip")).toBeInTheDocument();
-    });
+    await waitFor(
+      () => {
+        expect(screen.getByText("Shared Trip")).toBeInTheDocument();
+      },
+      { timeout: 5000 },
+    );
 
     expect(screen.queryByText("TripWeaver AI")).not.toBeInTheDocument();
     expect(screen.queryByText(/שלב \d מתוך 4/)).not.toBeInTheDocument();

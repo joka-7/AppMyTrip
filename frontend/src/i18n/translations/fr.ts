@@ -264,6 +264,8 @@ export const fr: Record<TranslationKey, string> = {
   "cloud.deleteConfirmAria": "Confirmer la suppression du voyage {name}",
   "cloud.deleteConfirm": "Supprimer ?",
   "cloud.export": "Exporter",
+  "cloud.exportIcs": "Exporter le calendrier",
+  "cloud.print": "Imprimer",
   "cloud.import": "Importer",
   "cloud.signingIn": "Connexion...",
   "cloud.signIn": "Se connecter avec Google",
@@ -297,6 +299,8 @@ export const fr: Record<TranslationKey, string> = {
   "sharedPage.settingsAria": "Paramètres du voyage",
   "sharedPage.myTripsAria": "Aller à Mes voyages",
   "sharedPage.export": "Exporter vers un fichier",
+  "sharedPage.exportIcs": "Exporter le calendrier (.ics)",
+  "sharedPage.print": "Imprimer l'itinéraire",
   "sharedPage.import": "Importer depuis un fichier",
   "sharedPage.saving": "Enregistrement...",
   "sharedPage.saveToAccount": "Enregistrer sur mon compte",
@@ -329,6 +333,11 @@ export const fr: Record<TranslationKey, string> = {
   "podcastPlayer.noTTS": "Ce navigateur ne prend pas en charge la synthèse vocale.",
   "podcastPlayer.ttsFailed":
     "La lecture vocale du podcast a échoué. Ce navigateur n'a peut-être pas de voix adaptée.",
+
+  // Builder draft recovery (localStorage)
+  "draft.recoverPrompt":
+    "Un brouillon enregistré de la dernière fois a été trouvé — le restaurer ?",
+  "draft.restore": "Restaurer le brouillon",
 
   // Language indicator (agent reply language)
   "languageIndicator.explainer":
