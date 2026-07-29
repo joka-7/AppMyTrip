@@ -4,16 +4,16 @@
 // paid tile embed) so users get turn-by-turn directions, travel times, reviews
 // and hours for free, in their own device/account language.
 //
-// IMPORTANT: the `?api=1&query=` search parameter accepts EITHER a place name OR
-// "lat,lng" — never a "name @lat,lng" mash-up. Passing the latter makes Google
-// search for that literal text and fail to resolve the place (the bug this
-// module replaces). To open a *named* place biased to its exact coordinates we
-// use the path form `/maps/search/<name>/@<lat>,<lng>,<zoom>z`, which Google
-// resolves to the real listing nearest that point.
+// IMPORTANT: always pass exact coordinates ("lat,lng"), never a place name —
+// neither as the `?api=1&query=` value nor via the `/maps/search/<name>/@<lat>,
+// <lng>,<zoom>z` path form. Both were tried (see git history) and both let
+// Google's text search win over the coordinate bias for a common/ambiguous
+// name (a chain, a generic "Beach"/"Market", a name that also exists in
+// another city), silently opening a same-named place miles from the activity's
+// real spot. A bare coordinate always resolves to the exact point — no drift,
+// even though the pin shows as a plain location instead of a named listing.
 
 import type { Activity } from "../api";
-
-const PLACE_ZOOM = 15;
 
 // Unlike the search action (below), the directions action has no path-form
 // biasing syntax — origin/destination/waypoints are always resolved as a
@@ -29,21 +29,16 @@ function directionsStop(act: Activity): string {
 }
 
 /**
- * Link to a single place. Opens the named listing (with its reviews/hours)
- * centered on the activity's coordinates, so Maps resolves the right place even
- * when the name alone would be ambiguous across cities. Falls back to a bare
- * coordinate pin only when the activity has no title.
+ * Link to a single place, as its exact coordinates — see the module note above
+ * for why a name (even coordinate-biased) isn't used: Google can still resolve
+ * it to a different, same-named place instead of the activity's real spot.
  */
 export function googleMapsPlaceUrl(act: Activity): string {
   const { lat, lng } = act.map_coordinates!;
-  const name = act.title.trim();
-  if (!name) {
-    const url = new URL("https://www.google.com/maps/search/");
-    url.searchParams.set("api", "1");
-    url.searchParams.set("query", `${lat},${lng}`);
-    return url.toString();
-  }
-  return `https://www.google.com/maps/search/${encodeURIComponent(name)}/@${lat},${lng},${PLACE_ZOOM}z`;
+  const url = new URL("https://www.google.com/maps/search/");
+  url.searchParams.set("api", "1");
+  url.searchParams.set("query", `${lat},${lng}`);
+  return url.toString();
 }
 
 /**

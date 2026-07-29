@@ -237,7 +237,10 @@ export default function SharedAppPage({
             {menuOpen && (
               <div
                 role="menu"
-                className="absolute end-0 mt-2 w-80 max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto bg-white rounded-xl shadow-lg border border-outline/20 p-3 z-40 text-start text-xs flex flex-col gap-1.5"
+                className="fixed inset-x-4 top-4 max-h-[calc(100vh-2rem)] w-auto overflow-y-auto
+                  sm:absolute sm:inset-x-auto sm:top-auto sm:end-0 sm:mt-2 sm:w-80
+                  sm:max-w-[calc(100vw-2rem)] sm:max-h-[70vh] bg-white rounded-xl shadow-lg
+                  border border-outline/20 p-3 z-40 text-start text-xs flex flex-col gap-1.5"
               >
                 <button
                   onClick={() => exportTripToFile(tripData, appDesign)}
