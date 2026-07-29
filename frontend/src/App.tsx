@@ -460,8 +460,15 @@ function TripBuilder() {
     await sendChatMessage(failedChatText);
   };
 
-  const { handleUpdateActivity, handleAddActivity, handleDeleteActivity, handleUpdateTrip } =
-    useTripEditing(setTripData, effectiveEnhanceOptions(enhanceOptions));
+  const {
+    handleUpdateActivity,
+    handleAddActivity,
+    handleDeleteActivity,
+    handleUpdateTrip,
+    handleAddDay,
+    handleDeleteDay,
+    handleMoveDay,
+  } = useTripEditing(setTripData, effectiveEnhanceOptions(enhanceOptions));
 
   const handleContinueToDesign = async () => {
     setIsGeneratingMedia(true);
@@ -644,6 +651,9 @@ function TripBuilder() {
               onAddActivity={handleAddActivity}
               onDeleteActivity={handleDeleteActivity}
               onUpdateTrip={handleUpdateTrip}
+              onAddDay={handleAddDay}
+              onDeleteDay={handleDeleteDay}
+              onMoveDay={handleMoveDay}
             />
           </Suspense>
         </div>
@@ -681,6 +691,9 @@ function TripBuilder() {
                   onAddActivity={handleAddActivity}
                   onDeleteActivity={handleDeleteActivity}
                   onUpdateTrip={handleUpdateTrip}
+                  onAddDay={handleAddDay}
+                  onDeleteDay={handleDeleteDay}
+                  onMoveDay={handleMoveDay}
                 />
               </Suspense>
             </div>
@@ -832,8 +845,15 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
       return typeof action === "function" ? action(prev) : action;
     });
   };
-  const { handleUpdateActivity, handleAddActivity, handleDeleteActivity, handleUpdateTrip } =
-    useTripEditing(setLoadedTrip, ALL_ENHANCE_OPTIONS);
+  const {
+    handleUpdateActivity,
+    handleAddActivity,
+    handleDeleteActivity,
+    handleUpdateTrip,
+    handleAddDay,
+    handleDeleteDay,
+    handleMoveDay,
+  } = useTripEditing(setLoadedTrip, ALL_ENHANCE_OPTIONS);
 
   if (error) {
     return (
@@ -872,6 +892,9 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
         onAddActivity={handleAddActivity}
         onDeleteActivity={handleDeleteActivity}
         onUpdateTrip={handleUpdateTrip}
+        onAddDay={handleAddDay}
+        onDeleteDay={handleDeleteDay}
+        onMoveDay={handleMoveDay}
         onImportTrip={(importedTrip, importedAppDesign) => {
           setTrip(importedTrip);
           setAppDesign(importedAppDesign);

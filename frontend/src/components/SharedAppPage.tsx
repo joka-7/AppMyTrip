@@ -53,6 +53,9 @@ export default function SharedAppPage({
   onAddActivity,
   onDeleteActivity,
   onUpdateTrip,
+  onAddDay,
+  onDeleteDay,
+  onMoveDay,
   onImportTrip,
   isAdmin,
   onSaveChanges,
@@ -74,6 +77,9 @@ export default function SharedAppPage({
   onAddActivity: (dayIndex: number, activity: Activity) => void;
   onDeleteActivity?: (dayIndex: number, activityId: string) => void;
   onUpdateTrip: (patch: Partial<Pick<TripData, "title" | "dates" | "photo_album_url">>) => void;
+  onAddDay?: () => void;
+  onDeleteDay?: (dayIndex: number) => void;
+  onMoveDay?: (fromIndex: number, toIndex: number) => void;
   onImportTrip: (tripData: TripData, appDesign: AppDesign) => void;
   /** Whether the signed-in visitor may save changes back to this link and add other admins. */
   isAdmin: boolean;
@@ -395,6 +401,9 @@ export default function SharedAppPage({
             onAddActivity={onAddActivity}
             onDeleteActivity={onDeleteActivity}
             onUpdateTrip={onUpdateTrip}
+            onAddDay={onAddDay}
+            onDeleteDay={onDeleteDay}
+            onMoveDay={onMoveDay}
             isLocalOnly
             localOnlyNoticeText={t(isAdmin ? "sharedPage.adminHint" : "sharedPage.localOnlyNotice")}
             welcomeStorageKey={tripId}
