@@ -1,9 +1,10 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { createRef } from "react";
 import SharedAppPage from "./SharedAppPage";
 import type { TripData } from "../api";
 import { DEFAULT_APP_DESIGN } from "../services/appDesign";
+import { getLang, setLang } from "../i18n/store";
 
 vi.mock("../services/tripsStore", () => ({
   getCurrentSession: vi.fn(() => null),
@@ -95,4 +96,33 @@ describe("SharedAppPage", () => {
       expect(onSaveChanges).toHaveBeenCalled();
     });
   });
+
+  it("lets a visitor pick their own UI language, independent of the trip", () => {
+    setLang("he");
+    render(
+      <SharedAppPage
+        tripData={trip}
+        appDesign={DEFAULT_APP_DESIGN}
+        tripId="trip-1"
+        agentMessages={[]}
+        chatInput=""
+        onChangeChatInput={vi.fn()}
+        onSendMessage={vi.fn()}
+        chatEndRef={createRef()}
+        onUpdateActivity={vi.fn()}
+        onAddActivity={vi.fn()}
+        onUpdateTrip={vi.fn()}
+        onImportTrip={vi.fn()}
+        isAdmin={false}
+        onSaveChanges={vi.fn()}
+        onAddAdmin={vi.fn()}
+        onCreateNewLink={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("שפת הממשק"), { target: { value: "en" } });
+    expect(getLang()).toBe("en");
+  });
+
+  afterEach(() => setLang("he"));
 });

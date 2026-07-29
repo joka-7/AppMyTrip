@@ -23,6 +23,7 @@ import { useTripBranding } from "../hooks/useTripBranding";
 import ApiKeyMenu from "./ApiKeyMenu";
 import AppFrame from "./AppFrame";
 import InstallAppButton from "./InstallAppButton";
+import LanguageSwitcher from "./LanguageSwitcher";
 import LinkDisplay from "./LinkDisplay";
 import type { AgentMessage } from "./ChatPanel";
 
@@ -209,7 +210,7 @@ export default function SharedAppPage({
           phone (which is what this view is really for) it should fill the
           whole screen; the phone-frame look is purely a desktop preview. */}
       <div className="w-full sm:max-w-md h-dvh bg-surface shadow-2xl flex flex-col overflow-hidden print:max-w-none print:h-auto print:shadow-none print:overflow-visible">
-        <div className="no-print shrink-0 flex items-center justify-end gap-2 p-2 bg-white border-b border-outline/20">
+        <div className="no-print shrink-0 flex flex-wrap items-center justify-end gap-2 p-2 bg-white border-b border-outline/20">
           <a
             href={homeHref}
             aria-label={t("sharedPage.myTripsAria")}
@@ -218,6 +219,7 @@ export default function SharedAppPage({
             <Home size={14} />
             {t("cloud.myTrips")}
           </a>
+          <LanguageSwitcher />
           <ApiKeyMenu />
           <InstallAppButton />
           <div className="relative" ref={menuRef}>

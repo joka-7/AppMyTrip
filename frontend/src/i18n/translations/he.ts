@@ -178,6 +178,7 @@ export const he = {
   "appFrame.moveDayLaterAria": "העברה מאוחר יותר",
   "appFrame.moveDayToEndAria": "העברה לסוף",
   "appFrame.deleteDayAria": "מחיקת יום",
+  "appFrame.madeWith": "נוצר באמצעות AppMyTrip — תכננו גם אתם אפליקציית טיול משלכם",
   "appFrame.day": "יום {num}",
   "appFrame.emptyState": "הזינו את תיאור הטיול כדי לראות כאן תצוגה מקדימה חיה של האפליקציה.",
   "appFrame.tab.itinerary": 'לו"ז',

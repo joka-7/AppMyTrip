@@ -46,7 +46,7 @@ import {
   signInWithGoogle,
   type CloudSession,
 } from "./services/tripsStore";
-import { translate } from "./i18n/store";
+import { setLangIfUnset, translate } from "./i18n/store";
 import { useI18n } from "./i18n/useI18n";
 import LanguageSwitcher from "./components/LanguageSwitcher";
 
@@ -730,6 +730,12 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
   useEffect(() => {
     loadSharedTrip(tripId)
       .then((result) => {
+        // A visitor opening a shared link for the first time has no language
+        // preference of their own yet — default the UI (including the
+        // "Made with AppMyTrip" footer) to the trip's own language rather
+        // than the hardcoded Hebrew fallback. Never overrides an explicit
+        // choice (the builder's own, or a returning visitor's).
+        setLangIfUnset(result.trip.language);
         setTrip(result.trip);
         setAppDesign(result.appDesign);
         setAdminEmails(result.meta.adminEmails);

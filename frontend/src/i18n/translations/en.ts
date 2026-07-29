@@ -180,6 +180,7 @@ export const en: Record<TranslationKey, string> = {
   "appFrame.moveDayLaterAria": "Move later",
   "appFrame.moveDayToEndAria": "Move to last",
   "appFrame.deleteDayAria": "Delete day",
+  "appFrame.madeWith": "Made with AppMyTrip — plan your own trip app",
   "appFrame.day": "Day {num}",
   "appFrame.emptyState": "Enter the trip description to see a live preview of the app here.",
   "appFrame.tab.itinerary": "Itinerary",

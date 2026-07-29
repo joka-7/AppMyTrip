@@ -209,6 +209,10 @@ to a gapless `1..N`.
 **`SharedTripViewer`** is deliberately **local-only**: it loads the trip via
 `loadSharedTrip`, keeps its own `trip`/chat state, and its handlers only call
 `setTrip` — it never imports `saveTrip`/`shareTrip`, so edits stay in the browser.
+On load it also calls `setLangIfUnset(result.trip.language)` (from
+`i18n/store.ts`) — a no-op unless the visitor's browser has no stored
+`appmytrip_lang` yet, in which case the UI defaults to the trip's own language
+instead of the hardcoded Hebrew fallback.
 
 ### 3.2 `api.ts` — typed client
 
@@ -249,9 +253,9 @@ flowchart TB
 
 | Component | Purpose / key props | Notable behavior |
 |-----------|---------------------|------------------|
-| `AppFrame` | The generated-app UI (header, day tabs, 4 content tabs, bottom nav). Props: `tripData`, `theme`, chat props, `onUpdateActivity/onAddActivity/onUpdateTrip`, `onAddDay/onDeleteDay/onMoveDay`, `isLocalOnly` | Owns `activeDay`, `activeTab`, `focusActivityId`, header edit drafts, `isManagingDays`; uses `usePodcastPlayer`; empty-state safe; theme → header color; scroll arrows when `days>4`; Hebrew weekday letter on day tabs only when `parseTripStartDate` finds a start date in `dates`; "manage days" panel (toggled by `isManagingDays`) adds/deletes/reorders days, moving `activeDay` to follow a day it just moved |
+| `AppFrame` | The generated-app UI (header, day tabs, 4 content tabs, bottom nav). Props: `tripData`, `theme`, chat props, `onUpdateActivity/onAddActivity/onUpdateTrip`, `onAddDay/onDeleteDay/onMoveDay`, `isLocalOnly` | Owns `activeDay`, `activeTab`, `focusActivityId`, header edit drafts, `isManagingDays`; uses `usePodcastPlayer`; empty-state safe; theme → header color; scroll arrows when `days>4`; Hebrew weekday letter on day tabs only when `parseTripStartDate` finds a start date in `dates`; "manage days" panel (toggled by `isManagingDays`) adds/deletes/reorders days, moving `activeDay` to follow a day it just moved; unconditional "Made with AppMyTrip" `no-print` footer link to `window.location.origin`, shown whenever the trip has days |
 | `PhonePreview` | Wraps `AppFrame` in a phone bezel for the builder's live preview | Pure presentational passthrough |
-| `SharedAppPage` | Full-screen `AppFrame` for `?shared` links + import | Adds local-only notice, import via `tripFile` |
+| `SharedAppPage` | Full-screen `AppFrame` for `?shared` links + import | Adds local-only notice, import via `tripFile`, `LanguageSwitcher` in the toolbar so a visitor can pick their own UI language independent of the trip's |
 | `ItineraryList` | Renders/edits a day's activities. Props: `activities`, `onUpdateActivity`, `onAddActivity?`, `onShowOnMap?`, `playingPodcast`, `onPlayPodcast` | Inline edit/add drafts (time/title/desc/type/price/url/lat/lng); new pin defaults near an existing one; `newActivityId()` uses `crypto.randomUUID`; podcast play button when `hasPodcast` |
 | `MapView` | Leaflet/OpenStreetMap map of a day's activities (react-leaflet). Props: `activities`, `focusActivityId`, `onUpdateActivity`, `onClearFocus` | `FitBounds` child auto-fits/zooms; per-type `divIcon` markers, draggable when `onUpdateActivity` set (persist coords on `dragend`); dashed `Polyline` shows stop order (not a real route); focus mode shows one pin; external **Google Maps** place/directions links (no paid tiles/API) |
 | `ChatPanel` | Message list + input; reused by Step 3 and `AppFrame`'s chat tab | Exports `AgentMessage` type; typing indicator when `isSending`; shows `LanguageIndicator` |
