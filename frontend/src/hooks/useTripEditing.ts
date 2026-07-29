@@ -1,10 +1,17 @@
 import { useCallback, type Dispatch, type SetStateAction } from "react";
-import type { Activity, EnhanceOptions, TripData } from "../api";
+import type { Activity, EnhanceOptions, TripData, TripDay } from "../api";
 import { tripStartWeekdayIndex } from "../services/hebrewDate";
 import { normalizeTripForLoad } from "../services/normalizeTrip";
 import { enhanceActivities, mergeEnhancedActivities } from "../services/tripEnhance";
 
 type TripUpdater = Dispatch<SetStateAction<TripData>>;
+
+/** Keeps `dayNum` equal to `index + 1` after an add/delete/reorder — day tabs,
+ * the print view, and `icsExport`'s calendar-date math all key off `dayNum`
+ * being a gapless 1..N sequence matching array order. */
+function renumberDays(days: TripDay[]): TripDay[] {
+  return days.map((d, idx) => (d.dayNum === idx + 1 ? d : { ...d, dayNum: idx + 1 }));
+}
 
 /**
  * Shared activity/trip mutation handlers used by both the builder preview and
@@ -80,10 +87,54 @@ export function useTripEditing(setTrip: TripUpdater, enhanceOptions: EnhanceOpti
     [setTrip],
   );
 
+  const handleAddDay = useCallback(() => {
+    setTrip((prev) => ({
+      ...prev,
+      days: [...prev.days, { dayNum: prev.days.length + 1, activities: [] }],
+    }));
+  }, [setTrip]);
+
+  const handleDeleteDay = useCallback(
+    (dayIndex: number) => {
+      setTrip((prev) => ({
+        ...prev,
+        days: renumberDays(prev.days.filter((_, idx) => idx !== dayIndex)),
+      }));
+    },
+    [setTrip],
+  );
+
+  /** Moves the day at `fromIndex` to `toIndex`, shifting the days in between —
+   * covers "move earlier/later" (adjacent index) and "move to start/end"
+   * (index 0 / last index) with one primitive. */
+  const handleMoveDay = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      setTrip((prev) => {
+        if (
+          fromIndex === toIndex ||
+          fromIndex < 0 ||
+          fromIndex >= prev.days.length ||
+          toIndex < 0 ||
+          toIndex >= prev.days.length
+        ) {
+          return prev;
+        }
+        const days = [...prev.days];
+        const [moved] = days.splice(fromIndex, 1);
+        days.splice(toIndex, 0, moved);
+        return { ...prev, days: renumberDays(days) };
+      });
+    },
+    [setTrip],
+  );
+
   return {
     handleUpdateActivity,
     handleAddActivity,
     handleDeleteActivity,
     handleUpdateTrip,
+    handleAddDay,
+    handleDeleteDay,
+    handleMoveDay,
   };
 }

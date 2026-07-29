@@ -19,6 +19,9 @@ export default function PhonePreview({
   onAddActivity,
   onDeleteActivity,
   onUpdateTrip,
+  onAddDay,
+  onDeleteDay,
+  onMoveDay,
 }: {
   tripData: TripData;
   appDesign: AppDesign;
@@ -34,6 +37,9 @@ export default function PhonePreview({
   onAddActivity: (dayIndex: number, activity: Activity) => void;
   onDeleteActivity?: (dayIndex: number, activityId: string) => void;
   onUpdateTrip: (patch: Partial<Pick<TripData, "title" | "dates">>) => void;
+  onAddDay?: () => void;
+  onDeleteDay?: (dayIndex: number) => void;
+  onMoveDay?: (fromIndex: number, toIndex: number) => void;
 }) {
   return (
     <div className="w-[350px] h-[700px] border-[12px] border-ink rounded-[2.5rem] overflow-hidden flex flex-col bg-surface shadow-2xl relative mx-auto print:w-full print:h-auto print:border-0 print:rounded-none print:shadow-none print:overflow-visible">
@@ -52,6 +58,9 @@ export default function PhonePreview({
         onAddActivity={onAddActivity}
         onDeleteActivity={onDeleteActivity}
         onUpdateTrip={onUpdateTrip}
+        onAddDay={onAddDay}
+        onDeleteDay={onDeleteDay}
+        onMoveDay={onMoveDay}
       />
     </div>
   );

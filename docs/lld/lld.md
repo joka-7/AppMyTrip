@@ -199,6 +199,12 @@ Handlers: `handleProcessText` (parse, fallback → `DEMO_TRIP`), `handleEnhance`
 (generate-media), `handleUpdateActivity`, `handleAddActivity`, `handleUpdateTrip`,
 and `enhanceNewActivities(before, after)` — diffs by activity `id`, re-runs the
 remembered enhancements only on newly added activities, then merges by `id`.
+`hooks/useTripEditing.ts` — shared by both the builder preview and the
+shared-viewer below, since both mutate a `TripData` via a `setTrip` callback —
+also exposes `handleAddDay` (append an empty day), `handleDeleteDay(index)`,
+and `handleMoveDay(fromIndex, toIndex)` — one primitive covering
+move-earlier/later and jump-to-start/end — all of which renumber `dayNum` back
+to a gapless `1..N`.
 
 **`SharedTripViewer`** is deliberately **local-only**: it loads the trip via
 `loadSharedTrip`, keeps its own `trip`/chat state, and its handlers only call
@@ -243,7 +249,7 @@ flowchart TB
 
 | Component | Purpose / key props | Notable behavior |
 |-----------|---------------------|------------------|
-| `AppFrame` | The generated-app UI (header, day tabs, 4 content tabs, bottom nav). Props: `tripData`, `theme`, chat props, `onUpdateActivity/onAddActivity/onUpdateTrip`, `isLocalOnly` | Owns `activeDay`, `activeTab`, `focusActivityId`, header edit drafts; uses `usePodcastPlayer`; empty-state safe; theme → header color; scroll arrows when `days>4`; Hebrew weekday letter on day tabs only when `parseTripStartDate` finds a start date in `dates` |
+| `AppFrame` | The generated-app UI (header, day tabs, 4 content tabs, bottom nav). Props: `tripData`, `theme`, chat props, `onUpdateActivity/onAddActivity/onUpdateTrip`, `onAddDay/onDeleteDay/onMoveDay`, `isLocalOnly` | Owns `activeDay`, `activeTab`, `focusActivityId`, header edit drafts, `isManagingDays`; uses `usePodcastPlayer`; empty-state safe; theme → header color; scroll arrows when `days>4`; Hebrew weekday letter on day tabs only when `parseTripStartDate` finds a start date in `dates`; "manage days" panel (toggled by `isManagingDays`) adds/deletes/reorders days, moving `activeDay` to follow a day it just moved |
 | `PhonePreview` | Wraps `AppFrame` in a phone bezel for the builder's live preview | Pure presentational passthrough |
 | `SharedAppPage` | Full-screen `AppFrame` for `?shared` links + import | Adds local-only notice, import via `tripFile` |
 | `ItineraryList` | Renders/edits a day's activities. Props: `activities`, `onUpdateActivity`, `onAddActivity?`, `onShowOnMap?`, `playingPodcast`, `onPlayPodcast` | Inline edit/add drafts (time/title/desc/type/price/url/lat/lng); new pin defaults near an existing one; `newActivityId()` uses `crypto.randomUUID`; podcast play button when `hasPodcast` |

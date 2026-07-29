@@ -5,12 +5,17 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   DollarSign,
   ImageIcon,
+  ListPlus,
   Map,
   MessageCircle,
   Pencil,
+  Plus,
   Smartphone,
+  Trash2,
   X,
 } from "lucide-react";
 import type { Activity, TripData } from "../api";
@@ -91,6 +96,9 @@ export default function AppFrame({
   onAddActivity,
   onDeleteActivity,
   onUpdateTrip,
+  onAddDay,
+  onDeleteDay,
+  onMoveDay,
   isLocalOnly,
   localOnlyNoticeText,
   welcomeStorageKey,
@@ -109,6 +117,11 @@ export default function AppFrame({
   onAddActivity?: (dayIndex: number, activity: Activity) => void;
   onDeleteActivity?: (dayIndex: number, activityId: string) => void;
   onUpdateTrip: (patch: Partial<Pick<TripData, "title" | "dates" | "photo_album_url">>) => void;
+  /** Appends a new, empty day at the end of the trip. */
+  onAddDay?: () => void;
+  onDeleteDay?: (dayIndex: number) => void;
+  /** Moves the day at `fromIndex` to `toIndex`, shifting the days between them. */
+  onMoveDay?: (fromIndex: number, toIndex: number) => void;
   isLocalOnly?: boolean;
   localOnlyNoticeText?: string;
   /** When set, a non-empty welcomeMessage is shown once until dismissed (shared-link flow). */
@@ -123,6 +136,7 @@ export default function AppFrame({
   );
   const [focusActivityId, setFocusActivityId] = useState<string | null>(null);
   const [isEditingHeader, setIsEditingHeader] = useState(false);
+  const [isManagingDays, setIsManagingDays] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [datesDraft, setDatesDraft] = useState("");
   const [albumUrlDraft, setAlbumUrlDraft] = useState("");
@@ -216,6 +230,13 @@ export default function AppFrame({
   const handleDeleteActivity = (activityId: string) => {
     onDeleteActivity?.(safeDayIdx, activityId);
     setFocusActivityId((prev) => (prev === activityId ? null : prev));
+  };
+
+  // Keeps the view on the day being reordered instead of leaving `activeDay`
+  // pointing at whatever day the index now belongs to.
+  const handleMoveDay = (fromIndex: number, toIndex: number) => {
+    onMoveDay?.(fromIndex, toIndex);
+    setActiveDay(toIndex);
   };
 
   const handleShowOnMap = (activityId: string) => {
@@ -383,6 +404,92 @@ export default function AppFrame({
               className="flex-shrink-0 p-1 text-ink-muted hover:text-primary"
             >
               <ChevronLeft size={18} />
+            </button>
+          )}
+          {(onAddDay || onDeleteDay || onMoveDay) && (
+            <button
+              onClick={() => setIsManagingDays((v) => !v)}
+              aria-label={t("appFrame.manageDaysAria")}
+              aria-pressed={isManagingDays}
+              className={`flex-shrink-0 p-1.5 rounded-full transition-colors ${
+                isManagingDays ? "bg-primary/10 text-primary" : "text-ink-muted hover:text-primary"
+              }`}
+            >
+              <ListPlus size={16} />
+            </button>
+          )}
+        </div>
+      )}
+
+      {hasTrip && isManagingDays && (
+        <div className="no-print shrink-0 bg-surface-container border-b border-outline/40 px-3 py-3 space-y-2 max-h-64 overflow-y-auto">
+          <p className="text-xs font-medium text-ink-muted">{t("appFrame.manageDaysHeading")}</p>
+          {days.map((d, idx) => (
+            <div
+              key={idx}
+              className="flex items-center justify-between gap-2 bg-white rounded-lg px-3 py-2 shadow-sm"
+            >
+              <span className="text-sm font-medium text-ink">
+                {t("appFrame.day", { num: d.dayNum })}
+                {tripStartWeekday !== null && (
+                  <span className="text-[10px] text-ink-muted opacity-70">
+                    {" "}
+                    ({weekdayLabel(tripStartWeekday + d.dayNum - 1, lang)})
+                  </span>
+                )}
+              </span>
+              <div className="flex items-center gap-0.5">
+                <button
+                  onClick={() => handleMoveDay(idx, 0)}
+                  disabled={!onMoveDay || idx === 0}
+                  aria-label={t("appFrame.moveDayToStartAria")}
+                  className="p-1 text-ink-muted hover:text-primary disabled:opacity-30 disabled:hover:text-ink-muted"
+                >
+                  <ChevronsLeft size={14} />
+                </button>
+                <button
+                  onClick={() => handleMoveDay(idx, idx - 1)}
+                  disabled={!onMoveDay || idx === 0}
+                  aria-label={t("appFrame.moveDayEarlierAria")}
+                  className="p-1 text-ink-muted hover:text-primary disabled:opacity-30 disabled:hover:text-ink-muted"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <button
+                  onClick={() => handleMoveDay(idx, idx + 1)}
+                  disabled={!onMoveDay || idx === days.length - 1}
+                  aria-label={t("appFrame.moveDayLaterAria")}
+                  className="p-1 text-ink-muted hover:text-primary disabled:opacity-30 disabled:hover:text-ink-muted"
+                >
+                  <ChevronRight size={14} />
+                </button>
+                <button
+                  onClick={() => handleMoveDay(idx, days.length - 1)}
+                  disabled={!onMoveDay || idx === days.length - 1}
+                  aria-label={t("appFrame.moveDayToEndAria")}
+                  className="p-1 text-ink-muted hover:text-primary disabled:opacity-30 disabled:hover:text-ink-muted"
+                >
+                  <ChevronsRight size={14} />
+                </button>
+                {onDeleteDay && (
+                  <button
+                    onClick={() => onDeleteDay(idx)}
+                    aria-label={t("appFrame.deleteDayAria")}
+                    className="p-1 text-red-500 hover:text-red-700"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+          {onAddDay && (
+            <button
+              onClick={onAddDay}
+              className="w-full flex items-center justify-center gap-2 text-sm font-semibold text-primary hover:text-primary-dark py-2 border-2 border-dashed border-outline rounded-lg"
+            >
+              <Plus size={16} />
+              {t("appFrame.addDay")}
             </button>
           )}
         </div>

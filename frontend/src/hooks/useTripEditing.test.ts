@@ -56,6 +56,60 @@ describe("useTripEditing", () => {
     expect(result.current.trip.days[0].activities).toHaveLength(0);
   });
 
+  it("adds, deletes, and moves days, keeping dayNum a gapless sequence", () => {
+    const { result } = renderHook(() => {
+      const [trip, setTrip] = useState<TripData>({
+        title: "T",
+        dates: "Mon - Wed",
+        days: [
+          {
+            dayNum: 1,
+            activities: [{ id: "a1", time: "", title: "Day 1", desc: "", type: "food" }],
+          },
+          { dayNum: 2, activities: [] },
+          { dayNum: 3, activities: [] },
+        ],
+      });
+      const editing = useTripEditing(setTrip, {});
+      return { trip, ...editing };
+    });
+
+    act(() => {
+      result.current.handleAddDay();
+    });
+    expect(result.current.trip.days).toHaveLength(4);
+    expect(result.current.trip.days.map((d) => d.dayNum)).toEqual([1, 2, 3, 4]);
+
+    // Move the original day 1 (with its activity) to the end.
+    act(() => {
+      result.current.handleMoveDay(0, 3);
+    });
+    expect(result.current.trip.days.map((d) => d.dayNum)).toEqual([1, 2, 3, 4]);
+    expect(result.current.trip.days[3].activities[0]?.title).toBe("Day 1");
+    expect(result.current.trip.days[0].activities).toHaveLength(0);
+
+    act(() => {
+      result.current.handleDeleteDay(0);
+    });
+    expect(result.current.trip.days).toHaveLength(3);
+    expect(result.current.trip.days.map((d) => d.dayNum)).toEqual([1, 2, 3]);
+    // The day that carried the activity (formerly last) is now last again.
+    expect(result.current.trip.days[2].activities[0]?.title).toBe("Day 1");
+  });
+
+  it("ignores out-of-range handleMoveDay calls", () => {
+    const { result } = renderHook(() => {
+      const [trip, setTrip] = useState(baseTrip());
+      const editing = useTripEditing(setTrip, {});
+      return { trip, ...editing };
+    });
+
+    act(() => {
+      result.current.handleMoveDay(0, 5);
+    });
+    expect(result.current.trip.days).toEqual(baseTrip().days);
+  });
+
   it("refreshes startWeekday when dates change", () => {
     const { result } = renderHook(() => {
       const [trip, setTrip] = useState(baseTrip());
