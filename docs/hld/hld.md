@@ -121,7 +121,7 @@ flowchart TB
 |-----------|----------------|
 | `App.tsx` | Chooses **builder mode** vs **shared-viewer mode** from the `?shared=<id>` URL param; owns all trip state and mutation handlers |
 | `BuilderStep1..4` | The wizard: (1) paste text, (2) opt-in enhancements, (3) AI chat + edit, (4) theme + save/share |
-| `AppFrame` | The actual "generated app" (header, day tabs, itinerary/map/price/chat tabs, podcast player, bottom nav). Reused by the live preview and the shared page |
+| `AppFrame` | The actual "generated app" (header, day tabs, itinerary/map/price/chat tabs, podcast player, bottom nav). Reused by the live preview and the shared page. A "manage days" panel on the day-tab bar adds/deletes/reorders whole days (move earlier/later, jump to start/end) |
 | `api.ts` | Typed client for the four backend endpoints; also the single source of truth for the shared `TripData`/`Activity` TypeScript types |
 | `services/*` | `apiKey` (BYO key in localStorage), `tripsStore` + `firebase` (auth + Firestore), plus helpers (`hebrewDate`, `language`, `tripFile`, `env`) |
 
@@ -239,6 +239,10 @@ erDiagram
   Step 2 enhancement and the media step, keeping the default parse fast.
 - The TypeScript `TripData`/`Activity` interfaces in `frontend/src/api.ts` mirror
   the Pydantic models in `backend/models.py` — they are two views of one contract.
+- **`TripDay.dayNum`** is kept as a gapless `1..N` sequence matching array order —
+  day tabs, `icsExport`'s per-day calendar-date math, and the Hebrew weekday
+  labels all key off it. `frontend/src/hooks/useTripEditing.ts` renumbers it after
+  every add/delete/reorder of a day.
 
 ---
 

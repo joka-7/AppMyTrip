@@ -303,6 +303,10 @@ button) automatically re-run the Step 2 enhancements the user checked, so new
 stops get the same directions/prices/podcast-briefs/links without revisiting
 Step 2.
 
+Whole days can also be added, deleted, and reordered (move earlier/later, or
+jump to the start/end) from the "manage days" panel next to the day tabs in
+the live preview — entirely client-side, no backend call involved.
+
 If the backend is unreachable (or the `parse`/`agent` calls fail because no API key
 is configured — either via the frontend's API key menu or a server-side env var),
 the UI shows a notice and falls back to local mock behaviour so the prototype stays
