@@ -363,7 +363,10 @@ export default function CloudMenu({
         {isOpen && (
           <div
             role="menu"
-            className="absolute end-0 mt-2 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-lg border border-outline/20 p-4 z-40 text-start"
+            className="fixed inset-x-4 top-4 max-h-[calc(100vh-2rem)] w-auto overflow-y-auto
+              sm:absolute sm:inset-x-auto sm:top-auto sm:end-0 sm:mt-2 sm:max-h-none sm:w-96
+              sm:max-w-[calc(100vw-2rem)] sm:overflow-visible bg-white rounded-xl shadow-lg
+              border border-outline/20 p-4 z-40 text-start"
           >
             {notice && <p className="text-xs text-amber-700 mb-2">{notice}</p>}
             {shareUrl && (
