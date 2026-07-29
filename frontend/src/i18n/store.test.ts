@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { dirFor, getLang, setLang, translate } from "./store";
+import { dirFor, getLang, setLang, setLangIfUnset, translate } from "./store";
 
 describe("i18n store", () => {
   beforeEach(() => {
@@ -39,5 +39,34 @@ describe("i18n store", () => {
     setLang("en");
     // A key present in every dictionary still resolves in the active language...
     expect(translate("common.save")).toBe("Save");
+  });
+
+  describe("setLangIfUnset", () => {
+    it("defaults the language when the visitor hasn't chosen one yet", () => {
+      localStorage.clear();
+      setLangIfUnset("fr");
+      expect(getLang()).toBe("fr");
+      expect(localStorage.getItem("appmytrip_lang")).toBe("fr");
+    });
+
+    it("never overrides an explicit choice", () => {
+      setLang("en");
+      setLangIfUnset("fr");
+      expect(getLang()).toBe("en");
+    });
+
+    it("ignores a language outside he/en/fr", () => {
+      localStorage.clear();
+      setLangIfUnset("de");
+      expect(getLang()).toBe("he");
+      expect(localStorage.getItem("appmytrip_lang")).toBeNull();
+    });
+
+    it("ignores null/undefined", () => {
+      localStorage.clear();
+      setLangIfUnset(undefined);
+      setLangIfUnset(null);
+      expect(getLang()).toBe("he");
+    });
   });
 });

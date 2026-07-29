@@ -121,7 +121,7 @@ flowchart TB
 |-----------|----------------|
 | `App.tsx` | Chooses **builder mode** vs **shared-viewer mode** from the `?shared=<id>` URL param; owns all trip state and mutation handlers |
 | `BuilderStep1..4` | The wizard: (1) paste text, (2) opt-in enhancements, (3) AI chat + edit, (4) theme + save/share |
-| `AppFrame` | The actual "generated app" (header, day tabs, itinerary/map/price/chat tabs, podcast player, bottom nav). Reused by the live preview and the shared page. A "manage days" panel on the day-tab bar adds/deletes/reorders whole days (move earlier/later, jump to start/end). A small "Made with AppMyTrip" attribution strip below the bottom nav links back to the builder's own origin |
+| `AppFrame` | The actual "generated app" (header, day tabs, itinerary/map/price/chat tabs, podcast player, bottom nav). Reused by the live preview and the shared page. A "manage days" panel on the day-tab bar adds/deletes/reorders whole days (move earlier/later, jump to start/end). A small "Made with AppMyTrip" attribution strip below the bottom nav links back to the builder's own origin, in the current UI language |
 | `api.ts` | Typed client for the four backend endpoints; also the single source of truth for the shared `TripData`/`Activity` TypeScript types |
 | `services/*` | `apiKey` (BYO key in localStorage), `tripsStore` + `firebase` (auth + Firestore), plus helpers (`hebrewDate`, `language`, `tripFile`, `env`) |
 
@@ -355,7 +355,7 @@ flowchart LR
 | **Security** | No secrets on our server (BYO key); Firestore rules enforce owner-only writes + public-read shares; API keys live only in the caller's browser and are sent solely to our backend |
 | **CORS** | Enabled on the backend, origins configurable via `CORS_ORIGINS` (default `*` for local dev) |
 | **Error handling** | Backend maps failures to precise HTTP codes (`401` no key, `422` bad LLM schema, `429` rate-limit, `502` LLM/truncation); frontend shows localized notices and degrades gracefully |
-| **i18n / RTL** | UI is Hebrew/RTL (`dir="rtl"`); the LLM detects the trip's dominant language, sets `TripData.language`, and replies in it; `LanguageIndicator` surfaces it |
+| **i18n / RTL** | UI is Hebrew/RTL (`dir="rtl"`) by default; the LLM detects the trip's dominant language, sets `TripData.language`, and replies in it; `LanguageIndicator` surfaces it. `LanguageSwitcher` (he/en/fr) is available in the builder navbar and, since a shared-link visitor is a different person from the builder with their own preference, in `SharedAppPage` too. A first-time shared-link visitor with no stored preference gets the UI defaulted to the trip's own `language` (`setLangIfUnset`) rather than the hardcoded Hebrew fallback; an explicit choice — the builder's or a returning visitor's — is never overridden |
 | **Offline / PWA** | Installable PWA (manifest + Workbox precache); backend-independent demo fallback keeps it usable offline |
 | **Performance** | Default parse/chat stay lean (enrichment deferred to opt-in Step 2); enhancement calls run concurrently; async I/O end-to-end (`httpx.AsyncClient`, `asyncio.to_thread` for Piper) |
 | **Observability** | Prototype-level: server errors surface as HTTP detail strings; client logs to console. No metrics/tracing yet |

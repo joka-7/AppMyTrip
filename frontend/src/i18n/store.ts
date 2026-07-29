@@ -77,6 +77,23 @@ export function subscribe(callback: () => void): () => void {
 }
 
 /**
+ * Defaults the UI language to `lang` — e.g. a shared trip's own `language`
+ * field — but only for a visitor who hasn't chosen one yet (no stored
+ * preference). Leaves an explicit choice (the trip builder's own, or a
+ * returning visitor's) untouched, and is a no-op for a `lang` outside the
+ * three supported UI languages.
+ */
+export function setLangIfUnset(lang: string | null | undefined): void {
+  if (!isLang(lang)) return;
+  try {
+    if (localStorage.getItem(STORAGE_KEY) != null) return;
+  } catch {
+    return;
+  }
+  setLang(lang);
+}
+
+/**
  * Look up a key in the active language, falling back to Hebrew (the source
  * dictionary) and then the raw key. `{name}` placeholders are replaced by the
  * matching entry in `params`.

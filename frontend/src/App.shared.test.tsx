@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { DEFAULT_APP_DESIGN } from "./services/appDesign";
+import { getLang, setLang } from "./i18n/store";
 
 vi.mock("./api");
 vi.mock("./services/tripsStore", () => ({
@@ -427,5 +428,66 @@ describe("App shared-trip viewer activity enrichment", () => {
     // Deleting the first must not have removed the second (would happen if
     // both shared the same empty id).
     expect(screen.getByText("Second Stop")).toBeInTheDocument();
+  });
+});
+
+// A visitor opening a shared link for the first time has no language
+// preference of their own — the UI (including the "Made with AppMyTrip"
+// footer) should default to the trip's own language rather than the
+// hardcoded Hebrew fallback, without ever overriding a choice the visitor
+// (or the trip builder) already made.
+describe("App shared-trip viewer language default", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    window.history.pushState({}, "", "/?shared=trip-1");
+    localStorage.clear();
+    setLang("he");
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+    setLang("he");
+  });
+
+  it("defaults the UI language to the shared trip's own language for a first-time visitor", async () => {
+    const trips = await import("./services/tripsStore");
+    vi.mocked(trips.onAuthChange).mockImplementation(() => () => {});
+    vi.mocked(trips.getCurrentSession).mockReturnValue(null);
+    vi.mocked(trips.loadSharedTrip).mockResolvedValue({
+      trip: { title: "Shared Trip", dates: "Mon - Wed", days: [], language: "en" },
+      appDesign: { ...DEFAULT_APP_DESIGN, theme: "green" },
+      meta: emptyMeta,
+    });
+
+    const { default: App } = await import("./App");
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Shared Trip")).toBeInTheDocument();
+    });
+    expect(getLang()).toBe("en");
+    expect(document.documentElement.lang).toBe("en");
+  });
+
+  it("keeps a returning visitor's own language choice instead of the trip's", async () => {
+    localStorage.setItem("appmytrip_lang", "fr");
+    setLang("fr");
+
+    const trips = await import("./services/tripsStore");
+    vi.mocked(trips.onAuthChange).mockImplementation(() => () => {});
+    vi.mocked(trips.getCurrentSession).mockReturnValue(null);
+    vi.mocked(trips.loadSharedTrip).mockResolvedValue({
+      trip: { title: "Shared Trip", dates: "Mon - Wed", days: [], language: "en" },
+      appDesign: { ...DEFAULT_APP_DESIGN, theme: "green" },
+      meta: emptyMeta,
+    });
+
+    const { default: App } = await import("./App");
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Shared Trip")).toBeInTheDocument();
+    });
+    expect(getLang()).toBe("fr");
   });
 });
