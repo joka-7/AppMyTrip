@@ -48,6 +48,11 @@ const MapView = lazy(() => import("./MapView"));
 
 const SCROLL_ARROW_THRESHOLD = 4;
 
+// Builder and shared-viewer are the same origin (see App.tsx's `?shared=`
+// handling) — linking here just takes a trip participant to the AppMyTrip
+// homepage to build their own trip.
+const APP_HOME_URL = typeof window !== "undefined" ? window.location.origin : "/";
+
 const NAV_TABS: {
   id: AppTab;
   icon: typeof Calendar;
@@ -625,6 +630,17 @@ export default function AppFrame({
             </button>
           ))}
         </div>
+      )}
+
+      {hasTrip && (
+        <a
+          href={APP_HOME_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="no-print shrink-0 block text-center bg-surface-container/70 hover:bg-surface-container text-[10px] text-ink-muted hover:text-primary py-1 px-3"
+        >
+          {t("appFrame.madeWith")}
+        </a>
       )}
     </div>
   );

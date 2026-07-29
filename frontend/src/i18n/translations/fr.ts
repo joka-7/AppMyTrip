@@ -182,6 +182,7 @@ export const fr: Record<TranslationKey, string> = {
   "appFrame.moveDayLaterAria": "Déplacer plus tard",
   "appFrame.moveDayToEndAria": "Déplacer à la fin",
   "appFrame.deleteDayAria": "Supprimer le jour",
+  "appFrame.madeWith": "Créé avec AppMyTrip — planifiez aussi votre propre voyage",
   "appFrame.day": "Jour {num}",
   "appFrame.emptyState":
     "Saisissez la description du voyage pour voir ici un aperçu en direct de l'app.",

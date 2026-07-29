@@ -52,6 +52,26 @@ describe("AppFrame", () => {
     expect(screen.getByText(/סה"כ לטיול|Total/i)).toBeInTheDocument();
   });
 
+  it("links back to the AppMyTrip homepage when the trip has days", () => {
+    render(
+      <AppFrame
+        tripData={trip}
+        appDesign={DEFAULT_APP_DESIGN}
+        agentMessages={[]}
+        chatInput=""
+        onChangeChatInput={vi.fn()}
+        onSendMessage={vi.fn()}
+        chatEndRef={createRef()}
+        onUpdateActivity={vi.fn()}
+        onUpdateTrip={vi.fn()}
+      />,
+    );
+
+    const madeWithLink = screen.getByRole("link", { name: /AppMyTrip/ });
+    expect(madeWithLink).toHaveAttribute("href", window.location.origin);
+    expect(madeWithLink).toHaveAttribute("target", "_blank");
+  });
+
   it("lets the user add, reorder, and delete days from the manage-days panel", () => {
     const twoDayTrip: TripData = {
       title: "Frame Trip",

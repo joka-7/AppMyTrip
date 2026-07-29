@@ -121,7 +121,7 @@ flowchart TB
 |-----------|----------------|
 | `App.tsx` | Chooses **builder mode** vs **shared-viewer mode** from the `?shared=<id>` URL param; owns all trip state and mutation handlers |
 | `BuilderStep1..4` | The wizard: (1) paste text, (2) opt-in enhancements, (3) AI chat + edit, (4) theme + save/share |
-| `AppFrame` | The actual "generated app" (header, day tabs, itinerary/map/price/chat tabs, podcast player, bottom nav). Reused by the live preview and the shared page. A "manage days" panel on the day-tab bar adds/deletes/reorders whole days (move earlier/later, jump to start/end) |
+| `AppFrame` | The actual "generated app" (header, day tabs, itinerary/map/price/chat tabs, podcast player, bottom nav). Reused by the live preview and the shared page. A "manage days" panel on the day-tab bar adds/deletes/reorders whole days (move earlier/later, jump to start/end). A small "Made with AppMyTrip" attribution strip below the bottom nav links back to the builder's own origin |
 | `api.ts` | Typed client for the four backend endpoints; also the single source of truth for the shared `TripData`/`Activity` TypeScript types |
 | `services/*` | `apiKey` (BYO key in localStorage), `tripsStore` + `firebase` (auth + Firestore), plus helpers (`hebrewDate`, `language`, `tripFile`, `env`) |
 
