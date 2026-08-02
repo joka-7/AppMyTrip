@@ -27,11 +27,34 @@ export interface Activity {
   directions_car?: string | null;
   /** Public-transit directions/notes to reach this activity from the previous stop. */
   directions_transit?: string | null;
+  /**
+   * User-supplied Google Maps link, overriding the one built from
+   * `map_coordinates`. Set when the AI's coordinates landed on the wrong place
+   * and the user pasted the real listing instead.
+   */
+  map_url?: string | null;
+  /**
+   * How you get to *this* activity from the previous stop. Normally left unset
+   * and inferred (see services/travelMode.ts); an explicit value is a user (or
+   * AI) override that always wins.
+   */
+  travel_mode?: TravelMode | null;
+}
+
+/** How a leg between two stops is travelled. Matches Google Maps' `travelmode` values. */
+export type TravelMode = "driving" | "walking" | "bicycling" | "transit";
+
+/** One thing to bring/prepare, either for a single day or for the whole trip. */
+export interface ChecklistItem {
+  id: string;
+  text: string;
 }
 
 export interface TripDay {
   dayNum: number;
   activities: Activity[];
+  /** What's needed for this specific day (boots for a trail day, swimsuit for a beach day). */
+  checklist?: ChecklistItem[];
 }
 
 export interface TripData {
@@ -44,6 +67,8 @@ export interface TripData {
   photo_album_url?: string | null;
   /** Sun=0..Sat=6 weekday of day 1 — persisted so saved/imported trips keep tab labels. */
   startWeekday?: number | null;
+  /** Trip-wide essentials (passport, chargers) — things not tied to one day. */
+  checklist?: ChecklistItem[];
 }
 
 /** Which optional, LLM-generated extras Step 2 should fill in. */
@@ -53,6 +78,10 @@ export interface EnhanceOptions {
   prices?: boolean;
   podcast?: boolean;
   links?: boolean;
+  /** Fills the per-day and trip-wide "what to bring" checklists. */
+  packing?: boolean;
+  /** Fills each activity's `travel_mode`. */
+  travel_mode?: boolean;
 }
 
 /** One saved provider + its key(s). Sent as the `credentials` list so the backend

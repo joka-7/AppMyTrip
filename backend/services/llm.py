@@ -22,7 +22,7 @@ import logging
 import os
 import re
 import time
-from typing import Protocol
+from typing import NamedTuple, Protocol
 
 import httpx
 from fastapi import HTTPException
@@ -369,6 +369,22 @@ _PROVIDERS: dict[str, type] = {
     "cerebras": CerebrasProvider,
     "mistral": MistralProvider,
 }
+
+
+class _EnhanceSpec(NamedTuple):
+    """One opt-in Stage-2 extra: the flag that turns it on, the instruction for
+    its own focused LLM call, and the fields that call's result may write back.
+
+    The field tuples are an allowlist, scoped by where the field lives, so a
+    packing-list call can populate day/trip checklists while still being unable
+    to touch an activity's price — and vice versa.
+    """
+
+    flag: str
+    instruction: str
+    activity_fields: tuple[str, ...] = ()
+    day_fields: tuple[str, ...] = ()
+    trip_fields: tuple[str, ...] = ()
 
 
 class LLMService:
@@ -928,7 +944,8 @@ class LLMService:
             "fields like 'map_coordinates' or 'hasPodcast' — copy each one through to the "
             "output UNCHANGED unless the user's request specifically asks you to add, "
             "remove, or modify it. Never drop an activity just because it looks "
-            "incomplete; preserve its id and other fields as-is. "
+            "incomplete; preserve its id and other fields as-is, including 'map_url', "
+            "'travel_mode' and each day's 'checklist'. "
             f"The itinerary's language (ISO 639-1, currently '{current_trip.language}') "
             "indicates which language to write 'agent_reply' in. "
             f"{preferences_fragment}"
@@ -989,7 +1006,9 @@ class LLMService:
             "every day and activity through to 'updated_trip' UNCHANGED unless the user's request "
             "specifically asks you to add, remove, or modify it. Never drop an activity just because it "
             "looks incomplete; preserve its id and other fields as-is, including 'price', 'url', "
-            "'directions_car', 'directions_transit', and 'podcast_brief'. "
+            "'directions_car', 'directions_transit', 'podcast_brief', 'map_url' and 'travel_mode'. "
+            "Copy each day's 'checklist' and the trip-level 'checklist' through unchanged too, "
+            "unless the user asks about what to bring. "
             f"The itinerary's 'language' field (ISO 639-1 code, currently '{current_trip.language}') "
             "indicates which language to reply in — write 'agent_reply' in that same language. If the "
             "user's message is clearly written in a different dominant language (most of its words/verbs "
@@ -1050,45 +1069,70 @@ class LLMService:
             ) from e
 
     # Maps each opt-in flag to the instruction for its own focused LLM call,
-    # plus the Activity field(s) that call is allowed to change. Firing one
-    # small call per checked option (run concurrently) instead of one combined
-    # call keeps each request fast even when every box is checked, and lets a
-    # truncated/malformed result from one option be merged in without
-    # corrupting the others.
-    _ENHANCE_OPTION_SPECS: list[tuple[str, str, tuple[str, ...]]] = [
-        (
+    # plus the field(s) that call is allowed to change. Firing one small call per
+    # checked option (run concurrently) instead of one combined call keeps each
+    # request fast even when every box is checked, and lets a truncated/malformed
+    # result from one option be merged in without corrupting the others.
+    #
+    # Fields are scoped: most extras write per-activity, but the packing list
+    # writes per-day and trip-wide. The merge only copies the fields a spec
+    # declares, so an option can never quietly overwrite anything else.
+    _ENHANCE_OPTION_SPECS: list[_EnhanceSpec] = [
+        _EnhanceSpec(
             "directions_car",
             "For each activity (except the first of its day), fill 'directions_car' with "
             "short driving directions/notes from the previous activity. Leave every other "
             "field exactly as given.",
-            ("directions_car",),
+            activity_fields=("directions_car",),
         ),
-        (
+        _EnhanceSpec(
             "directions_transit",
             "For each activity (except the first of its day), fill 'directions_transit' with "
             "short public-transit directions/notes from the previous activity. Leave every "
             "other field exactly as given.",
-            ("directions_transit",),
+            activity_fields=("directions_transit",),
         ),
-        (
+        _EnhanceSpec(
             "prices",
             "Fill 'price' with the typical cost of each activity (entry ticket, average meal "
             "cost, nightly rate, etc.) in the trip's local currency, when you can reasonably "
             "estimate it. Leave every other field exactly as given.",
-            ("price",),
+            activity_fields=("price",),
         ),
-        (
+        _EnhanceSpec(
             "podcast",
             "For historical/cultural sites, set 'hasPodcast' to true and write a short "
             "'podcast_brief' (2-4 sentences of real historical/cultural context about the "
             "site, beyond what 'desc' already says). Leave every other field exactly as given.",
-            ("hasPodcast", "podcast_brief"),
+            activity_fields=("hasPodcast", "podcast_brief"),
         ),
-        (
+        _EnhanceSpec(
             "links",
             "Fill 'url' with each activity's real official website or listing page, if you "
             "know one. Leave every other field exactly as given.",
-            ("url",),
+            activity_fields=("url",),
+        ),
+        _EnhanceSpec(
+            "travel_mode",
+            "For each activity (except the first of its day), set 'travel_mode' to how a "
+            "traveller realistically gets there from the previous activity: 'walking' for a "
+            "short city hop or when the activity is itself a hike/trail, 'bicycling' for a "
+            "short ride, 'transit' where a train/bus/metro is the normal way, and 'driving' "
+            "otherwise. Leave every other field exactly as given.",
+            activity_fields=("travel_mode",),
+        ),
+        _EnhanceSpec(
+            "packing",
+            "Fill in the packing checklists. For each day, set that day's 'checklist' to what "
+            "a traveller needs for THAT day specifically, based on its activities — walking "
+            "shoes for a trail day, a swimsuit for a beach day, modest dress for a religious "
+            "site, cash where cards aren't taken. Set the trip-level 'checklist' to essentials "
+            "for the whole trip (documents, chargers, adapters, medication). Keep every item "
+            "under six words, give each a short unique 'id', and keep any items already there. "
+            "Do not put day-specific items in the trip-level list. Leave every other field "
+            "exactly as given.",
+            day_fields=("checklist",),
+            trip_fields=("checklist",),
         ),
     ]
 
@@ -1106,11 +1150,12 @@ class LLMService:
             "You are an expert travel planner AI enriching an existing trip itinerary with one "
             "extra detail the user explicitly opted into. The 'Current Itinerary' is the full "
             "source of truth — copy every day and activity through to 'updated_trip' UNCHANGED, "
-            "including id, time, title, desc, type and any already-set fields; only fill in the "
-            "specific new field(s) requested below. "
+            "including each day's 'dayNum' and every activity's id, time, title, desc, type and "
+            "any already-set fields; only fill in the specific new field(s) requested below. "
             f"The itinerary's language (ISO 639-1, currently '{current_trip.language}') "
-            "indicates which language to write any new text in (e.g. 'podcast_brief' or the "
-            "directions notes) — do not switch to English or any other language. " + instruction
+            "indicates which language to write any new text in (e.g. 'podcast_brief', the "
+            "directions notes, or checklist items) — do not switch to English or any other "
+            "language. " + instruction
         )
         schema = TripData.model_json_schema()
         user_content = (
@@ -1157,16 +1202,19 @@ class LLMService:
         live preview's "+" button, which has no way to look up a real location itself).
         Each piece fires its own small, focused LLM call (run concurrently) instead of one
         combined call, so picking every option stays about as fast as picking one."""
-        selected = [
-            (fields, instruction)
-            for flag_name, instruction, fields in cls._ENHANCE_OPTION_SPECS
-            if getattr(options, flag_name)
-        ]
+        selected = [spec for spec in cls._ENHANCE_OPTION_SPECS if getattr(options, spec.flag)]
         needs_coordinates = any(
             act.map_coordinates is None for day in current_trip.days for act in day.activities
         )
         if needs_coordinates:
-            selected = [*selected, (("map_coordinates",), cls._MISSING_COORDINATES_INSTRUCTION)]
+            selected = [
+                *selected,
+                _EnhanceSpec(
+                    "map_coordinates",
+                    cls._MISSING_COORDINATES_INSTRUCTION,
+                    activity_fields=("map_coordinates",),
+                ),
+            ]
         if not selected:
             return current_trip
 
@@ -1177,29 +1225,38 @@ class LLMService:
         results = await asyncio.gather(
             *(
                 cls._enhance_one(
-                    current_trip, instruction, credentials, api_key, api_keys, provider
+                    current_trip, spec.instruction, credentials, api_key, api_keys, provider
                 )
-                for _fields, instruction in selected
+                for spec in selected
             ),
             return_exceptions=True,
         )
 
         merged = current_trip.model_copy(deep=True)
         activities_by_id = {act.id: act for day in merged.days for act in day.activities}
+        # Days are matched by dayNum rather than position: a result that dropped
+        # or reordered a day must not write one day's checklist onto another.
+        days_by_num = {day.dayNum: day for day in merged.days}
         first_error: BaseException | None = None
         any_succeeded = False
-        for (fields, _instruction), result in zip(selected, results, strict=True):
+        for spec, result in zip(selected, results, strict=True):
             if isinstance(result, BaseException):
                 if first_error is None:
                     first_error = result
                 continue
             any_succeeded = True
+            for field in spec.trip_fields:
+                setattr(merged, field, getattr(result, field))
             for day in result.days:
+                target_day = days_by_num.get(day.dayNum)
+                if target_day is not None:
+                    for field in spec.day_fields:
+                        setattr(target_day, field, getattr(day, field))
                 for act in day.activities:
                     target = activities_by_id.get(act.id)
                     if target is None:
                         continue
-                    for field in fields:
+                    for field in spec.activity_fields:
                         setattr(target, field, getattr(act, field))
 
         if not any_succeeded and first_error is not None:

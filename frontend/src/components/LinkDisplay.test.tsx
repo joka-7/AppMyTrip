@@ -51,3 +51,65 @@ describe("LinkDisplay", () => {
     consoleErrorSpy.mockRestore();
   });
 });
+
+// A pasted link on its own says nothing about the trip. The share sheet is what
+// carries the name and dates into WhatsApp/Telegram alongside the URL.
+describe("LinkDisplay sharing", () => {
+  const originalClipboard = navigator.clipboard;
+  const originalShare = (navigator as { share?: unknown }).share;
+  const url = "https://example.com/?trip=Rome&shared=trip-1";
+  const shareText = `Rome — 12-19/07\n${url}`;
+
+  afterEach(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      value: originalClipboard,
+      configurable: true,
+    });
+    Object.defineProperty(navigator, "share", { value: originalShare, configurable: true });
+  });
+
+  it("offers no share button when there's no message to send", () => {
+    render(<LinkDisplay url={url} />);
+    expect(screen.queryByRole("button", { name: /שיתוף/ })).not.toBeInTheDocument();
+  });
+
+  it("hands the trip name, message and link to the native share sheet", async () => {
+    const share = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "share", { value: share, configurable: true });
+
+    render(<LinkDisplay url={url} shareTitle="Rome" shareText={shareText} />);
+    fireEvent.click(screen.getByRole("button", { name: /שיתוף/ }));
+
+    await waitFor(() => {
+      expect(share).toHaveBeenCalledWith({ title: "Rome", text: shareText, url });
+    });
+  });
+
+  it("copies the whole message, not just the URL, where there's no share sheet", async () => {
+    Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+
+    render(<LinkDisplay url={url} shareTitle="Rome" shareText={shareText} />);
+    fireEvent.click(screen.getByRole("button", { name: /שיתוף/ }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(shareText));
+    expect(await screen.findByRole("button", { name: /הועתק!/ })).toBeInTheDocument();
+  });
+
+  it("stays quiet when the user dismisses the share sheet", async () => {
+    const abort = Object.assign(new Error("cancelled"), { name: "AbortError" });
+    Object.defineProperty(navigator, "share", {
+      value: vi.fn().mockRejectedValue(abort),
+      configurable: true,
+    });
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    render(<LinkDisplay url={url} shareTitle="Rome" shareText={shareText} />);
+    fireEvent.click(screen.getByRole("button", { name: /שיתוף/ }));
+
+    await waitFor(() => expect(navigator.share).toHaveBeenCalled());
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
+});

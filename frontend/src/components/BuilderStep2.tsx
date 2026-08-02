@@ -1,9 +1,11 @@
 import { useState } from "react";
 import {
+  Backpack,
   Car,
   ChevronLeft,
   ChevronRight,
   Link as LinkIcon,
+  Route,
   Train,
   Volume2,
   Wallet,
@@ -22,6 +24,8 @@ const OPTIONS: {
   { key: "prices", labelKey: "step2.opt.prices", Icon: Wallet },
   { key: "podcast", labelKey: "step2.opt.podcast", Icon: Volume2 },
   { key: "links", labelKey: "step2.opt.links", Icon: LinkIcon },
+  { key: "travel_mode", labelKey: "step2.opt.travel_mode", Icon: Route },
+  { key: "packing", labelKey: "step2.opt.packing", Icon: Backpack },
 ];
 
 const ENHANCE_HINTS: readonly TranslationKey[] = [

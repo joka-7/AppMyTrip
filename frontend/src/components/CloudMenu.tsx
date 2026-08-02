@@ -18,6 +18,7 @@ import { useI18n, type TranslationKey } from "../i18n/useI18n";
 import { exportTripToIcs } from "../services/icsExport";
 import { exportTripToFile, importTripFromFile } from "../services/tripFile";
 import LinkDisplay from "./LinkDisplay";
+import { shareMessage } from "../services/shareLink";
 import {
   type CloudTripSummary,
   type TripStage,
@@ -347,17 +348,23 @@ export default function CloudMenu({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    // flex-wrap, same as the signed-out branch above: the parent navbar can only
+    // break *between* its children, so without this the four file controls plus
+    // the email chip become one unbreakable ~500px row and push the whole
+    // document into horizontal scroll on a phone.
+    <div className="flex flex-wrap items-center gap-2">
       {fileImportControls}
-      <div className="relative" ref={menuRef}>
+      <div className="relative min-w-0" ref={menuRef}>
         <button
           onClick={() => setIsOpen((v) => !v)}
           aria-expanded={isOpen}
           aria-haspopup="menu"
-          className="flex items-center gap-2 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-full transition-colors"
+          className="flex items-center gap-2 max-w-[12rem] sm:max-w-none min-w-0 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-full transition-colors"
         >
-          <Cloud size={16} />
-          {email}
+          <Cloud size={16} className="shrink-0" />
+          {/* A long address is one unbreakable token; as a flex item it has
+              min-width:auto and would otherwise refuse to shrink. */}
+          <span className="truncate">{email}</span>
         </button>
 
         {isOpen && (
@@ -371,7 +378,11 @@ export default function CloudMenu({
             {notice && <p className="text-xs text-amber-700 mb-2">{notice}</p>}
             {shareUrl && (
               <div className="mb-3">
-                <LinkDisplay url={shareUrl} />
+                <LinkDisplay
+                  url={shareUrl}
+                  shareTitle={tripData.title}
+                  shareText={shareMessage(tripData, shareUrl)}
+                />
               </div>
             )}
 

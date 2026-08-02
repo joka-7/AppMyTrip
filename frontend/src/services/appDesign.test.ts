@@ -57,6 +57,46 @@ describe("headerBackgroundStyle", () => {
   });
 });
 
+// A trip saved before the checklist tab existed has a tabOrder/visibleTabs that
+// simply doesn't mention it. Those must gain it on load rather than silently
+// losing the tab, since there's no migration step anywhere.
+describe("adding a tab to an already-saved design", () => {
+  it("appends the checklist tab to a stored order that predates it", () => {
+    const legacy = normalizeAppDesign({
+      tabOrder: ["itinerary", "map", "price", "chat"],
+    });
+    expect(legacy.tabOrder).toContain("checklist");
+    expect(legacy.tabOrder).toHaveLength(5);
+  });
+
+  it("defaults the checklist tab to visible on a stored design that predates it", () => {
+    const legacy = normalizeAppDesign({
+      visibleTabs: { itinerary: true, map: false, price: true, chat: true } as never,
+    });
+    expect(legacy.visibleTabs.checklist).toBe(true);
+    // and doesn't disturb what was actually stored
+    expect(legacy.visibleTabs.map).toBe(false);
+  });
+
+  it("keeps a stored order's own sequence, only appending what's missing", () => {
+    const legacy = normalizeAppDesign({ tabOrder: ["chat", "map"] });
+    expect(legacy.tabOrder.slice(0, 2)).toEqual(["chat", "map"]);
+    expect(legacy.tabOrder).toContain("checklist");
+  });
+
+  it("falls back to the checklist tab when it is the only visible one", () => {
+    expect(
+      resolveDefaultTab("map", {
+        itinerary: false,
+        checklist: true,
+        map: false,
+        price: false,
+        chat: false,
+      }),
+    ).toBe("checklist");
+  });
+});
+
 describe("themeClassForDesign", () => {
   it("returns no theme class for a photo header with a safe image URL", () => {
     const design = {

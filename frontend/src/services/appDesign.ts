@@ -4,7 +4,7 @@ export type Theme = "blue" | "green" | "dark" | "coral" | "purple" | "sand";
 
 export type AppFont = "sans" | "rounded" | "serif";
 export type AppDensity = "compact" | "comfortable" | "spacious";
-export type AppTab = "itinerary" | "map" | "price" | "chat";
+export type AppTab = "itinerary" | "checklist" | "map" | "price" | "chat";
 export type HeaderStyle = "solid" | "gradient" | "photo";
 export type CardLayout = "list" | "timeline";
 export type CornerStyle = "rounded" | "sharp";
@@ -17,6 +17,7 @@ export const CUSTOM_CURRENCY = "__custom__";
 
 export interface VisibleTabs {
   itinerary: boolean;
+  checklist: boolean;
   map: boolean;
   price: boolean;
   chat: boolean;
@@ -49,10 +50,11 @@ export interface AppDesign {
   pwaIconUrl: string | null;
 }
 
-export const DEFAULT_TAB_ORDER: AppTab[] = ["itinerary", "map", "price", "chat"];
+export const DEFAULT_TAB_ORDER: AppTab[] = ["itinerary", "checklist", "map", "price", "chat"];
 
 export const DEFAULT_VISIBLE_TABS: VisibleTabs = {
   itinerary: true,
+  checklist: true,
   map: true,
   price: true,
   chat: true,

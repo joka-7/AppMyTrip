@@ -35,7 +35,7 @@ import ThemeSelector from "./ThemeSelector";
 
 const FONTS: AppFont[] = ["sans", "rounded", "serif"];
 const DENSITIES: AppDensity[] = ["compact", "comfortable", "spacious"];
-const TABS: AppTab[] = ["itinerary", "map", "price", "chat"];
+const TABS: AppTab[] = ["itinerary", "checklist", "map", "price", "chat"];
 const HEADER_STYLES: HeaderStyle[] = ["solid", "gradient", "photo"];
 const BACKGROUNDS: BackgroundTemplate[] = ["plain", "dots", "grid", "waves", "warm", "cool"];
 const CARD_LAYOUTS: CardLayout[] = ["list", "timeline"];
@@ -44,6 +44,7 @@ const DATE_FORMATS: DateFormatStyle[] = ["short", "numeric"];
 const MAP_TILES: MapTileStyle[] = ["streets", "satellite"];
 const TAB_LABEL_KEYS = {
   itinerary: "appFrame.tab.itinerary",
+  checklist: "appFrame.tab.checklist",
   map: "appFrame.tab.map",
   price: "appFrame.tab.price",
   chat: "appFrame.tab.chat",

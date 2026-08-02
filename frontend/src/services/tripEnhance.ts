@@ -2,7 +2,23 @@ import type { Activity, EnhanceOptions, TripData } from "../api";
 import { enhanceTrip } from "../api";
 import { getAllCredentials, getApiKeys, getApiProvider } from "./apiKey";
 
-/** Used when Step 2 was skipped (or on the shared-trip viewer, which has no Step 2). */
+/**
+ * Used when Step 2 was skipped (or on the shared-trip viewer, which has no
+ * Step 2). This only ever drives `enhanceActivities` below — filling in extras
+ * for a *newly added activity* — so it deliberately lists only the per-activity
+ * extras:
+ *
+ * - `packing` writes day- and trip-level checklists. enhanceActivities sends a
+ *   throwaway one-day trip holding just the new activities, and merges the
+ *   response back by activity id, so a packing call here would spend an LLM
+ *   request producing a checklist that is then discarded.
+ * - `travel_mode` is inferred locally and for free (services/travelMode.ts), and
+ *   a single new activity has no predecessor for the model to reason about
+ *   anyway.
+ *
+ * Both remain available for the whole trip: Step 2's checkboxes, and the
+ * checklist tab's "AI suggestions" button.
+ */
 export const ALL_ENHANCE_OPTIONS: EnhanceOptions = {
   directions_car: true,
   directions_transit: true,

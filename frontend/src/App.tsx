@@ -17,6 +17,7 @@ import type { AgentMessage } from "./components/BuilderStep3";
 import CloudMenu from "./components/CloudMenu";
 import InstallAppButton from "./components/InstallAppButton";
 import ProgressBar from "./components/ProgressBar";
+import { useChecklistSuggest } from "./hooks/useChecklistSuggest";
 import { useTripEditing } from "./hooks/useTripEditing";
 import { DEFAULT_APP_DESIGN, type AppDesign } from "./services/appDesign";
 import { getApiKeys, getApiProvider, getAllCredentials } from "./services/apiKey";
@@ -202,15 +203,17 @@ const buildDemoTrip = (): TripData => ({
   ],
 });
 
-// Falls back to the wand icon until frontend/public/logo.png is committed.
+// Uses the square, full-bleed app icon rather than logo.png: logo.png is 193x180
+// with wide margins, so squeezing it into a square box both distorted it and
+// made the artwork look small. Falls back to the wand icon if it can't load.
 function AppLogo() {
   const [failed, setFailed] = useState(false);
-  if (failed) return <Wand2 size={44} className="text-primary" />;
+  if (failed) return <Wand2 size={56} className="text-primary" />;
   return (
     <img
-      src="/logo.png"
+      src="/icon-192.png"
       alt="AppMyTrip"
-      className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl"
+      className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl shrink-0"
       onError={() => setFailed(true)}
     />
   );
@@ -468,7 +471,16 @@ function TripBuilder() {
     handleAddDay,
     handleDeleteDay,
     handleMoveDay,
+    handleAddChecklistItem,
+    handleUpdateChecklistItem,
+    handleDeleteChecklistItem,
   } = useTripEditing(setTripData, effectiveEnhanceOptions(enhanceOptions));
+
+  const {
+    suggest: handleSuggestChecklist,
+    isSuggesting: isSuggestingChecklist,
+    error: checklistSuggestError,
+  } = useChecklistSuggest(tripData, setTripData);
 
   const handleContinueToDesign = async () => {
     setIsGeneratingMedia(true);
@@ -489,11 +501,11 @@ function TripBuilder() {
     <div className="min-h-screen bg-surface font-sans" dir={dir}>
       {/* Top Navbar */}
       <nav className="no-print bg-white shadow-card border-b border-outline/20 px-4 sm:px-6 py-4 flex flex-wrap justify-between items-center gap-3 sticky top-0 z-30">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <AppLogo />
-          <h1 className="text-lg sm:text-xl font-bold text-ink">{t("nav.title")}</h1>
+          <h1 className="text-lg sm:text-xl font-bold text-ink truncate">{t("nav.title")}</h1>
         </div>
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
           <div className="text-sm font-medium text-ink-muted bg-surface-container px-3 py-1 rounded-full">
             {t("nav.step", { step })}
           </div>
@@ -559,9 +571,9 @@ function TripBuilder() {
         onAction={failedEnhanceOptions ? () => handleEnhance(failedEnhanceOptions) : undefined}
       />
 
-      <div className="max-w-7xl mx-auto p-6 flex flex-col lg:flex-row gap-8 print:block print:max-w-none print:p-0">
+      <div className="max-w-7xl mx-auto p-4 sm:p-6 flex flex-col lg:flex-row gap-8 print:block print:max-w-none print:p-0">
         {/* Left Side: Builder Interface */}
-        <div className="no-print flex-1 bg-white rounded-2xl shadow-card border border-outline/20 p-8 flex flex-col">
+        <div className="no-print flex-1 min-w-0 bg-white rounded-2xl shadow-card border border-outline/20 p-4 sm:p-8 flex flex-col">
           <ProgressBar step={step} />
 
           {/* Dynamic Content based on Step */}
@@ -625,8 +637,14 @@ function TripBuilder() {
           </div>
         </div>
 
-        {/* Right Side: App Live Preview */}
-        <div className="flex-1 flex justify-center items-center bg-surface-container rounded-2xl border border-outline/20 py-10 relative overflow-hidden print:bg-white print:border-0 print:rounded-none print:py-0 print:shadow-none print:block">
+        {/* Right Side: App Live Preview.
+            Hidden below `lg`: the bezel is a fixed 350px + 12px borders, so on a
+            phone it renders clipped inside a narrower column and just wastes a
+            screen of scrolling — the "preview app" button in the navbar opens it
+            full-screen instead. `print:!block` is important-flagged so printing
+            from a phone still gets the itinerary, which is rendered through this
+            subtree. */}
+        <div className="flex-1 hidden lg:flex justify-center items-center bg-surface-container rounded-2xl border border-outline/20 py-10 relative overflow-hidden print:bg-white print:border-0 print:rounded-none print:py-0 print:shadow-none print:!block">
           <div className="no-print absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-4 py-1.5 rounded-full text-xs font-bold text-ink-muted uppercase tracking-wider shadow-sm z-10 flex items-center gap-2 border border-outline/20">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
             Live Preview
@@ -654,6 +672,12 @@ function TripBuilder() {
               onAddDay={handleAddDay}
               onDeleteDay={handleDeleteDay}
               onMoveDay={handleMoveDay}
+              onAddChecklistItem={handleAddChecklistItem}
+              onUpdateChecklistItem={handleUpdateChecklistItem}
+              onDeleteChecklistItem={handleDeleteChecklistItem}
+              onSuggestChecklist={handleSuggestChecklist}
+              isSuggestingChecklist={isSuggestingChecklist}
+              checklistSuggestError={checklistSuggestError}
             />
           </Suspense>
         </div>
@@ -661,6 +685,9 @@ function TripBuilder() {
 
       {previewOpen && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("nav.preview")}
           className="fixed inset-0 z-50 h-dvh overflow-hidden bg-surface-container flex justify-center"
           dir={dir}
         >
@@ -694,6 +721,12 @@ function TripBuilder() {
                   onAddDay={handleAddDay}
                   onDeleteDay={handleDeleteDay}
                   onMoveDay={handleMoveDay}
+                  onAddChecklistItem={handleAddChecklistItem}
+                  onUpdateChecklistItem={handleUpdateChecklistItem}
+                  onDeleteChecklistItem={handleDeleteChecklistItem}
+                  onSuggestChecklist={handleSuggestChecklist}
+                  isSuggestingChecklist={isSuggestingChecklist}
+                  checklistSuggestError={checklistSuggestError}
                 />
               </Suspense>
             </div>
@@ -859,7 +892,16 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
     handleAddDay,
     handleDeleteDay,
     handleMoveDay,
+    handleAddChecklistItem,
+    handleUpdateChecklistItem,
+    handleDeleteChecklistItem,
   } = useTripEditing(setLoadedTrip, ALL_ENHANCE_OPTIONS);
+
+  const {
+    suggest: handleSuggestChecklist,
+    isSuggesting: isSuggestingChecklist,
+    error: checklistSuggestError,
+  } = useChecklistSuggest(trip ?? EMPTY_TRIP, setLoadedTrip);
 
   if (error) {
     return (
@@ -901,6 +943,12 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
         onAddDay={handleAddDay}
         onDeleteDay={handleDeleteDay}
         onMoveDay={handleMoveDay}
+        onAddChecklistItem={handleAddChecklistItem}
+        onUpdateChecklistItem={handleUpdateChecklistItem}
+        onDeleteChecklistItem={handleDeleteChecklistItem}
+        onSuggestChecklist={handleSuggestChecklist}
+        isSuggestingChecklist={isSuggestingChecklist}
+        checklistSuggestError={checklistSuggestError}
         onImportTrip={(importedTrip, importedAppDesign) => {
           setTrip(importedTrip);
           setAppDesign(importedAppDesign);

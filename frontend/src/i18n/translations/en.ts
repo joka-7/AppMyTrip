@@ -56,6 +56,8 @@ export const en: Record<TranslationKey, string> = {
   "step2.opt.prices": "Add estimated prices",
   "step2.opt.podcast": "Add a historical podcast",
   "step2.opt.links": "Add links to attraction/transport sites",
+  "step2.opt.packing": "Add a what-to-bring list for each day",
+  "step2.opt.travel_mode": "Work out how you travel between stops",
 
   // Step 3 — completion agent
   "step3.heading": "AI Completion Agent",
@@ -84,6 +86,7 @@ export const en: Record<TranslationKey, string> = {
   "step4.copied": "Copied!",
   "step4.copyFailed": "Copy to clipboard failed",
   "step4.copyLink": "Copy link",
+  "step4.share": "Share",
   "step4.openLink": "Open link",
   "step4.deployError": "Something went wrong while saving and sharing. Try again in a moment.",
   "step4.deployHint":
@@ -187,6 +190,31 @@ export const en: Record<TranslationKey, string> = {
   "appFrame.tab.map": "Map",
   "appFrame.tab.price": "Pricing",
   "appFrame.tab.chat": "AI Chat",
+  "appFrame.tab.checklist": "What to bring",
+
+  // "What we need" checklist
+  "checklist.tripWide": "For the whole trip",
+  "checklist.dayHeading": "Day {num}",
+  "checklist.empty": "Nothing here yet. Add what you need to bring, or ask the AI to suggest some.",
+  "checklist.addPlaceholder": "What do you need?",
+  "checklist.add": "Add",
+  "checklist.addAria": "Add an item to the list",
+  "checklist.editAria": "Edit the item {text}",
+  "checklist.deleteAria": "Delete the item {text}",
+  "checklist.showAllDays": "Show every day",
+  "checklist.showThisDay": "Show only the current day",
+  "checklist.suggest": "AI suggestions",
+  "checklist.suggesting": "Preparing suggestions…",
+  "checklist.suggestFailed": "Couldn't fetch suggestions. Please try again.",
+  "checklist.packed": "{done} of {total} packed",
+
+  // Travel modes
+  "travelMode.driving": "Driving",
+  "travelMode.transit": "Public transit",
+  "travelMode.bicycling": "Cycling",
+  "travelMode.walking": "Walking",
+  "travelMode.auto": "Detect automatically",
+  "travelMode.label": "How you get there",
 
   // Itinerary list
   "itinerary.priceLabel": "Price",
@@ -200,6 +228,14 @@ export const en: Record<TranslationKey, string> = {
   "itinerary.addActivity": "Add an activity to this day",
   "itinerary.urlAria": "Link to the activity's website",
   "itinerary.showOnMapAria": "Show the activity on the map",
+  "itinerary.mapUrlLabel": "Google Maps link",
+  "itinerary.mapUrlHint": "Paste a link if the map pin is wrong",
+  "itinerary.mapUrlPinUpdated": "Map pin updated from the link",
+  "itinerary.mapUrlNoCoords": "The link will be saved, but the map pin can't be updated from it",
+  "itinerary.openInMapsAria": "Open the location in Google Maps",
+  "itinerary.directionsAria": "Directions from the previous stop ({mode})",
+  "itinerary.wazeAria": "Navigate to {title} in Waze",
+  "itinerary.waze": "Waze",
   "itinerary.editAria": "Edit activity",
   "itinerary.deleteAria": "Delete activity",
   "itinerary.editPriceAria": "Edit price",
@@ -221,6 +257,8 @@ export const en: Record<TranslationKey, string> = {
   "map.backToFullDay": "Back to the full day map",
   "map.openInGoogleMaps": "Open in Google Maps",
   "map.openRoute": "Open route and directions in Google Maps",
+  "map.openInWaze": "Navigate in Waze",
+  "map.travelModeLabel": "Route travel mode",
   "map.clickToAdd": "Click the map to add a new activity at this location",
 
   // Price summary

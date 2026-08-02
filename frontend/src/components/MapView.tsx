@@ -10,12 +10,18 @@ import {
 import { useEffect, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { ArrowRight, ExternalLink, MapPinPlus } from "lucide-react";
-import type { Activity } from "../api";
+import { ArrowRight, ExternalLink, MapPinPlus, Navigation } from "lucide-react";
+import type { Activity, TravelMode } from "../api";
 import { useI18n } from "../i18n/useI18n";
 import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABEL_KEYS } from "../services/activityTypes";
 import { newActivityId } from "../services/id";
-import { googleMapsPlaceUrl, googleMapsDirectionsUrl } from "../services/mapLinks";
+import { googleMapsPlaceUrl, googleMapsDirectionsUrl, wazeUrl } from "../services/mapLinks";
+import {
+  dominantTravelMode,
+  inferTravelMode,
+  TRAVEL_MODES,
+  TRAVEL_MODE_LABEL_KEYS,
+} from "../services/travelMode";
 import { type MapTileStyle, MAP_TILE_URLS } from "../services/appDesign";
 import { sequenceLabel } from "../services/sequenceLabel";
 
@@ -143,12 +149,20 @@ export default function MapView({
   const [pendingLocation, setPendingLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [pendingTitle, setPendingTitle] = useState("");
   const [pendingType, setPendingType] = useState<Activity["type"]>("attraction");
+  // null = follow the day's inferred mode; set once the user picks one by hand.
+  const [routeModeOverride, setRouteModeOverride] = useState<TravelMode | null>(null);
 
   const allCoordActs = activities.filter((a) => a.map_coordinates);
   const focusedAct = focusActivityId
     ? allCoordActs.find((a) => a.id === focusActivityId)
     : undefined;
   const coordActs = focusedAct ? [focusedAct] : allCoordActs;
+  const routeMode = routeModeOverride ?? dominantTravelMode(coordActs);
+  // The leg *into* the focused stop, taken from the full day (not the
+  // coordinate-filtered list) so the predecessor is the real previous activity.
+  const focusedMode = focusedAct
+    ? inferTravelMode(activities[activities.indexOf(focusedAct) - 1], focusedAct)
+    : null;
   const canAdd = Boolean(onAddActivity) && !focusedAct;
   const tiles = MAP_TILE_URLS[mapTileStyle];
 
@@ -212,26 +226,55 @@ export default function MapView({
           </button>
         )}
         {focusedAct ? (
-          <a
-            href={googleMapsPlaceUrl(focusedAct)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="self-start flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary-dark bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors"
-          >
-            <ExternalLink size={14} />
-            {t("map.openInGoogleMaps")}
-          </a>
-        ) : (
-          coordActs.length > 1 && (
+          <>
             <a
-              href={googleMapsDirectionsUrl(coordActs)}
+              href={googleMapsPlaceUrl(focusedAct)}
               target="_blank"
               rel="noopener noreferrer"
               className="self-start flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary-dark bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors"
             >
               <ExternalLink size={14} />
-              {t("map.openRoute")}
+              {t("map.openInGoogleMaps")}
             </a>
+            {/* Waze is a driving navigator with no walking/cycling/transit mode,
+                so it's only worth offering when this stop is actually driven to. */}
+            {focusedMode === "driving" && (
+              <a
+                href={wazeUrl(focusedAct)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="self-start flex items-center gap-1.5 text-xs font-medium text-[#05c8f7] hover:text-[#0499bd] bg-[#05c8f7]/10 hover:bg-[#05c8f7]/20 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <Navigation size={14} />
+                {t("map.openInWaze")}
+              </a>
+            )}
+          </>
+        ) : (
+          coordActs.length > 1 && (
+            <>
+              <a
+                href={googleMapsDirectionsUrl(coordActs, routeMode)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="self-start flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary-dark bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <ExternalLink size={14} />
+                {t("map.openRoute")}
+              </a>
+              <select
+                aria-label={t("map.travelModeLabel")}
+                value={routeMode}
+                onChange={(e) => setRouteModeOverride(e.target.value as TravelMode)}
+                className="self-start text-xs font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high border border-outline/40 rounded-lg px-2 py-1.5"
+              >
+                {TRAVEL_MODES.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {t(TRAVEL_MODE_LABEL_KEYS[mode])}
+                  </option>
+                ))}
+              </select>
+            </>
           )
         )}
         {canAdd && !pendingLocation && (

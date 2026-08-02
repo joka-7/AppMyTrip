@@ -186,3 +186,67 @@ describe("useTripEditing", () => {
     });
   });
 });
+
+describe("useTripEditing checklists", () => {
+  function renderChecklistEditing() {
+    return renderHook(() => {
+      const [trip, setTrip] = useState<TripData>({
+        title: "T",
+        dates: "Mon - Wed",
+        days: [
+          { dayNum: 1, activities: [] },
+          { dayNum: 2, activities: [] },
+        ],
+      });
+      const editing = useTripEditing(setTrip, {});
+      return { trip, ...editing };
+    });
+  }
+
+  it("adds trip-wide items with a null target and day items by index", () => {
+    const { result } = renderChecklistEditing();
+
+    act(() => result.current.handleAddChecklistItem(null, "Passport"));
+    act(() => result.current.handleAddChecklistItem(1, "Swimsuit"));
+
+    expect(result.current.trip.checklist?.map((i) => i.text)).toEqual(["Passport"]);
+    expect(result.current.trip.days[0].checklist ?? []).toEqual([]);
+    expect(result.current.trip.days[1].checklist?.map((i) => i.text)).toEqual(["Swimsuit"]);
+  });
+
+  it("trims text and ignores a blank item", () => {
+    const { result } = renderChecklistEditing();
+
+    act(() => result.current.handleAddChecklistItem(null, "  Charger  "));
+    act(() => result.current.handleAddChecklistItem(null, "   "));
+
+    expect(result.current.trip.checklist?.map((i) => i.text)).toEqual(["Charger"]);
+  });
+
+  it("updates and deletes an item without touching the other list", () => {
+    const { result } = renderChecklistEditing();
+
+    act(() => result.current.handleAddChecklistItem(null, "Passport"));
+    act(() => result.current.handleAddChecklistItem(0, "Boots"));
+    const tripItemId = result.current.trip.checklist![0].id;
+    const dayItemId = result.current.trip.days[0].checklist![0].id;
+
+    act(() => result.current.handleUpdateChecklistItem(0, dayItemId, "Trail shoes"));
+    expect(result.current.trip.days[0].checklist?.[0].text).toBe("Trail shoes");
+    expect(result.current.trip.checklist?.[0].text).toBe("Passport");
+
+    act(() => result.current.handleDeleteChecklistItem(null, tripItemId));
+    expect(result.current.trip.checklist).toEqual([]);
+    expect(result.current.trip.days[0].checklist).toHaveLength(1);
+  });
+
+  it("gives every item a distinct id so ticks can key off it", () => {
+    const { result } = renderChecklistEditing();
+
+    act(() => result.current.handleAddChecklistItem(null, "One"));
+    act(() => result.current.handleAddChecklistItem(null, "Two"));
+
+    const [first, second] = result.current.trip.checklist!;
+    expect(first.id).not.toBe(second.id);
+  });
+});

@@ -133,6 +133,8 @@ describe("App builder flow", () => {
           prices: true,
           podcast: true,
           links: true,
+          travel_mode: true,
+          packing: true,
         },
         [],
         "gemini",

@@ -149,3 +149,178 @@ describe("ItineraryList", () => {
     expect(onDeleteActivity).toHaveBeenCalledWith("a2");
   });
 });
+
+// Navigation used to live only on the map tab, and every route opened as a walk.
+describe("ItineraryList navigation links", () => {
+  const near: Activity[] = [
+    {
+      id: "n1",
+      time: "09:00",
+      title: "Hotel",
+      desc: "",
+      type: "lodging",
+      map_coordinates: { lat: 41.9, lng: 12.5 },
+    },
+    // ~400m away — a walk.
+    {
+      id: "n2",
+      time: "10:00",
+      title: "Museum",
+      desc: "",
+      type: "attraction",
+      map_coordinates: { lat: 41.9036, lng: 12.5 },
+    },
+    // ~55km away — a drive.
+    {
+      id: "n3",
+      time: "14:00",
+      title: "Castle",
+      desc: "",
+      type: "attraction",
+      map_coordinates: { lat: 42.4, lng: 12.5 },
+    },
+  ];
+
+  function renderNav(activities: Activity[]) {
+    return render(
+      <ItineraryList
+        activities={activities}
+        themeClass="bg-blue-600"
+        playingPodcast={null}
+        onPlayPodcast={vi.fn()}
+        onUpdateActivity={vi.fn()}
+      />,
+    );
+  }
+
+  it("offers a Google Maps link on every stop that has a location", () => {
+    renderNav(near);
+    expect(screen.getAllByLabelText("פתיחת המיקום ב-Google Maps")).toHaveLength(3);
+  });
+
+  it("labels each leg with the mode inferred from the distance", () => {
+    renderNav(near);
+    // No leg into the first stop, so only two directions links.
+    expect(screen.getByLabelText("הוראות הגעה מהעצירה הקודמת (הליכה ברגל)")).toBeInTheDocument();
+    expect(screen.getByLabelText("הוראות הגעה מהעצירה הקודמת (נסיעה ברכב)")).toBeInTheDocument();
+  });
+
+  it("opens the leg in that mode", () => {
+    renderNav(near);
+    const walk = screen.getByLabelText("הוראות הגעה מהעצירה הקודמת (הליכה ברגל)");
+    expect(new URL(walk.getAttribute("href")!).searchParams.get("travelmode")).toBe("walking");
+  });
+
+  it("shows Waze for driving stops but never for a walk", () => {
+    renderNav(near);
+    const waze = screen.getAllByRole("link", { name: /Waze/ });
+    // The far "Castle", plus the day's first stop — that one has no leg into it
+    // and falls back to driving, which is wanted: Waze needs only a destination
+    // and getting to where the day starts is exactly when you reach for it.
+    // The 400m walk to the Museum is the one that must not offer it.
+    expect(waze.map((link) => link.getAttribute("aria-label"))).toEqual([
+      "ניווט ל-Hotel ב-Waze",
+      "ניווט ל-Castle ב-Waze",
+    ]);
+    expect(waze[0].getAttribute("href")).toContain("waze.com");
+  });
+
+  it("shows no navigation at all for a stop with neither coordinates nor a link", () => {
+    renderNav([{ id: "x", time: "", title: "Somewhere", desc: "", type: "attraction" }]);
+    expect(screen.queryByLabelText("פתיחת המיקום ב-Google Maps")).not.toBeInTheDocument();
+  });
+
+  it("uses a pasted map_url instead of the generated coordinate link", () => {
+    const pasted = "https://www.google.com/maps/place/Real/@41.5,12.1,17z";
+    renderNav([{ ...near[0], map_url: pasted }]);
+    expect(screen.getByLabelText("פתיחת המיקום ב-Google Maps")).toHaveAttribute("href", pasted);
+  });
+});
+
+describe("ItineraryList map link editing", () => {
+  const single: Activity[] = [
+    {
+      id: "a1",
+      time: "10:00",
+      title: "Wrong pin",
+      desc: "",
+      type: "attraction",
+      map_coordinates: { lat: 1, lng: 1 },
+    },
+  ];
+
+  it("repairs the pin from a pasted link that carries coordinates", () => {
+    const onUpdateActivity = vi.fn();
+    render(
+      <ItineraryList
+        activities={single}
+        themeClass="bg-blue-600"
+        playingPodcast={null}
+        onPlayPodcast={vi.fn()}
+        onUpdateActivity={onUpdateActivity}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("עריכת פעילות"));
+    const pasted = "https://www.google.com/maps/place/Colosseo/@41.8902,12.4922,17z";
+    fireEvent.change(screen.getByLabelText(/קישור ל-Google Maps/), { target: { value: pasted } });
+    expect(screen.getByText("המיקום על המפה עודכן לפי הקישור")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "שמירה" }));
+    expect(onUpdateActivity).toHaveBeenCalledWith(
+      "a1",
+      expect.objectContaining({
+        map_url: pasted,
+        map_coordinates: { lat: 41.8902, lng: 12.4922 },
+      }),
+    );
+  });
+
+  it("keeps the old pin and says so for a short link with no coordinates", () => {
+    const onUpdateActivity = vi.fn();
+    render(
+      <ItineraryList
+        activities={single}
+        themeClass="bg-blue-600"
+        playingPodcast={null}
+        onPlayPodcast={vi.fn()}
+        onUpdateActivity={onUpdateActivity}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("עריכת פעילות"));
+    fireEvent.change(screen.getByLabelText(/קישור ל-Google Maps/), {
+      target: { value: "https://maps.app.goo.gl/aBcDeF" },
+    });
+    expect(
+      screen.getByText("הקישור יישמר, אך לא ניתן לעדכן ממנו את הסימון על המפה"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "שמירה" }));
+    expect(onUpdateActivity).toHaveBeenCalledWith(
+      "a1",
+      expect.objectContaining({ map_coordinates: { lat: 1, lng: 1 } }),
+    );
+  });
+
+  it("lets the user override the inferred travel mode", () => {
+    const onUpdateActivity = vi.fn();
+    render(
+      <ItineraryList
+        activities={single}
+        themeClass="bg-blue-600"
+        playingPodcast={null}
+        onPlayPodcast={vi.fn()}
+        onUpdateActivity={onUpdateActivity}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("עריכת פעילות"));
+    fireEvent.change(screen.getByLabelText(/אופן ההגעה/), { target: { value: "bicycling" } });
+    fireEvent.click(screen.getByRole("button", { name: "שמירה" }));
+    expect(onUpdateActivity).toHaveBeenCalledWith(
+      "a1",
+      expect.objectContaining({ travel_mode: "bicycling" }),
+    );
+  });
+});

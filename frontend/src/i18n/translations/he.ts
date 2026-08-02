@@ -55,6 +55,8 @@ export const he = {
   "step2.opt.prices": "הוספת מחירים משוערים",
   "step2.opt.podcast": "הוספת פודקאסט היסטורי",
   "step2.opt.links": "הוספת קישורים לאתרי האטרקציות/תחבורה",
+  "step2.opt.packing": "הוספת רשימת ציוד לכל יום",
+  "step2.opt.travel_mode": "זיהוי אופן ההגעה בין העצירות",
 
   // Step 3 — completion agent
   "step3.heading": "סוכן השלמות AI",
@@ -83,6 +85,7 @@ export const he = {
   "step4.copied": "הועתק!",
   "step4.copyFailed": "ההעתקה ללוח נכשלה",
   "step4.copyLink": "העתק קישור",
+  "step4.share": "שיתוף",
   "step4.openLink": "מעבר לקישור",
   "step4.deployError": "משהו השתבש בעת השמירה והשיתוף. נסו שוב בעוד רגע.",
   "step4.deployHint":
@@ -185,6 +188,31 @@ export const he = {
   "appFrame.tab.map": "מפה",
   "appFrame.tab.price": "תמחור",
   "appFrame.tab.chat": "צ'אט AI",
+  "appFrame.tab.checklist": "מה לוקחים",
+
+  // "What we need" checklist
+  "checklist.tripWide": "לכל הטיול",
+  "checklist.dayHeading": "יום {num}",
+  "checklist.empty": "עדיין אין פריטים. הוסיפו מה צריך לקחת, או בקשו הצעות מה-AI.",
+  "checklist.addPlaceholder": "מה צריך לקחת?",
+  "checklist.add": "הוספה",
+  "checklist.addAria": "הוספת פריט לרשימה",
+  "checklist.editAria": "עריכת הפריט {text}",
+  "checklist.deleteAria": "מחיקת הפריט {text}",
+  "checklist.showAllDays": "הצגת כל הימים",
+  "checklist.showThisDay": "הצגת היום הנוכחי בלבד",
+  "checklist.suggest": "הצעות AI",
+  "checklist.suggesting": "מכינים הצעות...",
+  "checklist.suggestFailed": "לא הצלחנו להביא הצעות. נסו שוב.",
+  "checklist.packed": "{done} מתוך {total} נארזו",
+
+  // Travel modes
+  "travelMode.driving": "נסיעה ברכב",
+  "travelMode.transit": "תחבורה ציבורית",
+  "travelMode.bicycling": "אופניים",
+  "travelMode.walking": "הליכה ברגל",
+  "travelMode.auto": "זיהוי אוטומטי",
+  "travelMode.label": "אופן ההגעה",
 
   // Itinerary list
   "itinerary.priceLabel": "מחיר",
@@ -198,6 +226,14 @@ export const he = {
   "itinerary.addActivity": "הוספת פעילות ליום זה",
   "itinerary.urlAria": "קישור לאתר הפעילות",
   "itinerary.showOnMapAria": "הצגת הפעילות על המפה",
+  "itinerary.mapUrlLabel": "קישור ל-Google Maps",
+  "itinerary.mapUrlHint": "הדביקו קישור אם הסימון על המפה שגוי",
+  "itinerary.mapUrlPinUpdated": "המיקום על המפה עודכן לפי הקישור",
+  "itinerary.mapUrlNoCoords": "הקישור יישמר, אך לא ניתן לעדכן ממנו את הסימון על המפה",
+  "itinerary.openInMapsAria": "פתיחת המיקום ב-Google Maps",
+  "itinerary.directionsAria": "הוראות הגעה מהעצירה הקודמת ({mode})",
+  "itinerary.wazeAria": "ניווט ל-{title} ב-Waze",
+  "itinerary.waze": "Waze",
   "itinerary.editAria": "עריכת פעילות",
   "itinerary.deleteAria": "מחיקת פעילות",
   "itinerary.editPriceAria": "עריכת מחיר",
@@ -218,6 +254,8 @@ export const he = {
   "map.backToFullDay": "חזרה למפת היום המלאה",
   "map.openInGoogleMaps": "פתיחה ב-Google Maps",
   "map.openRoute": "פתיחת מסלול והוראות הגעה ב-Google Maps",
+  "map.openInWaze": "ניווט ב-Waze",
+  "map.travelModeLabel": "אופן ההגעה למסלול",
   "map.clickToAdd": "לחצו על המפה כדי להוסיף פעילות חדשה במיקום זה",
 
   // Price summary

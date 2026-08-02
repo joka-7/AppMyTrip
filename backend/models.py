@@ -37,6 +37,24 @@ class Activity(BaseModel):
         None,
         description="Public-transit directions/notes to reach this activity from the previous stop",
     )
+    map_url: str | None = Field(
+        None,
+        max_length=2000,
+        description="User-supplied Google Maps link that overrides the one built from "
+        "'map_coordinates'. Never invent one — leave as given.",
+    )
+    travel_mode: Literal["driving", "walking", "bicycling", "transit"] | None = Field(
+        None,
+        description="How you get to this activity from the previous stop. Null means the "
+        "client infers it from the distance and the activity itself.",
+    )
+
+
+class ChecklistItem(BaseModel):
+    """One thing to bring/prepare, either for a single day or for the whole trip."""
+
+    id: str = Field(..., max_length=200)
+    text: str = Field(..., max_length=300)
 
 
 class TripDay(BaseModel):
@@ -47,6 +65,12 @@ class TripDay(BaseModel):
     # cap exists to bound the payload/token cost of a malicious or malformed
     # request, not to constrain any real trip.
     activities: list[Activity] = Field(default_factory=list, max_length=150)
+    checklist: list[ChecklistItem] = Field(
+        default_factory=list,
+        max_length=100,
+        description="What's needed for this specific day (boots for a trail day, "
+        "swimsuit for a beach day)",
+    )
 
 
 class TripData(BaseModel):
@@ -66,6 +90,11 @@ class TripData(BaseModel):
     )
     photo_album_url: str | None = Field(
         None, description="Link to a shared photo album for the whole trip", max_length=2000
+    )
+    checklist: list[ChecklistItem] = Field(
+        default_factory=list,
+        max_length=100,
+        description="Trip-wide essentials (passport, chargers) — things not tied to one day",
     )
 
 
@@ -183,6 +212,8 @@ class EnhanceOptions(BaseModel):
     prices: bool = False
     podcast: bool = False
     links: bool = False
+    packing: bool = False
+    travel_mode: bool = False
 
 
 class EnhanceRequest(BaseModel):
