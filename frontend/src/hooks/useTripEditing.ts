@@ -1,6 +1,8 @@
 import { useCallback, type Dispatch, type SetStateAction } from "react";
-import type { Activity, EnhanceOptions, TripData, TripDay } from "../api";
+import type { Activity, ChecklistItem, EnhanceOptions, TripData, TripDay } from "../api";
+import type { ChecklistTarget } from "../components/ChecklistPanel";
 import { tripStartWeekdayIndex } from "../services/hebrewDate";
+import { newActivityId } from "../services/id";
 import { normalizeTripForLoad } from "../services/normalizeTrip";
 import { enhanceActivities, mergeEnhancedActivities } from "../services/tripEnhance";
 
@@ -128,6 +130,52 @@ export function useTripEditing(setTrip: TripUpdater, enhanceOptions: EnhanceOpti
     [setTrip],
   );
 
+  // Checklist edits. `target` is a day index, or null for the trip-wide list —
+  // the two live on different objects (TripDay.checklist / TripData.checklist)
+  // but are the same edit from the user's point of view, so one set of handlers
+  // covers both rather than duplicating three functions per scope.
+  const patchChecklist = useCallback(
+    (target: ChecklistTarget, update: (items: ChecklistItem[]) => ChecklistItem[]) => {
+      setTrip((prev) => {
+        if (target === null) return { ...prev, checklist: update(prev.checklist ?? []) };
+        return {
+          ...prev,
+          days: prev.days.map((d, idx) =>
+            idx !== target ? d : { ...d, checklist: update(d.checklist ?? []) },
+          ),
+        };
+      });
+    },
+    [setTrip],
+  );
+
+  const handleAddChecklistItem = useCallback(
+    (target: ChecklistTarget, text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      patchChecklist(target, (items) => [...items, { id: newActivityId(), text: trimmed }]);
+    },
+    [patchChecklist],
+  );
+
+  const handleUpdateChecklistItem = useCallback(
+    (target: ChecklistTarget, itemId: string, text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      patchChecklist(target, (items) =>
+        items.map((item) => (item.id === itemId ? { ...item, text: trimmed } : item)),
+      );
+    },
+    [patchChecklist],
+  );
+
+  const handleDeleteChecklistItem = useCallback(
+    (target: ChecklistTarget, itemId: string) => {
+      patchChecklist(target, (items) => items.filter((item) => item.id !== itemId));
+    },
+    [patchChecklist],
+  );
+
   return {
     handleUpdateActivity,
     handleAddActivity,
@@ -136,5 +184,8 @@ export function useTripEditing(setTrip: TripUpdater, enhanceOptions: EnhanceOpti
     handleAddDay,
     handleDeleteDay,
     handleMoveDay,
+    handleAddChecklistItem,
+    handleUpdateChecklistItem,
+    handleDeleteChecklistItem,
   };
 }

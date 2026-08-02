@@ -55,6 +55,8 @@ export const fr: Record<TranslationKey, string> = {
   "step2.opt.prices": "Ajouter des prix estimés",
   "step2.opt.podcast": "Ajouter un podcast historique",
   "step2.opt.links": "Ajouter des liens vers les sites des attractions/transports",
+  "step2.opt.packing": "Ajouter une liste d'affaires à emporter pour chaque jour",
+  "step2.opt.travel_mode": "Déterminer le mode de déplacement entre les arrêts",
 
   // Step 3 — completion agent
   "step3.heading": "Agent de complétion IA",
@@ -84,6 +86,7 @@ export const fr: Record<TranslationKey, string> = {
   "step4.copied": "Copié !",
   "step4.copyFailed": "La copie dans le presse-papiers a échoué",
   "step4.copyLink": "Copier le lien",
+  "step4.share": "Partager",
   "step4.openLink": "Ouvrir le lien",
   "step4.deployError":
     "Un problème est survenu lors de l'enregistrement et du partage. Réessayez dans un instant.",
@@ -190,6 +193,32 @@ export const fr: Record<TranslationKey, string> = {
   "appFrame.tab.map": "Carte",
   "appFrame.tab.price": "Tarifs",
   "appFrame.tab.chat": "Chat IA",
+  "appFrame.tab.checklist": "À emporter",
+
+  // "What we need" checklist
+  "checklist.tripWide": "Pour tout le voyage",
+  "checklist.dayHeading": "Jour {num}",
+  "checklist.empty":
+    "Rien pour l'instant. Ajoutez ce qu'il faut emporter, ou demandez des suggestions à l'IA.",
+  "checklist.addPlaceholder": "Qu'est-ce qu'il vous faut ?",
+  "checklist.add": "Ajouter",
+  "checklist.addAria": "Ajouter un élément à la liste",
+  "checklist.editAria": "Modifier l'élément {text}",
+  "checklist.deleteAria": "Supprimer l'élément {text}",
+  "checklist.showAllDays": "Afficher tous les jours",
+  "checklist.showThisDay": "Afficher uniquement le jour actuel",
+  "checklist.suggest": "Suggestions IA",
+  "checklist.suggesting": "Préparation des suggestions…",
+  "checklist.suggestFailed": "Impossible d'obtenir des suggestions. Réessayez.",
+  "checklist.packed": "{done} sur {total} préparés",
+
+  // Travel modes
+  "travelMode.driving": "En voiture",
+  "travelMode.transit": "Transports en commun",
+  "travelMode.bicycling": "À vélo",
+  "travelMode.walking": "À pied",
+  "travelMode.auto": "Détection automatique",
+  "travelMode.label": "Comment s'y rendre",
 
   // Itinerary list
   "itinerary.priceLabel": "Prix",
@@ -203,6 +232,15 @@ export const fr: Record<TranslationKey, string> = {
   "itinerary.addActivity": "Ajouter une activité à ce jour",
   "itinerary.urlAria": "Lien vers le site de l'activité",
   "itinerary.showOnMapAria": "Afficher l'activité sur la carte",
+  "itinerary.mapUrlLabel": "Lien Google Maps",
+  "itinerary.mapUrlHint": "Collez un lien si le point sur la carte est erroné",
+  "itinerary.mapUrlPinUpdated": "Point sur la carte mis à jour depuis le lien",
+  "itinerary.mapUrlNoCoords":
+    "Le lien sera enregistré, mais le point sur la carte ne peut pas en être déduit",
+  "itinerary.openInMapsAria": "Ouvrir le lieu dans Google Maps",
+  "itinerary.directionsAria": "Itinéraire depuis l'arrêt précédent ({mode})",
+  "itinerary.wazeAria": "Naviguer vers {title} dans Waze",
+  "itinerary.waze": "Waze",
   "itinerary.editAria": "Modifier l'activité",
   "itinerary.deleteAria": "Supprimer l'activité",
   "itinerary.editPriceAria": "Modifier le prix",
@@ -225,6 +263,8 @@ export const fr: Record<TranslationKey, string> = {
   "map.backToFullDay": "Retour à la carte complète du jour",
   "map.openInGoogleMaps": "Ouvrir dans Google Maps",
   "map.openRoute": "Ouvrir l'itinéraire et le trajet dans Google Maps",
+  "map.openInWaze": "Naviguer dans Waze",
+  "map.travelModeLabel": "Mode de déplacement de l'itinéraire",
   "map.clickToAdd": "Cliquez sur la carte pour ajouter une nouvelle activité à cet emplacement",
 
   // Price summary

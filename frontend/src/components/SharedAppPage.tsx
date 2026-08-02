@@ -22,9 +22,11 @@ import { getCurrentSession, saveTrip, shareTrip, signInWithGoogle } from "../ser
 import { useTripBranding } from "../hooks/useTripBranding";
 import ApiKeyMenu from "./ApiKeyMenu";
 import AppFrame from "./AppFrame";
+import type { ChecklistTarget } from "./ChecklistPanel";
 import InstallAppButton from "./InstallAppButton";
 import LanguageSwitcher from "./LanguageSwitcher";
 import LinkDisplay from "./LinkDisplay";
+import { shareMessage } from "../services/shareLink";
 import type { AgentMessage } from "./ChatPanel";
 
 /**
@@ -57,6 +59,12 @@ export default function SharedAppPage({
   onAddDay,
   onDeleteDay,
   onMoveDay,
+  onAddChecklistItem,
+  onUpdateChecklistItem,
+  onDeleteChecklistItem,
+  onSuggestChecklist,
+  isSuggestingChecklist,
+  checklistSuggestError,
   onImportTrip,
   isAdmin,
   onSaveChanges,
@@ -81,6 +89,12 @@ export default function SharedAppPage({
   onAddDay?: () => void;
   onDeleteDay?: (dayIndex: number) => void;
   onMoveDay?: (fromIndex: number, toIndex: number) => void;
+  onAddChecklistItem?: (target: ChecklistTarget, text: string) => void;
+  onUpdateChecklistItem?: (target: ChecklistTarget, itemId: string, text: string) => void;
+  onDeleteChecklistItem?: (target: ChecklistTarget, itemId: string) => void;
+  onSuggestChecklist?: () => void;
+  isSuggestingChecklist?: boolean;
+  checklistSuggestError?: string | null;
   onImportTrip: (tripData: TripData, appDesign: AppDesign) => void;
   /** Whether the signed-in visitor may save changes back to this link and add other admins. */
   isAdmin: boolean;
@@ -305,7 +319,11 @@ export default function SharedAppPage({
                         {t("cloud.myTrips")}
                       </a>
                     </p>
-                    <LinkDisplay url={saveUrl} />
+                    <LinkDisplay
+                      url={saveUrl}
+                      shareTitle={tripData.title}
+                      shareText={shareMessage(tripData, saveUrl)}
+                    />
                   </div>
                 )}
                 {saveStatus === "error" && (
@@ -333,7 +351,11 @@ export default function SharedAppPage({
                         ? t("sharedPage.newLinkCopied")
                         : t("sharedPage.newLinkCopyFailed")}
                     </p>
-                    <LinkDisplay url={newLinkUrl} />
+                    <LinkDisplay
+                      url={newLinkUrl}
+                      shareTitle={tripData.title}
+                      shareText={shareMessage(tripData, newLinkUrl)}
+                    />
                   </div>
                 )}
                 {newLinkStatus === "error" && (
@@ -409,6 +431,12 @@ export default function SharedAppPage({
             onAddDay={onAddDay}
             onDeleteDay={onDeleteDay}
             onMoveDay={onMoveDay}
+            onAddChecklistItem={onAddChecklistItem}
+            onUpdateChecklistItem={onUpdateChecklistItem}
+            onDeleteChecklistItem={onDeleteChecklistItem}
+            onSuggestChecklist={onSuggestChecklist}
+            isSuggestingChecklist={isSuggestingChecklist}
+            checklistSuggestError={checklistSuggestError}
             isLocalOnly
             localOnlyNoticeText={t(isAdmin ? "sharedPage.adminHint" : "sharedPage.localOnlyNotice")}
             welcomeStorageKey={tripId}

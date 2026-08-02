@@ -9,6 +9,7 @@ import {
   ChevronsRight,
   DollarSign,
   ImageIcon,
+  ListChecks,
   ListPlus,
   Map,
   MessageCircle,
@@ -19,7 +20,7 @@ import {
   X,
 } from "lucide-react";
 import type { Activity, TripData } from "../api";
-import { useI18n, type Lang } from "../i18n/useI18n";
+import { useI18n, type Lang, type TranslationKey } from "../i18n/useI18n";
 import { usePodcastPlayer } from "../hooks/usePodcastPlayer";
 import {
   type AppDesign,
@@ -38,6 +39,7 @@ import { hebrewWeekdayLetter, tripStartWeekdayIndex } from "../services/hebrewDa
 import { safeUrl } from "../services/safeUrl";
 import type { AgentMessage } from "./ChatPanel";
 import ChatPanel from "./ChatPanel";
+import ChecklistPanel, { type ChecklistTarget } from "./ChecklistPanel";
 import ItineraryList from "./ItineraryList";
 import PodcastPlayer from "./PodcastPlayer";
 import PriceSummary from "./PriceSummary";
@@ -56,13 +58,10 @@ const APP_HOME_URL = typeof window !== "undefined" ? window.location.origin : "/
 const NAV_TABS: {
   id: AppTab;
   icon: typeof Calendar;
-  labelKey:
-    | "appFrame.tab.itinerary"
-    | "appFrame.tab.map"
-    | "appFrame.tab.price"
-    | "appFrame.tab.chat";
+  labelKey: TranslationKey;
 }[] = [
   { id: "itinerary", icon: Calendar, labelKey: "appFrame.tab.itinerary" },
+  { id: "checklist", icon: ListChecks, labelKey: "appFrame.tab.checklist" },
   { id: "map", icon: Map, labelKey: "appFrame.tab.map" },
   { id: "price", icon: DollarSign, labelKey: "appFrame.tab.price" },
   { id: "chat", icon: MessageCircle, labelKey: "appFrame.tab.chat" },
@@ -107,6 +106,12 @@ export default function AppFrame({
   isLocalOnly,
   localOnlyNoticeText,
   welcomeStorageKey,
+  onAddChecklistItem,
+  onUpdateChecklistItem,
+  onDeleteChecklistItem,
+  onSuggestChecklist,
+  isSuggestingChecklist,
+  checklistSuggestError,
 }: {
   tripData: TripData;
   appDesign: AppDesign;
@@ -131,6 +136,14 @@ export default function AppFrame({
   localOnlyNoticeText?: string;
   /** When set, a non-empty welcomeMessage is shown once until dismissed (shared-link flow). */
   welcomeStorageKey?: string;
+  /** Checklist edits. `null` targets the trip-wide list, a number targets that day. */
+  onAddChecklistItem?: (target: ChecklistTarget, text: string) => void;
+  onUpdateChecklistItem?: (target: ChecklistTarget, itemId: string, text: string) => void;
+  onDeleteChecklistItem?: (target: ChecklistTarget, itemId: string) => void;
+  /** Omit to hide the "AI suggestions" button entirely (e.g. a read-only view). */
+  onSuggestChecklist?: () => void;
+  isSuggestingChecklist?: boolean;
+  checklistSuggestError?: string | null;
 }) {
   const { t, lang } = useI18n();
   const days = tripData.days ?? [];
@@ -555,6 +568,28 @@ export default function AppFrame({
                 />
               </section>
             ))}
+          </div>
+        )}
+
+        {/* Printed alongside the itinerary rather than hidden like map/price/
+            chat: the point of a packing list is to have it with you, and a
+            printed trip that omits it is missing half the job. */}
+        {hasTrip && appDesign.visibleTabs.checklist && (
+          <div
+            className={activeTab === "checklist" ? undefined : "print-only-block"}
+            style={activeTab === "checklist" ? undefined : { display: "none" }}
+          >
+            <ChecklistPanel
+              tripData={tripData}
+              activeDayIndex={safeDayIdx}
+              ticksScope={welcomeStorageKey}
+              onAddItem={onAddChecklistItem}
+              onUpdateItem={onUpdateChecklistItem}
+              onDeleteItem={onDeleteChecklistItem}
+              onSuggest={onSuggestChecklist}
+              isSuggesting={isSuggestingChecklist}
+              suggestError={checklistSuggestError}
+            />
           </div>
         )}
 

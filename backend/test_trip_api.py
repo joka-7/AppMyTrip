@@ -1578,6 +1578,101 @@ def test_enhance_trip_fires_one_concurrent_call_per_option_and_merges_only_that_
             assert act.title == original_titles[act.id]
 
 
+def test_enhance_trip_merges_day_and_trip_level_checklists(monkeypatch):
+    # The merge used to copy activity fields only, keyed by activity id, so a
+    # field living on the day or the trip would have been silently dropped.
+    trip = _trip_with_food()
+    data = trip.model_dump()
+    data["checklist"] = [{"id": "t1", "text": "Passport"}]
+    for day in data["days"]:
+        day["checklist"] = [{"id": f"d{day['dayNum']}", "text": "Walking shoes"}]
+        for act in day["activities"]:
+            # Noise the packing call is not allowed to write back.
+            act["price"] = 999
+    monkeypatch.setattr(LLMService, "_execute_with_retry", AsyncMock(return_value=data))
+
+    result = asyncio.run(LLMService.enhance_trip(trip, EnhanceOptions(packing=True)))
+
+    assert [item.text for item in result.checklist] == ["Passport"]
+    assert [item.text for item in result.days[0].checklist] == ["Walking shoes"]
+    for day in result.days:
+        for act in day.activities:
+            assert act.price is None
+
+
+def test_enhance_trip_matches_checklists_by_day_number_not_position(monkeypatch):
+    # A response that reorders or drops a day must not write one day's checklist
+    # onto another day.
+    trip = _sample_trip()
+    trip.days.append(TripDay(dayNum=2, activities=[]))
+    data = trip.model_dump()
+    data["days"] = [d for d in data["days"] if d["dayNum"] == 2]
+    data["days"][0]["checklist"] = [{"id": "x", "text": "Day two only"}]
+    monkeypatch.setattr(LLMService, "_execute_with_retry", AsyncMock(return_value=data))
+
+    result = asyncio.run(LLMService.enhance_trip(trip, EnhanceOptions(packing=True)))
+
+    assert result.days[0].checklist == []
+    assert [item.text for item in result.days[1].checklist] == ["Day two only"]
+
+
+def test_enhance_trip_fills_travel_mode(monkeypatch):
+    trip = _trip_with_food()
+    data = trip.model_dump()
+    for day in data["days"]:
+        for act in day["activities"]:
+            act["travel_mode"] = "bicycling"
+    monkeypatch.setattr(LLMService, "_execute_with_retry", AsyncMock(return_value=data))
+
+    result = asyncio.run(LLMService.enhance_trip(trip, EnhanceOptions(travel_mode=True)))
+
+    for day in result.days:
+        for act in day.activities:
+            assert act.travel_mode == "bicycling"
+
+
+def test_trip_round_trip_preserves_new_fields():
+    # These live on the frontend model too; if they're missing here Pydantic
+    # drops them on every parse/agent/enhance call (as it already does for
+    # startWeekday), so a user's pasted map link or packing list would vanish on
+    # the next chat message.
+    payload = {
+        "title": "T",
+        "dates": "1-2",
+        "checklist": [{"id": "t1", "text": "Passport"}],
+        "days": [
+            {
+                "dayNum": 1,
+                "checklist": [{"id": "d1", "text": "Boots"}],
+                "activities": [
+                    {
+                        "id": "a1",
+                        "time": "10:00",
+                        "title": "Stop",
+                        "desc": "",
+                        "type": "attraction",
+                        "map_url": "https://maps.app.goo.gl/abc",
+                        "travel_mode": "walking",
+                    }
+                ],
+            }
+        ],
+    }
+    parsed = TripData(**payload)
+    assert parsed.checklist[0].text == "Passport"
+    assert parsed.days[0].checklist[0].text == "Boots"
+    assert parsed.days[0].activities[0].map_url == "https://maps.app.goo.gl/abc"
+    assert parsed.days[0].activities[0].travel_mode == "walking"
+    assert parsed.model_dump()["days"][0]["activities"][0]["travel_mode"] == "walking"
+
+
+def test_activity_rejects_an_unknown_travel_mode():
+    with pytest.raises(ValidationError):
+        Activity(
+            id="x", time="09:00", title="t", desc="d", type="attraction", travel_mode="teleport"
+        )
+
+
 def test_enhance_endpoint(monkeypatch):
     trip = _trip_with_food()
     enhanced = trip.model_copy(deep=True)

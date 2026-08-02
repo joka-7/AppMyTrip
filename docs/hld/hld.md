@@ -228,6 +228,14 @@ erDiagram
         string url
         string directions_car
         string directions_transit
+        string map_url "user-pasted Google Maps link"
+        enum travel_mode "driving|walking|bicycling|transit"
+    }
+    TRIP_DAY ||--o{ CHECKLIST_ITEM : "needs for the day"
+    TRIP_DATA ||--o{ CHECKLIST_ITEM : "needs for the trip"
+    CHECKLIST_ITEM {
+        string id
+        string text
     }
 ```
 
@@ -239,6 +247,22 @@ erDiagram
   Step 2 enhancement and the media step, keeping the default parse fast.
 - The TypeScript `TripData`/`Activity` interfaces in `frontend/src/api.ts` mirror
   the Pydantic models in `backend/models.py` — they are two views of one contract.
+  A field added to only one side is silently dropped: Pydantic discards unknown
+  keys, so every parse/agent/enhance round-trip strips it.
+- **`Activity.map_url`** is a user override for when the AI's coordinates land on
+  the wrong place. Pasting a Maps link both replaces the "open in Google Maps"
+  target and, when the link carries coordinates, repairs `map_coordinates` — so
+  the in-app pin and the day-route link get corrected too.
+- **`Activity.travel_mode`** is normally unset and inferred per leg from the
+  distance to the previous stop plus the activity itself
+  (`frontend/src/services/travelMode.ts`); an explicit value is a user or AI
+  override that always wins. It decides which navigation links a stop offers —
+  Waze appears only for driving legs, since it has no walking/cycling mode.
+- **Checklists** ("what we need") hang off both `TripDay` and `TripData`: per-day
+  items for that day's activities, trip-wide items for documents and chargers.
+  Tick state is deliberately *not* in the model — it lives in each viewer's
+  localStorage, so a shared link works read-only and one person packing doesn't
+  tick the box for everyone.
 - **`TripDay.dayNum`** is kept as a gapless `1..N` sequence matching array order —
   day tabs, `icsExport`'s per-day calendar-date math, and the Hebrew weekday
   labels all key off it. `frontend/src/hooks/useTripEditing.ts` renumbers it after

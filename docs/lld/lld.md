@@ -62,17 +62,23 @@ can serve the same ASGI app as a function.
 
 | Model | Role | Notable fields |
 |-------|------|----------------|
-| `Activity` | one schedule item | `id`, `time`, `title`, `desc`, `type` (`Literal["attraction","food","lodging","transport"]`), `hasPodcast`, `podcast_url`, `podcast_brief`, `map_coordinates: dict[str,float] \| None`, `price`, `url`, `directions_car`, `directions_transit` |
-| `TripDay` | one day | `dayNum: int`, `activities: list[Activity]` |
-| `TripData` | whole trip | `title`, `dates`, `days`, `language` (ISO 639-1, default `"he"`), `photo_album_url` |
+| `Activity` | one schedule item | `id`, `time`, `title`, `desc`, `type` (`Literal["attraction","food","lodging","transport"]`), `hasPodcast`, `podcast_url`, `podcast_brief`, `map_coordinates: dict[str,float] \| None`, `price`, `url`, `directions_car`, `directions_transit`, `map_url` (user-pasted Maps link overriding the generated one), `travel_mode` (`Literal["driving","walking","bicycling","transit"] \| None`) |
+| `ChecklistItem` | one thing to bring | `id`, `text` |
+| `TripDay` | one day | `dayNum: int`, `activities: list[Activity]`, `checklist: list[ChecklistItem]` |
+| `TripData` | whole trip | `title`, `dates`, `days`, `language` (ISO 639-1, default `"he"`), `photo_album_url`, `checklist: list[ChecklistItem]` (trip-wide essentials) |
 | `ParseRequest` | Stage 1 input | `raw_text`, `preferences?`, `api_key?`, `provider?` |
-| `EnhanceOptions` | Stage 2 toggles | `directions_car`, `directions_transit`, `prices`, `podcast`, `links` (all `bool=False`) |
+| `EnhanceOptions` | Stage 2 toggles | `directions_car`, `directions_transit`, `prices`, `podcast`, `links`, `travel_mode`, `packing` (all `bool=False`) |
 | `EnhanceRequest` | Stage 2 input | `trip_data`, `options`, `api_key?`, `provider?` |
 | `AgentInteractRequest` | Stage 3 input | `trip_data`, `user_message`, `preferences?`, `api_key?`, `provider?` |
 | `AgentResponse` | Stage 3 LLM output | `updated_trip: TripData`, `agent_reply: str` |
 
 The field descriptions double as **LLM prompt instructions** — `TripData.model_json_schema()`
 is embedded in each prompt so the model returns a schema-conformant object.
+
+Anything the frontend stores on a trip **must** appear here too. Pydantic drops
+unknown keys, so a field present only in `frontend/src/api.ts` is deleted on
+every `/parse`, `/agent` and `/enhance` round-trip — the next chat message would
+wipe a user's pasted map link or packing list.
 
 ### 2.3 `routers/builder.py` — endpoints + `TripBuilder`
 

@@ -2,6 +2,7 @@ import type { RefObject } from "react";
 import type { Activity, TripData } from "../api";
 import type { AppDesign } from "../services/appDesign";
 import AppFrame from "./AppFrame";
+import type { ChecklistTarget } from "./ChecklistPanel";
 import type { AgentMessage } from "./ChatPanel";
 
 export default function PhonePreview({
@@ -22,6 +23,12 @@ export default function PhonePreview({
   onAddDay,
   onDeleteDay,
   onMoveDay,
+  onAddChecklistItem,
+  onUpdateChecklistItem,
+  onDeleteChecklistItem,
+  onSuggestChecklist,
+  isSuggestingChecklist,
+  checklistSuggestError,
 }: {
   tripData: TripData;
   appDesign: AppDesign;
@@ -40,6 +47,12 @@ export default function PhonePreview({
   onAddDay?: () => void;
   onDeleteDay?: (dayIndex: number) => void;
   onMoveDay?: (fromIndex: number, toIndex: number) => void;
+  onAddChecklistItem?: (target: ChecklistTarget, text: string) => void;
+  onUpdateChecklistItem?: (target: ChecklistTarget, itemId: string, text: string) => void;
+  onDeleteChecklistItem?: (target: ChecklistTarget, itemId: string) => void;
+  onSuggestChecklist?: () => void;
+  isSuggestingChecklist?: boolean;
+  checklistSuggestError?: string | null;
 }) {
   return (
     <div className="w-[350px] h-[700px] border-[12px] border-ink rounded-[2.5rem] overflow-hidden flex flex-col bg-surface shadow-2xl relative mx-auto print:w-full print:h-auto print:border-0 print:rounded-none print:shadow-none print:overflow-visible">
@@ -61,6 +74,12 @@ export default function PhonePreview({
         onAddDay={onAddDay}
         onDeleteDay={onDeleteDay}
         onMoveDay={onMoveDay}
+        onAddChecklistItem={onAddChecklistItem}
+        onUpdateChecklistItem={onUpdateChecklistItem}
+        onDeleteChecklistItem={onDeleteChecklistItem}
+        onSuggestChecklist={onSuggestChecklist}
+        isSuggestingChecklist={isSuggestingChecklist}
+        checklistSuggestError={checklistSuggestError}
       />
     </div>
   );

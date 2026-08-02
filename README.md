@@ -1,8 +1,10 @@
 # AppMyTrip
 
 An app that turns a free-text trip summary (e.g. pasted WhatsApp messages) into a
-structured, per-day trip app — with day tabs, a map of points of interest, an AI
-completion agent, and rich media (historical podcasts). Web first, Android later.
+structured, per-day trip app — with day tabs, a map of points of interest, a
+"what to bring" checklist per day, turn-by-turn navigation links (Google Maps and
+Waze), an AI completion agent, and rich media (historical podcasts). Web first,
+Android later.
 
 This repository currently contains an early **TripWeaver AI** prototype: a FastAPI
 backend that uses an LLM to parse trip text and a React web UI that walks the user
@@ -196,9 +198,17 @@ Each user signs in with their own Google account and saves trips as documents in
 Firestore, under `users/{uid}/trips/{tripId}` — readable/writable only by that user
 (see `frontend/firestore.rules`). Sharing a trip copies it into a top-level
 `sharedTrips/{tripId}` doc that anyone can read (no sign-in required) but only the
-owner can write, and produces a `?shared=<tripId>` link; opening that link loads the
-trip read-only-by-link into the builder. Firestore on the free **Spark** plan covers
-this with normal usage — no billing account required.
+owner can write, and produces a `?trip=<name-slug>&shared=<tripId>` link; opening
+that link loads the trip read-only-by-link into the builder. Firestore on the free
+**Spark** plan covers this with normal usage — no billing account required.
+
+The `trip=` slug is cosmetic — only `shared=` identifies the trip — but it is what
+makes the trip's name visible in the link itself. A static SPA serves the same
+Open Graph tags for every URL, so chat apps can't render a per-trip preview card
+without server-side rendering; the slug puts the name in the text they *do* show.
+Sharing also goes through the native share sheet where available
+(`navigator.share`), sending "trip name — dates" alongside the link, and falls
+back to copying that whole message to the clipboard elsewhere.
 
 When sharing, the user picks a link lifetime (7 / 30 / 90 days, or "forever" — the
 default). A chosen duration is stored as an `expiresAt` timestamp on the
@@ -301,7 +311,39 @@ by `VITE_API_URL` (see `frontend/.env.example`, default `http://localhost:8000`)
 Activities added later in Step 3 (via the chat agent or the live preview's "+"
 button) automatically re-run the Step 2 enhancements the user checked, so new
 stops get the same directions/prices/podcast-briefs/links without revisiting
-Step 2.
+Step 2. The two whole-trip options (`packing`, `travel_mode`) are excluded from
+that per-activity top-up: `packing` writes day- and trip-level lists that the
+per-activity merge would discard, and `travel_mode` is inferred locally for free.
+
+### Navigation links (Google Maps + Waze)
+
+Each stop offers "open in Google Maps", directions from the previous stop, and —
+for driving legs only — Waze, straight from the itinerary card rather than only
+from the map tab. How a leg is travelled is worked out in
+`frontend/src/services/travelMode.ts` from the straight-line distance to the
+previous stop, the activity type, and hike/trail keywords in its title or
+description; an explicit `travel_mode` on the activity (set by hand in the edit
+form, or by the opt-in Step 2 enhancement) always wins. Waze is only offered for
+driving, since it has no walking, cycling or transit mode.
+
+Map links are built from coordinates, never from a place name — Google's text
+search will happily resolve a common name to a different, same-named place. When
+the AI's coordinates are wrong anyway, pasting a Google Maps link into an
+activity's "Google Maps link" field overrides the generated link, and if the
+pasted link carries coordinates it repairs the map pin too (so the in-app map and
+the day-route link get fixed as well). Shortened `maps.app.goo.gl` links have no
+coordinates to extract, so those override the link only.
+
+### "What we need" checklist
+
+A bottom tab listing what to bring, split into a trip-wide section (documents,
+chargers) and one per day (boots for a trail day, a swimsuit for a beach day).
+Items are edited by hand and can be pre-filled by the AI — either via Step 2's
+"packing" option or the tab's own "AI suggestions" button, which merges
+suggestions in by text so it never overwrites what you already wrote. Ticking an
+item is stored per viewer in `localStorage`, not in the trip: everyone sharing a
+link sees the same list but packs their own bag, and a read-only viewer can still
+use it. Like the itinerary, the checklist is included when the trip is printed.
 
 Whole days can also be added, deleted, and reordered (move earlier/later, or
 jump to the start/end) from the "manage days" panel next to the day tabs in
