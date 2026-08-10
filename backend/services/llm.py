@@ -1114,11 +1114,16 @@ class LLMService:
         ),
         _EnhanceSpec(
             "travel_mode",
-            "For each activity (except the first of its day), set 'travel_mode' to how a "
-            "traveller realistically gets there from the previous activity: 'walking' for a "
-            "short city hop or when the activity is itself a hike/trail, 'bicycling' for a "
-            "short ride, 'transit' where a train/bus/metro is the normal way, and 'driving' "
-            "otherwise. Leave every other field exactly as given.",
+            "For each activity EXCEPT the first of its day, set 'travel_mode' to how a "
+            "traveller realistically gets there from the previous activity. A single day is "
+            "normally mixed — drive to a trailhead, hike, take a bus back, walk to dinner — "
+            "so decide each leg on its own rather than giving a whole day one mode. Use "
+            "'hiking' when the activity is itself a trail/trek/nature walk, 'walking' for a "
+            "short walk between city stops, 'transit' where a bus/train/metro/ferry is the "
+            "normal way, 'bicycling' only when cycling is genuinely the intended way, and "
+            "'driving' otherwise. Leave 'travel_mode' null on the first activity of each day "
+            "— there is no previous stop to travel from. Leave every other field exactly as "
+            "given.",
             activity_fields=("travel_mode",),
         ),
         _EnhanceSpec(

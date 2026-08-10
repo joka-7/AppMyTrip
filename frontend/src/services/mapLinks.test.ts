@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   googleMapsPlaceUrl,
-  googleMapsDirectionsUrl,
   googleMapsLegUrl,
   hasMapLink,
+  hasUnverifiedPin,
   parseMapUrlCoords,
   wazeUrl,
 } from "./mapLinks";
@@ -34,61 +34,6 @@ describe("googleMapsPlaceUrl", () => {
   });
 });
 
-describe("googleMapsDirectionsUrl", () => {
-  it("routes through every stop by exact coordinates (Google letters them A/B/C itself)", () => {
-    const url = new URL(
-      googleMapsDirectionsUrl(
-        [
-          act("a1", "Start", 41.9, 12.5),
-          act("a2", "Middle", 41.91, 12.51),
-          act("a3", "End", 41.92, 12.52),
-        ],
-        "walking",
-      ),
-    );
-    // Coordinates, not the place name — a plain name is resolved as a literal
-    // text query and can silently match a same-named place elsewhere, dropping
-    // the pin in the wrong spot or failing to draw a route at all.
-    expect(url.searchParams.get("origin")).toBe("41.9,12.5");
-    expect(url.searchParams.get("destination")).toBe("41.92,12.52");
-    expect(url.searchParams.get("waypoints")).toBe("41.91,12.51");
-    expect(url.searchParams.get("travelmode")).toBe("walking");
-  });
-
-  it("uses coordinates regardless of whether a stop has a title", () => {
-    const url = new URL(
-      googleMapsDirectionsUrl(
-        [act("a1", "   ", 41.9, 12.5), act("a2", "End", 41.92, 12.52)],
-        "walking",
-      ),
-    );
-    expect(url.searchParams.get("origin")).toBe("41.9,12.5");
-    expect(url.searchParams.get("destination")).toBe("41.92,12.52");
-  });
-
-  it("omits waypoints when there are only two stops", () => {
-    const url = new URL(
-      googleMapsDirectionsUrl(
-        [act("a1", "Start", 41.9, 12.5), act("a2", "End", 41.92, 12.52)],
-        "walking",
-      ),
-    );
-    expect(url.searchParams.get("waypoints")).toBeNull();
-  });
-
-  // Every route used to open as "walking" no matter how far apart the stops
-  // were, which made a driving day useless in Google Maps.
-  it("opens in the mode it is given", () => {
-    const stops = [act("a1", "Start", 41.9, 12.5), act("a2", "End", 42.5, 13.2)];
-    expect(new URL(googleMapsDirectionsUrl(stops, "driving")).searchParams.get("travelmode")).toBe(
-      "driving",
-    );
-    expect(
-      new URL(googleMapsDirectionsUrl(stops, "bicycling")).searchParams.get("travelmode"),
-    ).toBe("bicycling");
-  });
-});
-
 describe("googleMapsLegUrl", () => {
   it("routes from the previous stop to this one in the given mode", () => {
     const url = new URL(
@@ -102,11 +47,46 @@ describe("googleMapsLegUrl", () => {
 });
 
 describe("wazeUrl", () => {
-  it("navigates straight to the coordinates", () => {
-    const url = new URL(wazeUrl(act("a1", "Parking", 32.08, 34.78)));
-    expect(url.host).toBe("www.waze.com");
-    expect(url.searchParams.get("ll")).toBe("32.08,34.78");
-    expect(url.searchParams.get("navigate")).toBe("yes");
+  // Waze's documented universal link. The comma in `ll` has to stay literal —
+  // percent-encoded, the link lands on the web map showing a pin instead of
+  // handing off to the app, which is what "opens but doesn't navigate" was.
+  it("uses the literal-comma universal link so the app starts guidance", () => {
+    expect(wazeUrl(act("a1", "Parking", 32.08, 34.78))).toBe(
+      "https://waze.com/ul?ll=32.08,34.78&navigate=yes",
+    );
+  });
+
+  it("keeps negative coordinates intact", () => {
+    expect(wazeUrl(act("a1", "Sydney", -33.8688, 151.2093))).toBe(
+      "https://waze.com/ul?ll=-33.8688,151.2093&navigate=yes",
+    );
+  });
+});
+
+describe("hasUnverifiedPin", () => {
+  const bare = (over: Partial<Activity> = {}): Activity => ({
+    ...act("a1", "Stop", 41.89, 12.49),
+    ...over,
+  });
+
+  // Pasting an override link is the user telling us the generated one was wrong.
+  // If we couldn't lift coordinates out of it, the pin is still wrong, and
+  // anything built from it (Waze, directions) would keep sending them astray.
+  it("flags a stop whose override carries no coordinates", () => {
+    expect(hasUnverifiedPin(bare({ map_url: "https://maps.app.goo.gl/aBcDeF" }))).toBe(true);
+  });
+
+  it("clears once the override's coordinates repaired the pin", () => {
+    expect(
+      hasUnverifiedPin(
+        bare({ map_url: "https://www.google.com/maps/place/X/@41.8902,12.4922,17z" }),
+      ),
+    ).toBe(false);
+  });
+
+  it("is false for a stop with no override at all", () => {
+    expect(hasUnverifiedPin(bare())).toBe(false);
+    expect(hasUnverifiedPin(bare({ map_url: "   " }))).toBe(false);
   });
 });
 
@@ -134,12 +114,12 @@ describe("map_url override", () => {
     }
   });
 
-  it("still builds the day route from coordinates, not the override", () => {
-    const stops: Activity[] = [
-      { ...act("a1", "Start", 41.9, 12.5), map_url: "https://maps.app.goo.gl/abc" },
-      act("a2", "End", 41.92, 12.52),
-    ];
-    const url = new URL(googleMapsDirectionsUrl(stops, "driving"));
+  it("still builds directions from coordinates, not the override", () => {
+    const from: Activity = {
+      ...act("a1", "Start", 41.9, 12.5),
+      map_url: "https://maps.app.goo.gl/abc",
+    };
+    const url = new URL(googleMapsLegUrl(from, act("a2", "End", 41.92, 12.52), "driving"));
     expect(url.searchParams.get("origin")).toBe("41.9,12.5");
   });
 });

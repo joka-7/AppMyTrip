@@ -41,8 +41,13 @@ export interface Activity {
   travel_mode?: TravelMode | null;
 }
 
-/** How a leg between two stops is travelled. Matches Google Maps' `travelmode` values. */
-export type TravelMode = "driving" | "walking" | "bicycling" | "transit";
+/**
+ * How a leg between two stops is travelled. The first four match Google Maps'
+ * `travelmode` values; `hiking` is an app-level distinction (a trail is not a
+ * city stroll) that maps to `walking` when building a Maps link — see
+ * `googleTravelMode` in services/travelMode.ts.
+ */
+export type TravelMode = "driving" | "walking" | "bicycling" | "transit" | "hiking";
 
 /** One thing to bring/prepare, either for a single day or for the whole trip. */
 export interface ChecklistItem {

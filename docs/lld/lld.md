@@ -62,12 +62,12 @@ can serve the same ASGI app as a function.
 
 | Model | Role | Notable fields |
 |-------|------|----------------|
-| `Activity` | one schedule item | `id`, `time`, `title`, `desc`, `type` (`Literal["attraction","food","lodging","transport"]`), `hasPodcast`, `podcast_url`, `podcast_brief`, `map_coordinates: dict[str,float] \| None`, `price`, `url`, `directions_car`, `directions_transit`, `map_url` (user-pasted Maps link overriding the generated one), `travel_mode` (`Literal["driving","walking","bicycling","transit"] \| None`) |
+| `Activity` | one schedule item | `id`, `time`, `title`, `desc`, `type` (`Literal["attraction","food","lodging","transport"]`), `hasPodcast`, `podcast_url`, `podcast_brief`, `map_coordinates: dict[str,float] \| None`, `price`, `url`, `directions_car`, `directions_transit`, `map_url` (user-pasted Maps link overriding the generated one), `travel_mode` (`Literal["driving","walking","bicycling","transit","hiking"] \| None` — the leg *into* this stop; null on a day's first activity) |
 | `ChecklistItem` | one thing to bring | `id`, `text` |
 | `TripDay` | one day | `dayNum: int`, `activities: list[Activity]`, `checklist: list[ChecklistItem]` |
 | `TripData` | whole trip | `title`, `dates`, `days`, `language` (ISO 639-1, default `"he"`), `photo_album_url`, `checklist: list[ChecklistItem]` (trip-wide essentials) |
 | `ParseRequest` | Stage 1 input | `raw_text`, `preferences?`, `api_key?`, `provider?` |
-| `EnhanceOptions` | Stage 2 toggles | `directions_car`, `directions_transit`, `prices`, `podcast`, `links`, `travel_mode`, `packing` (all `bool=False`) |
+| `EnhanceOptions` | Stage 2 toggles | `directions_car`, `directions_transit`, `prices`, `podcast`, `links`, `travel_mode`, `packing` (all `bool=False`). The last two are whole-trip options and are excluded from the per-activity top-up in `tripEnhance.ts`. |
 | `EnhanceRequest` | Stage 2 input | `trip_data`, `options`, `api_key?`, `provider?` |
 | `AgentInteractRequest` | Stage 3 input | `trip_data`, `user_message`, `preferences?`, `api_key?`, `provider?` |
 | `AgentResponse` | Stage 3 LLM output | `updated_trip: TripData`, `agent_reply: str` |

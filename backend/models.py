@@ -43,10 +43,11 @@ class Activity(BaseModel):
         description="User-supplied Google Maps link that overrides the one built from "
         "'map_coordinates'. Never invent one — leave as given.",
     )
-    travel_mode: Literal["driving", "walking", "bicycling", "transit"] | None = Field(
+    travel_mode: Literal["driving", "walking", "bicycling", "transit", "hiking"] | None = Field(
         None,
-        description="How you get to this activity from the previous stop. Null means the "
-        "client infers it from the distance and the activity itself.",
+        description="How you get to this activity from the previous stop. A single day is "
+        "routinely mixed (drive to a trailhead, hike, bus back). Null means the client "
+        "infers it from the activity and the distance from the previous stop.",
     )
 
 
