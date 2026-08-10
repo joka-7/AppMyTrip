@@ -252,12 +252,19 @@ erDiagram
 - **`Activity.map_url`** is a user override for when the AI's coordinates land on
   the wrong place. Pasting a Maps link both replaces the "open in Google Maps"
   target and, when the link carries coordinates, repairs `map_coordinates` — so
-  the in-app pin and the day-route link get corrected too.
-- **`Activity.travel_mode`** is normally unset and inferred per leg from the
-  distance to the previous stop plus the activity itself
-  (`frontend/src/services/travelMode.ts`); an explicit value is a user or AI
-  override that always wins. It decides which navigation links a stop offers —
-  Waze appears only for driving legs, since it has no walking/cycling mode.
+  the in-app pin and the directions links get corrected too. When the pasted link
+  is a shortened one (no coordinates, unresolvable from the browser) the pin stays
+  wrong, so everything derived from it is hidden rather than offered.
+- **`Activity.travel_mode`** describes the *leg into* a stop, not the stop and
+  not the day: a real day mixes driving, walking, hiking and buses, so each leg
+  is decided on its own and the first stop of a day has no mode at all. Normally
+  unset and inferred (`frontend/src/services/travelMode.ts`) from the activity
+  itself first — a bus/ferry is transit, a trail is hiking — falling back to
+  distance only when the activity says nothing; an explicit value is a user or AI
+  override that always wins. It decides which links a stop offers: Waze only on a
+  driving leg, since it has no walking/cycling/transit mode. There is no
+  whole-day route link, because Google Maps applies one `travelmode` to an entire
+  route and would therefore be wrong for most legs of a mixed day.
 - **Checklists** ("what we need") hang off both `TripDay` and `TripData`: per-day
   items for that day's activities, trip-wide items for documents and chargers.
   Tick state is deliberately *not* in the model — it lives in each viewer's

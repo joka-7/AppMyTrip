@@ -23,12 +23,14 @@ import {
   googleMapsLegUrl,
   googleMapsPlaceUrl,
   hasMapLink,
+  hasUnverifiedPin,
   parseMapUrlCoords,
   wazeUrl,
 } from "../services/mapLinks";
 import { safeUrl } from "../services/safeUrl";
 import {
-  inferTravelMode,
+  isDrivingMode,
+  legTravelMode,
   TRAVEL_MODES,
   TRAVEL_MODE_ICONS,
   TRAVEL_MODE_LABEL_KEYS,
@@ -223,12 +225,18 @@ export default function ItineraryList({
         const accent = ACTIVITY_ACCENT[act.type] ?? ACTIVITY_ACCENT.attraction;
         const isEditing = editingId === act.id;
         const playingThis = playingPodcast?.id === act.id;
-        // How you reach this stop from the one before it, and therefore which
-        // navigation links are worth offering here.
+        // How you reach this stop from the one before it. Null for the first
+        // stop of a day — there's no leg into it, so it gets no mode chip and no
+        // Waze rather than a guess about a journey the itinerary never describes.
         const prevAct = activities[idx - 1];
-        const travelMode = inferTravelMode(prevAct, act);
-        const ModeIcon = TRAVEL_MODE_ICONS[travelMode];
-        const canRouteFromPrev = Boolean(prevAct?.map_coordinates && act.map_coordinates);
+        const travelMode = legTravelMode(prevAct, act);
+        const ModeIcon = travelMode ? TRAVEL_MODE_ICONS[travelMode] : null;
+        // A pin the user has told us is wrong (see hasUnverifiedPin) can't be
+        // used for directions or Waze — only the link they pasted is trustworthy.
+        const pinUnverified = hasUnverifiedPin(act);
+        const canRouteFromPrev = Boolean(
+          travelMode && prevAct?.map_coordinates && act.map_coordinates && !pinUnverified,
+        );
         return (
           <div key={act.id} className={cardLayout === "timeline" ? "relative" : undefined}>
             {cardLayout === "timeline" && (
@@ -440,7 +448,7 @@ export default function ItineraryList({
                           <MapPin size={13} />
                           Google Maps
                         </a>
-                        {canRouteFromPrev && (
+                        {canRouteFromPrev && travelMode && ModeIcon && (
                           <a
                             href={googleMapsLegUrl(prevAct, act, travelMode)}
                             target="_blank"
@@ -454,13 +462,11 @@ export default function ItineraryList({
                             {t(TRAVEL_MODE_LABEL_KEYS[travelMode])}
                           </a>
                         )}
-                        {/* Waze only navigates by car — offering it for a walk
-                            or a train leg would just send people the wrong way.
-                            The day's first stop has no leg into it and so falls
-                            back to driving, which is the useful default here:
-                            Waze needs only a destination, and getting to where
-                            the day starts is exactly when you want it. */}
-                        {travelMode === "driving" && act.map_coordinates && (
+                        {/* Waze only navigates by car, so it's offered only for
+                            a genuine driving leg — never on a walk, hike or bus
+                            leg, and never on a day's first stop, which has no
+                            leg into it at all. */}
+                        {isDrivingMode(travelMode) && act.map_coordinates && !pinUnverified && (
                           <a
                             href={wazeUrl(act)}
                             target="_blank"

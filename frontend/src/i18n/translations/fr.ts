@@ -217,6 +217,7 @@ export const fr: Record<TranslationKey, string> = {
   "travelMode.transit": "Transports en commun",
   "travelMode.bicycling": "À vélo",
   "travelMode.walking": "À pied",
+  "travelMode.hiking": "Randonnée",
   "travelMode.auto": "Détection automatique",
   "travelMode.label": "Comment s'y rendre",
 
@@ -262,9 +263,7 @@ export const fr: Record<TranslationKey, string> = {
   "map.noCoords": "Aucune coordonnée à afficher sur la carte pour ce jour.",
   "map.backToFullDay": "Retour à la carte complète du jour",
   "map.openInGoogleMaps": "Ouvrir dans Google Maps",
-  "map.openRoute": "Ouvrir l'itinéraire et le trajet dans Google Maps",
   "map.openInWaze": "Naviguer dans Waze",
-  "map.travelModeLabel": "Mode de déplacement de l'itinéraire",
   "map.clickToAdd": "Cliquez sur la carte pour ajouter une nouvelle activité à cet emplacement",
 
   // Price summary

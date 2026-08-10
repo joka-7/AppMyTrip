@@ -211,6 +211,7 @@ export const he = {
   "travelMode.transit": "תחבורה ציבורית",
   "travelMode.bicycling": "אופניים",
   "travelMode.walking": "הליכה ברגל",
+  "travelMode.hiking": "טיול רגלי",
   "travelMode.auto": "זיהוי אוטומטי",
   "travelMode.label": "אופן ההגעה",
 
@@ -253,9 +254,7 @@ export const he = {
   "map.noCoords": "אין קואורדינטות להצגה על המפה ביום זה.",
   "map.backToFullDay": "חזרה למפת היום המלאה",
   "map.openInGoogleMaps": "פתיחה ב-Google Maps",
-  "map.openRoute": "פתיחת מסלול והוראות הגעה ב-Google Maps",
   "map.openInWaze": "ניווט ב-Waze",
-  "map.travelModeLabel": "אופן ההגעה למסלול",
   "map.clickToAdd": "לחצו על המפה כדי להוסיף פעילות חדשה במיקום זה",
 
   // Price summary

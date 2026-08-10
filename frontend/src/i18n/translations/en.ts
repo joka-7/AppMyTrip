@@ -213,6 +213,7 @@ export const en: Record<TranslationKey, string> = {
   "travelMode.transit": "Public transit",
   "travelMode.bicycling": "Cycling",
   "travelMode.walking": "Walking",
+  "travelMode.hiking": "Hiking",
   "travelMode.auto": "Detect automatically",
   "travelMode.label": "How you get there",
 
@@ -256,9 +257,7 @@ export const en: Record<TranslationKey, string> = {
   "map.noCoords": "No coordinates to show on the map for this day.",
   "map.backToFullDay": "Back to the full day map",
   "map.openInGoogleMaps": "Open in Google Maps",
-  "map.openRoute": "Open route and directions in Google Maps",
   "map.openInWaze": "Navigate in Waze",
-  "map.travelModeLabel": "Route travel mode",
   "map.clickToAdd": "Click the map to add a new activity at this location",
 
   // Price summary

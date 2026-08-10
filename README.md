@@ -317,22 +317,36 @@ per-activity merge would discard, and `travel_mode` is inferred locally for free
 
 ### Navigation links (Google Maps + Waze)
 
-Each stop offers "open in Google Maps", directions from the previous stop, and —
-for driving legs only — Waze, straight from the itinerary card rather than only
-from the map tab. How a leg is travelled is worked out in
-`frontend/src/services/travelMode.ts` from the straight-line distance to the
-previous stop, the activity type, and hike/trail keywords in its title or
-description; an explicit `travel_mode` on the activity (set by hand in the edit
-form, or by the opt-in Step 2 enhancement) always wins. Waze is only offered for
-driving, since it has no walking, cycling or transit mode.
+A day is not one mode of travel. A realistic day drives to a trailhead, hikes,
+takes a bus back and walks to dinner — so the mode belongs to the **leg** between
+two stops, and each stop's card carries its own directions link in its own mode.
+There is deliberately **no whole-day route link**: Google Maps applies a single
+`travelmode` to an entire route, so one day-long link is wrong for most of its
+legs whichever mode it picks.
+
+`frontend/src/services/travelMode.ts` works the mode out from the activity itself
+first — a bus/train/ferry is transit, a trail/trek is hiking, an explicit ride is
+cycling — and only falls back to distance when the activity says nothing: under
+1.5km straight-line is walking, anything further is driving. It never guesses
+cycling from distance, and the first stop of a day gets no mode at all, since
+there is no leg into it. An explicit `travel_mode` on the activity (set by hand in
+the edit form, or by the opt-in Step 2 enhancement) always wins. Hiking is an
+app-level distinction: Google has no hiking mode, so its links travel as walking.
+
+Waze appears only on a genuine driving leg — it has no walking, cycling or
+transit mode, so offering it anywhere else would send people the wrong way.
 
 Map links are built from coordinates, never from a place name — Google's text
 search will happily resolve a common name to a different, same-named place. When
 the AI's coordinates are wrong anyway, pasting a Google Maps link into an
 activity's "Google Maps link" field overrides the generated link, and if the
 pasted link carries coordinates it repairs the map pin too (so the in-app map and
-the day-route link get fixed as well). Shortened `maps.app.goo.gl` links have no
-coordinates to extract, so those override the link only.
+the directions links get fixed as well). A shortened `maps.app.goo.gl` link has no
+coordinates to extract and can't be resolved from the browser, so it overrides the
+link only — and because that means the pin is still wrong, the coordinate-derived
+links (Waze, directions) are hidden for that stop rather than sending you
+somewhere you've already said is wrong. Drag the pin on the edit form's mini-map
+to fix those too.
 
 ### "What we need" checklist
 

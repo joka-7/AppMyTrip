@@ -1621,14 +1621,14 @@ def test_enhance_trip_fills_travel_mode(monkeypatch):
     data = trip.model_dump()
     for day in data["days"]:
         for act in day["activities"]:
-            act["travel_mode"] = "bicycling"
+            act["travel_mode"] = "hiking"
     monkeypatch.setattr(LLMService, "_execute_with_retry", AsyncMock(return_value=data))
 
     result = asyncio.run(LLMService.enhance_trip(trip, EnhanceOptions(travel_mode=True)))
 
     for day in result.days:
         for act in day.activities:
-            assert act.travel_mode == "bicycling"
+            assert act.travel_mode == "hiking"
 
 
 def test_trip_round_trip_preserves_new_fields():
