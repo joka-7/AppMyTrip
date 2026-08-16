@@ -1,16 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { dominantTravelMode, haversineKm, inferTravelMode } from "./travelMode";
+import { googleTravelMode, haversineKm, isDrivingMode, legTravelMode } from "./travelMode";
 import type { Activity } from "../api";
 
 function act(overrides: Partial<Activity> = {}): Activity {
-  return {
-    id: "a1",
-    time: "10:00",
-    title: "Stop",
-    desc: "",
-    type: "attraction",
-    ...overrides,
-  };
+  return { id: "a1", time: "10:00", title: "Stop", desc: "", type: "attraction", ...overrides };
 }
 
 function at(lat: number, lng: number, overrides: Partial<Activity> = {}): Activity {
@@ -35,58 +28,86 @@ describe("haversineKm", () => {
   });
 });
 
-describe("inferTravelMode", () => {
-  it("lets an explicit mode win over everything else", () => {
-    // Far apart and a transport leg, but the user said bicycling.
-    const prev = at(41.9, 12.5);
-    const here = at(48.85, 2.35, { type: "transport", travel_mode: "bicycling" });
-    expect(inferTravelMode(prev, here)).toBe("bicycling");
+describe("legTravelMode", () => {
+  // A day's first stop is reached from wherever you slept, which the itinerary
+  // doesn't describe — so there is no leg, and nothing to label or navigate.
+  it("has no mode for the first stop of a day", () => {
+    expect(legTravelMode(undefined, at(41.9, 12.5))).toBeNull();
   });
 
-  it("treats an activity that is itself a hike as walking, however far the stops are", () => {
+  it("lets an explicit mode win over everything else", () => {
+    const here = at(48.85, 2.35, { type: "transport", travel_mode: "bicycling" });
+    expect(legTravelMode(at(41.9, 12.5), here)).toBe("bicycling");
+  });
+
+  it("detects a bus/train/ferry leg as transit", () => {
+    const prev = at(32.0, 35.0);
+    for (const title of ["Bus to Masada", "אוטובוס לים המלח", "Ferry to the island"]) {
+      expect(legTravelMode(prev, at(32.5, 35.2, { title }))).toBe("transit");
+    }
+  });
+
+  it("detects a hike as its own mode, not plain walking", () => {
     const prev = at(32.0, 35.0);
     for (const title of ["Masada hike", "טיול רגלי בנחל דוד", "Randonnée du Mont Blanc"]) {
       // ~50km apart — distance alone would say driving.
-      expect(inferTravelMode(prev, at(32.5, 35.2, { title }))).toBe("walking");
+      expect(legTravelMode(prev, at(32.5, 35.2, { title }))).toBe("hiking");
     }
   });
 
   it("finds the keyword in the description too", () => {
-    const prev = at(32.0, 35.0);
     const here = at(32.5, 35.2, { title: "Ein Gedi", desc: "A long trail along the stream" });
-    expect(inferTravelMode(prev, here)).toBe("walking");
+    expect(legTravelMode(at(32.0, 35.0), here)).toBe("hiking");
   });
 
-  it("treats a transport activity as driving", () => {
+  it("prefers transit over hiking when a bus takes you to the trail", () => {
+    const here = at(32.5, 35.2, { title: "Bus to the trail head" });
+    expect(legTravelMode(at(32.0, 35.0), here)).toBe("transit");
+  });
+
+  it("only calls a leg cycling when something actually says so", () => {
     const prev = at(41.9, 12.5);
-    expect(inferTravelMode(prev, at(41.901, 12.501, { type: "transport" }))).toBe("driving");
+    expect(legTravelMode(prev, at(41.93, 12.5, { title: "Bike tour of the park" }))).toBe(
+      "bicycling",
+    );
+    // Regression: a ~3km hop to a restaurant used to be labelled "Cycling" purely
+    // because it fell in a made-up distance band. Nobody cycles to lunch.
+    expect(legTravelMode(prev, at(41.93, 12.5, { title: "Trattoria Da Enzo" }))).toBe("driving");
   });
 
-  it("picks the mode from the distance between stops", () => {
+  it("walks only when the stops are genuinely close", () => {
     const prev = at(41.9, 12.5);
-    // ~0.4km
-    expect(inferTravelMode(prev, at(41.9036, 12.5, {}))).toBe("walking");
-    // ~3.3km
-    expect(inferTravelMode(prev, at(41.93, 12.5, {}))).toBe("bicycling");
-    // ~55km
-    expect(inferTravelMode(prev, at(42.4, 12.5, {}))).toBe("driving");
+    expect(legTravelMode(prev, at(41.9036, 12.5))).toBe("walking"); // ~0.4km
+    expect(legTravelMode(prev, at(42.4, 12.5))).toBe("driving"); // ~55km
   });
 
-  it("falls back to driving when either stop has no coordinates", () => {
-    expect(inferTravelMode(undefined, at(41.9, 12.5))).toBe("driving");
-    expect(inferTravelMode(at(41.9, 12.5), act())).toBe("driving");
+  it("falls back to driving when a stop has no coordinates", () => {
+    expect(legTravelMode(at(41.9, 12.5), act())).toBe("driving");
+    expect(legTravelMode(act(), at(41.9, 12.5))).toBe("driving");
   });
 });
 
-describe("dominantTravelMode", () => {
-  it("takes the most demanding leg so a driving day never opens as a walk", () => {
-    const day = [at(41.9, 12.5), at(41.903, 12.5), at(42.4, 12.5)];
-    expect(dominantTravelMode(day)).toBe("driving");
+describe("googleTravelMode", () => {
+  it("maps hiking onto walking, since Google has no hiking mode", () => {
+    expect(googleTravelMode("hiking")).toBe("walking");
   });
 
-  it("stays walking when every leg is short", () => {
-    // The first stop has no predecessor, so it must not drag the day to driving.
-    const day = [at(41.9, 12.5), at(41.9036, 12.5), at(41.907, 12.5)];
-    expect(dominantTravelMode(day)).toBe("walking");
+  it("passes Google's own modes through untouched", () => {
+    expect(googleTravelMode("driving")).toBe("driving");
+    expect(googleTravelMode("transit")).toBe("transit");
+    expect(googleTravelMode("bicycling")).toBe("bicycling");
+    expect(googleTravelMode("walking")).toBe("walking");
+  });
+});
+
+describe("isDrivingMode", () => {
+  // Waze has no walking/cycling/transit mode, and a null mode means there's no
+  // leg at all — offering Waze in any of those cases sends people the wrong way.
+  it("is true only for driving", () => {
+    expect(isDrivingMode("driving")).toBe(true);
+    for (const mode of ["walking", "hiking", "bicycling", "transit"] as const) {
+      expect(isDrivingMode(mode)).toBe(false);
+    }
+    expect(isDrivingMode(null)).toBe(false);
   });
 });

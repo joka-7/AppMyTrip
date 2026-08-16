@@ -20,15 +20,15 @@
 
 import type { Activity, TravelMode } from "../api";
 import { safeUrl } from "./safeUrl";
+import { googleTravelMode } from "./travelMode";
 
 // Unlike the search action (below), the directions action has no path-form
-// biasing syntax — origin/destination/waypoints are always resolved as a
-// literal text query. A plain place name is therefore ambiguous whenever the
-// same name exists elsewhere (a generic "Beach", "Market", a chain restaurant,
-// a name that also exists in another city): Google can silently resolve it to
-// the wrong location, which drops the pin/route far from where the activity
-// actually is or fails to draw a route at all. Passing "lat,lng" always
-// resolves to the exact point, so every stop always gets a pin.
+// biasing syntax — origin/destination are always resolved as a literal text
+// query. A plain place name is therefore ambiguous whenever the same name exists
+// elsewhere (a generic "Beach", "Market", a chain restaurant, a name that also
+// exists in another city): Google can silently resolve it to the wrong location,
+// which drops the pin far from where the activity actually is or fails to draw a
+// route at all. Passing "lat,lng" always resolves to the exact point.
 function directionsStop(act: Activity): string {
   const { lat, lng } = act.map_coordinates!;
   return `${lat},${lng}`;
@@ -102,6 +102,22 @@ export function hasMapLink(act: Activity): boolean {
 }
 
 /**
+ * True when the activity's coordinates should not be trusted for navigation.
+ *
+ * Pasting a `map_url` is a statement that the generated link went to the wrong
+ * place. When that link carries coordinates we lift them out and the pin is
+ * repaired, so everything is trustworthy again. When it doesn't — a
+ * `maps.app.goo.gl` short link, which can't be resolved from the browser — the
+ * override fixes the Google Maps link while `map_coordinates` stays wrong.
+ * Anything built from those coordinates (Waze, directions between stops) would
+ * still send the user to the wrong place, so callers hide it rather than offer a
+ * link they've been told is broken.
+ */
+export function hasUnverifiedPin(act: Activity): boolean {
+  return Boolean(mapUrlOverride(act)) && parseMapUrlCoords(act.map_url) === null;
+}
+
+/**
  * Link to a single place. A user-pasted `map_url` wins; otherwise the activity's
  * exact coordinates — see the module note above for why a name (even
  * coordinate-biased) isn't used.
@@ -117,44 +133,36 @@ export function googleMapsPlaceUrl(act: Activity): string {
 }
 
 /**
- * Directions through the day's stops in order, as exact coordinates so every
- * stop reliably gets a pin (see directionsStop above). Google's own directions
- * UI still letters the stops A, B, C, D in route order, matching the in-app
- * map labels.
+ * Directions for a single leg — how to get from the previous stop to this one.
+ *
+ * There is deliberately no whole-day route builder. Google Maps applies one
+ * `travelmode` to an entire route, but a real day is mixed — drive to the
+ * trailhead, hike, bus back, walk to dinner — so a single day-long link is
+ * wrong for most of its legs whichever mode it picks. Per-leg links are the only
+ * honest representation.
  */
-export function googleMapsDirectionsUrl(coordActs: Activity[], mode: TravelMode): string {
-  const points = coordActs.map((act) => directionsStop(act));
-  const url = new URL("https://www.google.com/maps/dir/");
-  url.searchParams.set("api", "1");
-  url.searchParams.set("origin", points[0]);
-  url.searchParams.set("destination", points[points.length - 1]);
-  if (points.length > 2) {
-    url.searchParams.set("waypoints", points.slice(1, -1).join("|"));
-  }
-  url.searchParams.set("travelmode", mode);
-  return url.toString();
-}
-
-/** Directions for a single leg — how to get from the previous stop to this one. */
 export function googleMapsLegUrl(from: Activity, to: Activity, mode: TravelMode): string {
   const url = new URL("https://www.google.com/maps/dir/");
   url.searchParams.set("api", "1");
   url.searchParams.set("origin", directionsStop(from));
   url.searchParams.set("destination", directionsStop(to));
-  url.searchParams.set("travelmode", mode);
+  url.searchParams.set("travelmode", googleTravelMode(mode));
   return url.toString();
 }
 
 /**
- * Waze navigation to a single stop. Waze is a driving navigator with no
- * multi-stop URL form, so this is only offered for driving legs and never for a
- * whole-day route. `navigate=yes` starts guidance instead of just showing the
- * pin.
+ * Waze navigation to a single stop, as Waze's documented universal link.
+ *
+ * Built by hand rather than with URLSearchParams: Waze wants a literal comma in
+ * `ll`, and the percent-encoded form is what makes the link land on the web map
+ * showing a pin instead of handing off to the app and starting guidance.
+ * `navigate=yes` is what starts guidance rather than just previewing the
+ * destination.
+ *
+ * Waze is a driving navigator with no walking/cycling/transit mode and no
+ * multi-stop form, so callers must only offer this for a driving leg.
  */
 export function wazeUrl(act: Activity): string {
   const { lat, lng } = act.map_coordinates!;
-  const url = new URL("https://www.waze.com/ul");
-  url.searchParams.set("ll", `${lat},${lng}`);
-  url.searchParams.set("navigate", "yes");
-  return url.toString();
+  return `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
 }

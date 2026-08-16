@@ -211,18 +211,33 @@ describe("ItineraryList navigation links", () => {
     expect(new URL(walk.getAttribute("href")!).searchParams.get("travelmode")).toBe("walking");
   });
 
-  it("shows Waze for driving stops but never for a walk", () => {
+  it("shows Waze only for a genuine driving leg", () => {
     renderNav(near);
     const waze = screen.getAllByRole("link", { name: /Waze/ });
-    // The far "Castle", plus the day's first stop — that one has no leg into it
-    // and falls back to driving, which is wanted: Waze needs only a destination
-    // and getting to where the day starts is exactly when you reach for it.
-    // The 400m walk to the Museum is the one that must not offer it.
-    expect(waze.map((link) => link.getAttribute("aria-label"))).toEqual([
-      "ניווט ל-Hotel ב-Waze",
-      "ניווט ל-Castle ב-Waze",
-    ]);
+    // Only the ~55km drive to the Castle. Not the 400m walk to the Museum, and
+    // not the day's first stop — that has no leg into it at all, so there is no
+    // journey to navigate and offering Waze there was just noise.
+    expect(waze.map((link) => link.getAttribute("aria-label"))).toEqual(["ניווט ל-Castle ב-Waze"]);
     expect(waze[0].getAttribute("href")).toContain("waze.com");
+  });
+
+  it("shows no mode chip on the day's first stop", () => {
+    renderNav(near);
+    // Two legs for three stops.
+    expect(screen.getAllByLabelText(/הוראות הגעה מהעצירה הקודמת/)).toHaveLength(2);
+  });
+
+  it("hides coordinate-based navigation for a pin the user flagged as wrong", () => {
+    // A short link overrides the Maps link but can't repair the pin, so Waze and
+    // directions would still lead somewhere wrong.
+    renderNav([near[0], { ...near[2], map_url: "https://maps.app.goo.gl/aBcDeF" }]);
+    expect(screen.queryByRole("link", { name: /Waze/ })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/הוראות הגעה מהעצירה הקודמת/)).not.toBeInTheDocument();
+    // The pasted link itself is still offered — that one is trustworthy.
+    expect(screen.getAllByLabelText("פתיחת המיקום ב-Google Maps")[1]).toHaveAttribute(
+      "href",
+      "https://maps.app.goo.gl/aBcDeF",
+    );
   });
 
   it("shows no navigation at all for a stop with neither coordinates nor a link", () => {

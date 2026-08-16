@@ -1,11 +1,18 @@
 // How you get from one stop to the next.
 //
-// The itinerary model has no notion of a "leg" — activities are just an ordered
-// list per day — so the mode is derived from the pair (previous stop, this
-// stop). Deriving it rather than requiring it means every trip, including ones
-// that never went through the optional enhance step, gets sensible directions
-// links instead of the flat "walking" that used to be hardcoded for everything.
-import { Bike, Car, Footprints, TrainFront } from "lucide-react";
+// A single day is routinely mixed — drive to the trailhead, hike, bus back,
+// walk to dinner — so the mode belongs to the *leg* between two stops, never to
+// the day. There is no leg into a day's first stop, which is why the functions
+// here return null for it rather than guessing.
+//
+// Inference is deliberately conservative. It only claims a mode it can actually
+// justify: the activity says what it is (a hike, a bus), or the stops are close
+// enough that walking is the obvious answer. Everything else is driving, which
+// is both the common case and the one mode that always has a usable link.
+// Cycling is never guessed from distance — an earlier version put "Cycling" on a
+// restaurant 3km away, which is exactly the kind of confident nonsense this
+// avoids.
+import { Bike, Car, Footprints, Mountain, TrainFront } from "lucide-react";
 import type { Activity, TravelMode } from "../api";
 import type { TranslationKey } from "../i18n/useI18n";
 
@@ -16,7 +23,7 @@ const EARTH_RADIUS_KM = 6371;
 const toRadians = (deg: number): number => (deg * Math.PI) / 180;
 
 /** Great-circle distance in km. Straight-line, so it under-reads real travel
- * distance — the thresholds below are chosen with that in mind. */
+ * distance — the threshold below is chosen with that in mind. */
 export function haversineKm(a: Coordinates, b: Coordinates): number {
   const dLat = toRadians(b.lat - a.lat);
   const dLng = toRadians(b.lng - a.lng);
@@ -26,96 +33,129 @@ export function haversineKm(a: Coordinates, b: Coordinates): number {
   return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-// Words that mean the activity *is* the walk — a trail, a trek, a walking tour.
-// Those are on foot however far apart the endpoints are, so this outranks the
-// distance check below. Matched case-insensitively against title + desc.
-const ON_FOOT_KEYWORDS = [
-  // Hebrew
-  "טיול רגלי",
-  "מסלול הליכה",
-  "הליכה",
-  "מסלול",
-  "טרק",
-  "שביל",
-  // English
-  "hike",
-  "hiking",
-  "trek",
-  "trail",
-  "walking tour",
-  "on foot",
-  // French
-  "randonnée",
-  "randonnee",
-  "sentier",
-  "à pied",
+// Matched case-insensitively against an activity's title + description. Order
+// matters: an activity is checked against transit first, then hiking, then
+// cycling, then plain walking — "מסלול אופניים" is a ride, not a hike.
+const MODE_KEYWORDS: { mode: TravelMode; words: string[] }[] = [
+  {
+    mode: "transit",
+    words: [
+      // Hebrew
+      "אוטובוס",
+      "רכבת",
+      "מעבורת",
+      "רכבל",
+      "מטרו",
+      "תחבורה ציבורית",
+      "שאטל",
+      // English
+      "bus",
+      "train",
+      "ferry",
+      "metro",
+      "subway",
+      "tram",
+      "shuttle",
+      "cable car",
+      "public transport",
+      // French
+      "métro",
+      "metro",
+      "tramway",
+      "navette",
+    ],
+  },
+  {
+    mode: "hiking",
+    words: [
+      // Hebrew
+      "טיול רגלי",
+      "מסלול הליכה",
+      "טרק",
+      "שביל",
+      "נחל",
+      "הר ",
+      // English
+      "hike",
+      "hiking",
+      "trek",
+      "trail",
+      "summit",
+      // French
+      "randonnée",
+      "randonnee",
+      "sentier",
+    ],
+  },
+  {
+    mode: "bicycling",
+    words: ["אופניים", "bike", "biking", "bicycle", "cycling", "vélo", "velo"],
+  },
+  {
+    mode: "walking",
+    words: ["הליכה", "ברגל", "walking tour", "on foot", "stroll", "à pied", "a pied"],
+  },
 ];
 
-// Straight-line distance cutoffs, in km. Deliberately conservative: a leg only
-// counts as walkable when it's genuinely short, and anything past cycling range
-// falls through to driving (which is also the only mode Waze can take).
-const WALKING_MAX_KM = 1.2;
-const CYCLING_MAX_KM = 6;
+// Straight-line cutoff for "obviously walkable". Deliberately the only distance
+// rule: past this, driving is the safe answer, and the user (or the AI) can say
+// otherwise per activity.
+const WALKING_MAX_KM = 1.5;
 
-function mentionsOnFoot(act: Activity): boolean {
+function keywordMode(act: Activity): TravelMode | null {
   const haystack = `${act.title} ${act.desc}`.toLowerCase();
-  return ON_FOOT_KEYWORDS.some((word) => haystack.includes(word));
+  for (const { mode, words } of MODE_KEYWORDS) {
+    if (words.some((word) => haystack.includes(word))) return mode;
+  }
+  return null;
 }
 
 /**
- * Works out how the traveller reaches `act` from `prev`, in precedence order:
- * an explicit override, then the activity being a hike in its own right, then
- * an explicit transport leg, then straight-line distance.
+ * How the traveller gets from `prev` to `act`.
  *
- * Falls back to driving when either stop has no coordinates: it's the mode that
- * covers the most ground, and picking it keeps a usable (Waze-capable)
- * navigation link rather than none.
+ * Returns null when there is no leg — the first stop of a day, which you reach
+ * from wherever you slept rather than from another activity. Callers use that to
+ * omit the mode chip and its navigation links entirely instead of inventing a
+ * mode for a journey the itinerary doesn't describe.
  */
-export function inferTravelMode(prev: Activity | undefined, act: Activity): TravelMode {
+export function legTravelMode(prev: Activity | undefined, act: Activity): TravelMode | null {
+  if (!prev) return null;
   if (act.travel_mode) return act.travel_mode;
-  if (mentionsOnFoot(act)) return "walking";
-  if (act.type === "transport") return "driving";
 
-  const from = prev?.map_coordinates;
+  const byKeyword = keywordMode(act);
+  if (byKeyword) return byKeyword;
+
+  const from = prev.map_coordinates;
   const to = act.map_coordinates;
+  // Without both endpoints there's no distance to reason from; driving is the
+  // mode that covers any gap and always produces a usable link.
   if (!from || !to) return "driving";
 
-  const km = haversineKm(from, to);
-  if (km <= WALKING_MAX_KM) return "walking";
-  if (km <= CYCLING_MAX_KM) return "bicycling";
-  return "driving";
+  return haversineKm(from, to) <= WALKING_MAX_KM ? "walking" : "driving";
 }
 
-// Ranked by how much ground the mode covers, so a day's route can pick the most
-// demanding leg rather than the first one.
-const MODE_WEIGHT: Record<TravelMode, number> = {
-  walking: 0,
-  bicycling: 1,
-  transit: 2,
-  driving: 3,
-};
-
-/** The mode a whole day's route should open in — the most demanding leg wins, so
- * a day that involves any driving doesn't open as a walking route. */
-export function dominantTravelMode(activities: Activity[]): TravelMode {
-  let dominant: TravelMode = "walking";
-  // From index 1: there is no leg *into* the first stop of a day, and asking for
-  // one would hit inferTravelMode's no-predecessor "driving" fallback and drag
-  // every day to driving.
-  activities.slice(1).forEach((act, idx) => {
-    const mode = inferTravelMode(activities[idx], act);
-    if (MODE_WEIGHT[mode] > MODE_WEIGHT[dominant]) dominant = mode;
-  });
-  return dominant;
+/** Google Maps only understands four modes; hiking is walking as far as its
+ * directions are concerned, even though the app labels it separately. */
+export function googleTravelMode(
+  mode: TravelMode,
+): "driving" | "walking" | "bicycling" | "transit" {
+  return mode === "hiking" ? "walking" : mode;
 }
 
-export const TRAVEL_MODES: TravelMode[] = ["driving", "transit", "bicycling", "walking"];
+/** Waze is a driving navigator — it has no walking, cycling or transit mode, so
+ * offering it for any other leg would send people the wrong way. */
+export function isDrivingMode(mode: TravelMode | null): boolean {
+  return mode === "driving";
+}
+
+export const TRAVEL_MODES: TravelMode[] = ["driving", "transit", "bicycling", "walking", "hiking"];
 
 export const TRAVEL_MODE_LABEL_KEYS: Record<TravelMode, TranslationKey> = {
   driving: "travelMode.driving",
   transit: "travelMode.transit",
   bicycling: "travelMode.bicycling",
   walking: "travelMode.walking",
+  hiking: "travelMode.hiking",
 };
 
 // Declared once here rather than per-component: the activity-type icon maps are
@@ -126,4 +166,5 @@ export const TRAVEL_MODE_ICONS: Record<TravelMode, typeof Car> = {
   transit: TrainFront,
   bicycling: Bike,
   walking: Footprints,
+  hiking: Mountain,
 };
