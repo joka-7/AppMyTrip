@@ -608,7 +608,28 @@ class LLMService:
         The whole call — every provider group, every key, every retry — is bounded
         by REQUEST_DEADLINE_SECONDS from the moment it starts, so a serverless host
         can't be killed mid-request by its own execution-time limit; we give up on
-        our own terms first, with an explanation, instead."""
+        our own terms first, with an explanation, instead.
+
+        Selectable backend: when the LLM_BACKEND env var is "model_dispatcher"
+        (default "legacy"), this delegates to services.llm_model_dispatcher instead
+        of the logic below — same inputs, same dict return, same HTTPException
+        status-code contract, backed by the model-dispatcher package instead of this
+        module's hand-rolled httpx retry/rotation. Every caller of _execute
+        (parse_trip_text, agent_interaction, enhance_trip, and their internal
+        helpers) is unaffected by which backend is active."""
+        if os.environ.get("LLM_BACKEND", "legacy").strip().lower() == "model_dispatcher":
+            from services import llm_model_dispatcher
+
+            return await llm_model_dispatcher.execute(
+                system_prompt,
+                user_content,
+                credentials,
+                api_key,
+                api_keys,
+                provider,
+                max_tokens,
+            )
+
         groups = cls._resolve_credential_groups(credentials, api_key, api_keys, provider)
         logger.info(
             "llm request: trying %d provider group(s): %s",

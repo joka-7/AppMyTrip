@@ -154,6 +154,24 @@ Each provider's default model can be overridden with `GEMINI_MODEL`/`OPENAI_MODE
 
 `/generate-media` doesn't call the LLM at all, so it works without any key set.
 
+**Backend implementation toggle:** `LLM_BACKEND` (default `legacy`) selects which
+code actually talks to the provider. `legacy` is `services/llm.py`'s own httpx
+retry/rotation logic; `model_dispatcher` delegates to the same request/response
+contract via [`model-dispatcher`](https://github.com/joka-7/ModelDispatcher)
+instead (`services/llm_model_dispatcher.py`) — same providers, same
+bring-your-own-key/multi-key-rotation behavior, same API surface. Doesn't affect
+`parse_trip_text`/`agent_interaction`/`enhance_trip` or anything that calls them.
+
+`model-dispatcher` is vendored as a **git submodule** at `backend/vendor/model-dispatcher`
+(see `.gitmodules`), not an installed package — clone with
+`git clone --recurse-submodules`, or run `git submodule update --init` after a
+plain clone. It's also kept **out of** `requirements.txt`/`requirements-dev.txt`
+on purpose: install it separately via `pip install -r requirements-model-dispatcher.txt`
+(after the submodule is fetched) to actually use `LLM_BACKEND=model_dispatcher`.
+This backend deploys as a Vercel Python Function (see `backend/vercel.json`), and
+**Vercel does not fetch git submodules by default** — see
+`requirements-model-dispatcher.txt` for what enabling this in production requires.
+
 ### Text-to-speech provider
 
 `backend/services/tts.py` selects a provider via the `TTS_PROVIDER` env var:

@@ -1,0 +1,21 @@
+# Opt-in: only needed to actually run LLM_BACKEND=model_dispatcher (see
+# services/llm_model_dispatcher.py and .env.example). Deliberately kept OUT
+# of requirements.txt / requirements-dev.txt: this installs editable from
+# the vendor/model-dispatcher git submodule (see .gitmodules), and Vercel's
+# @vercel/python builder — which is what deploys this backend, see
+# vercel.json — does NOT fetch git submodules by default. If this line were
+# in requirements.txt, a production deploy with an unfetched submodule would
+# fail to install *anything*, breaking the whole backend, not just this
+# opt-in feature.
+#
+# To actually use this backend in production on Vercel:
+#   1. Enable "Git Submodules" for this project in Vercel's dashboard
+#      (Project Settings -> Git), so the build step fetches vendor/model-dispatcher.
+#   2. Add this file's contents to requirements.txt (or add a second
+#      `pip install -r requirements-model-dispatcher.txt` build step) so
+#      Vercel's build actually installs it.
+#   3. Set LLM_BACKEND=model_dispatcher as a Vercel environment variable.
+#
+# Locally: `git submodule update --init` once, then
+# `pip install -r requirements-model-dispatcher.txt`.
+-e ./vendor/model-dispatcher[openai,anthropic,gemini]
