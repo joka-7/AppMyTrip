@@ -610,6 +610,7 @@ function TripBuilder() {
                   isSendingMessage={isSendingMessage}
                   chatNotice={chatNotice}
                   onRetryChat={failedChatText ? handleRetryChat : undefined}
+                  failedChatText={failedChatText}
                   onContinue={handleContinueToDesign}
                   onBack={() => goToStep(2)}
                   isGeneratingMedia={isGeneratingMedia}
@@ -665,6 +666,7 @@ function TripBuilder() {
               isSendingMessage={isSendingMessage}
               chatNotice={chatNotice}
               onRetryChat={failedChatText ? handleRetryChat : undefined}
+              failedChatText={failedChatText}
               onUpdateActivity={handleUpdateActivity}
               onAddActivity={handleAddActivity}
               onDeleteActivity={handleDeleteActivity}
@@ -714,6 +716,7 @@ function TripBuilder() {
                   isSendingMessage={isSendingMessage}
                   chatNotice={chatNotice}
                   onRetryChat={failedChatText ? handleRetryChat : undefined}
+                  failedChatText={failedChatText}
                   onUpdateActivity={handleUpdateActivity}
                   onAddActivity={handleAddActivity}
                   onDeleteActivity={handleDeleteActivity}
@@ -936,6 +939,7 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
         isSendingMessage={isSendingMessage}
         chatNotice={chatNotice}
         onRetryChat={failedChatText ? handleRetryChat : undefined}
+        failedChatText={failedChatText}
         onUpdateActivity={handleUpdateActivity}
         onAddActivity={handleAddActivity}
         onDeleteActivity={handleDeleteActivity}

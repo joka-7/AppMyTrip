@@ -69,6 +69,10 @@ export const he = {
   // Chat panel
   "chat.inputPlaceholder": "ענה לסוכן (למשל: 'כן, תוסיף')",
   "chat.send": "שלח",
+  // Shown alongside a failed-turn notice, next to links straight into a free
+  // external AI chat product (ChatGPT/Claude/etc.) — offered once every saved
+  // credential has already failed, so there's nothing left for us to retry.
+  "chat.askElsewhere": "אפשר גם לשאול ישירות:",
 
   // Step 4 — design & deploy
   "step4.heading": "שלב אחרון: עיצוב האפליקציה שלך",
