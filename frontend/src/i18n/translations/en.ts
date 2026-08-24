@@ -70,6 +70,7 @@ export const en: Record<TranslationKey, string> = {
   // Chat panel
   "chat.inputPlaceholder": "Reply to the agent (e.g. 'yes, add it')",
   "chat.send": "Send",
+  "chat.askElsewhere": "Or ask directly:",
 
   // Step 4 — design & deploy
   "step4.heading": "Final step: design your app",

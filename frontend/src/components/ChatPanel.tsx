@@ -1,5 +1,10 @@
 import type { RefObject } from "react";
 import { useI18n } from "../i18n/useI18n";
+import {
+  buildExternalChatUrl,
+  copyToClipboard,
+  EXTERNAL_CHAT_PROVIDERS,
+} from "../services/externalChat";
 import LanguageIndicator from "./LanguageIndicator";
 
 export interface AgentMessage {
@@ -21,6 +26,7 @@ export default function ChatPanel({
   isSending,
   notice,
   onRetry,
+  failedText,
   language,
 }: {
   agentMessages: AgentMessage[];
@@ -32,6 +38,10 @@ export default function ChatPanel({
   notice?: string | null;
   /** Shown next to a failed-turn notice so the user can resend without retyping. */
   onRetry?: () => void;
+  /** The message that failed to send — when set alongside `notice`, offers it
+   * back as a deep link into a free external AI chat (nothing left for us to
+   * retry automatically at this point; every saved credential already failed). */
+  failedText?: string | null;
   language?: string | null;
 }) {
   const { t } = useI18n();
@@ -70,17 +80,36 @@ export default function ChatPanel({
       </div>
 
       {notice && (
-        <div className="flex items-center gap-2 mb-2">
-          <p className="text-xs text-amber-700 flex-1">{notice}</p>
-          {onRetry && (
-            <button
-              type="button"
-              onClick={onRetry}
-              disabled={isSending}
-              className="shrink-0 text-xs font-medium text-primary hover:text-primary-dark disabled:opacity-60 px-2 py-1 rounded-lg bg-primary/10"
-            >
-              {t("notice.retry")}
-            </button>
+        <div className="flex flex-col gap-1.5 mb-2">
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-amber-700 flex-1">{notice}</p>
+            {onRetry && (
+              <button
+                type="button"
+                onClick={onRetry}
+                disabled={isSending}
+                className="shrink-0 text-xs font-medium text-primary hover:text-primary-dark disabled:opacity-60 px-2 py-1 rounded-lg bg-primary/10"
+              >
+                {t("notice.retry")}
+              </button>
+            )}
+          </div>
+          {failedText && (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">
+              <span>{t("chat.askElsewhere")}</span>
+              {EXTERNAL_CHAT_PROVIDERS.map((provider) => (
+                <a
+                  key={provider.id}
+                  href={buildExternalChatUrl(provider, failedText)}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => copyToClipboard(failedText)}
+                  className="font-medium text-primary hover:text-primary-dark underline"
+                >
+                  {provider.name}
+                </a>
+              ))}
+            </div>
           )}
         </div>
       )}
