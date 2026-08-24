@@ -64,6 +64,37 @@ def test_execute_defaults_to_the_legacy_backend(monkeypatch):
     stub.assert_not_awaited()
 
 
+def test_execute_backend_param_overrides_the_env_var_toward_model_dispatcher(monkeypatch):
+    # Server default is legacy, but this one call explicitly asks for
+    # model_dispatcher — the per-request override should win.
+    monkeypatch.setenv("LLM_BACKEND", "legacy")
+    stub = AsyncMock(return_value={"ok": True})
+    monkeypatch.setattr(md_backend, "execute", stub)
+
+    result = asyncio.run(LLMService._execute("sys", "user", backend="model_dispatcher"))
+
+    assert result == {"ok": True}
+    stub.assert_awaited_once()
+
+
+def test_execute_backend_param_overrides_the_env_var_toward_legacy(monkeypatch):
+    # Server default is model_dispatcher, but this one call explicitly asks
+    # for legacy — the per-request override should win the other way too.
+    monkeypatch.setenv("LLM_BACKEND", "model_dispatcher")
+    stub = AsyncMock(side_effect=AssertionError("model_dispatcher backend must not run"))
+    monkeypatch.setattr(md_backend, "execute", stub)
+
+    async def fake_retry(system_prompt, user_content, **kwargs):
+        return {"legacy": True}
+
+    monkeypatch.setattr(LLMService, "_execute_with_retry", staticmethod(fake_retry))
+
+    result = asyncio.run(LLMService._execute("sys", "user", backend="legacy"))
+
+    assert result == {"legacy": True}
+    stub.assert_not_awaited()
+
+
 # ---------------------------------------------------------------------------
 # services.llm_model_dispatcher.execute — driven by MockProvider, no network
 # ---------------------------------------------------------------------------

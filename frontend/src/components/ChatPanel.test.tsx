@@ -70,4 +70,39 @@ describe("ChatPanel", () => {
 
     expect(writeText).toHaveBeenCalledWith("add a beach day");
   });
+
+  describe("proactive 'ask externally' toggle", () => {
+    it("is collapsed by default, even with no notice at all", () => {
+      render(<ChatPanel {...baseProps} chatInput="what should I pack?" />);
+      expect(screen.queryByRole("link", { name: "Claude" })).toBeNull();
+    });
+
+    it("reveals links for the current draft text once toggled on", () => {
+      render(<ChatPanel {...baseProps} chatInput="what should I pack?" />);
+      fireEvent.click(screen.getByRole("button", { name: "שאלו AI חיצוני ישירות" }));
+
+      const claudeLink = screen.getByRole("link", { name: "Claude" });
+      expect(new URL(claudeLink.getAttribute("href")!).searchParams.get("q")).toBe(
+        "what should I pack?",
+      );
+    });
+
+    it("asks for text instead of showing links when the draft is empty", () => {
+      render(<ChatPanel {...baseProps} chatInput="   " />);
+      fireEvent.click(screen.getByRole("button", { name: "שאלו AI חיצוני ישירות" }));
+
+      expect(screen.queryByRole("link", { name: "Claude" })).toBeNull();
+      expect(screen.getByText("כתבו הודעה קודם כדי לשלוח אותה ל-AI חיצוני.")).toBeInTheDocument();
+    });
+
+    it("hides again on a second click", () => {
+      render(<ChatPanel {...baseProps} chatInput="what should I pack?" />);
+      const toggle = screen.getByRole("button", { name: "שאלו AI חיצוני ישירות" });
+      fireEvent.click(toggle);
+      expect(screen.getByRole("link", { name: "Claude" })).toBeInTheDocument();
+
+      fireEvent.click(toggle);
+      expect(screen.queryByRole("link", { name: "Claude" })).toBeNull();
+    });
+  });
 });

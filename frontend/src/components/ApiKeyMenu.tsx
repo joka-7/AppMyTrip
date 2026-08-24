@@ -5,9 +5,12 @@ import {
   addApiKey,
   getApiKeysForProvider,
   getApiProvider,
+  getBackend,
   PROVIDERS,
   removeApiKey,
   setApiProvider,
+  setBackend,
+  type Backend,
   type LLMProvider,
 } from "../services/apiKey";
 
@@ -53,6 +56,12 @@ export default function ApiKeyMenu() {
   const [llmKeys, setLlmKeys] = useState<string[]>(() => getApiKeysForProvider(provider));
   const [llmDraft, setLlmDraft] = useState("");
   const [showLlmDraft, setShowLlmDraft] = useState(false);
+  const [backend, setBackendState] = useState<Backend>(getBackend());
+
+  const handleBackendChange = (next: Backend) => {
+    setBackend(next);
+    setBackendState(next);
+  };
 
   // Browsing to a different provider here (to view/add its keys) must not by
   // itself change which provider gets tried first on real requests — that
@@ -123,6 +132,7 @@ export default function ApiKeyMenu() {
           <select
             value={provider}
             onChange={(e) => handleProviderChange(e.target.value as LLMProvider)}
+            aria-label={t("apiKey.heading")}
             className="w-full border border-outline/40 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
           >
             {PROVIDERS.map((p) => (
@@ -180,6 +190,22 @@ export default function ApiKeyMenu() {
             <Plus size={14} />
             {t("apiKey.addKey")}
           </button>
+
+          <div className="mt-3 pt-3 border-t border-outline/10">
+            <label className="block text-xs font-medium text-ink-muted mb-1">
+              {t("apiKey.backendLabel")}
+            </label>
+            <select
+              value={backend}
+              onChange={(e) => handleBackendChange(e.target.value as Backend)}
+              aria-label={t("apiKey.backendLabel")}
+              className="w-full border border-outline/40 rounded-lg px-3 py-2 text-sm mb-1 focus:outline-none focus:ring-2 focus:ring-primary/50"
+            >
+              <option value="legacy">{t("apiKey.backendLegacy")}</option>
+              <option value="model_dispatcher">{t("apiKey.backendModelDispatcher")}</option>
+            </select>
+            <p className="text-[11px] text-ink-muted/80">{t("apiKey.backendNote")}</p>
+          </div>
 
           <button
             onClick={() => setIsOpen(false)}

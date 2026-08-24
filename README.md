@@ -161,6 +161,11 @@ contract via [`model-dispatcher`](https://github.com/joka-7/ModelDispatcher)
 instead (`services/llm_model_dispatcher.py`) — same providers, same
 bring-your-own-key/multi-key-rotation behavior, same API surface. Doesn't affect
 `parse_trip_text`/`agent_interaction`/`enhance_trip` or anything that calls them.
+Every `/api/trip/{parse,agent,enhance}` request also accepts its own optional
+`backend: "legacy" | "model_dispatcher"` field, overriding this server default
+for just that one call — the frontend's settings menu (`ApiKeyMenu`) exposes
+this as "Server engine", stored in `localStorage` (`tripweaver_backend`) and
+sent with every request via `getBackend()` (`services/apiKey.ts`).
 
 `model-dispatcher` is vendored as a **git submodule** at `backend/vendor/model-dispatcher`
 (see `.gitmodules`), not an installed package — clone with

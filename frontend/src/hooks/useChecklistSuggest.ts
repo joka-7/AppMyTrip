@@ -2,7 +2,7 @@ import { useCallback, useState, type Dispatch, type SetStateAction } from "react
 import type { ChecklistItem, TripData } from "../api";
 import { enhanceTrip } from "../api";
 import { translate } from "../i18n/store";
-import { getAllCredentials, getApiKeys, getApiProvider } from "../services/apiKey";
+import { getAllCredentials, getApiKeys, getApiProvider, getBackend } from "../services/apiKey";
 import { newActivityId } from "../services/id";
 
 type TripUpdater = Dispatch<SetStateAction<TripData>>;
@@ -48,6 +48,7 @@ export function useChecklistSuggest(trip: TripData, setTrip: TripUpdater) {
         getApiKeys(),
         getApiProvider(),
         getAllCredentials(),
+        getBackend(),
       );
       const next = res.trip_data;
       setTrip((prev) => ({

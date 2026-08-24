@@ -16,7 +16,9 @@ describe("ApiKeyMenu", () => {
     expect(screen.getByRole("button", { name: /הגדרת מפתח API/ })).toBeInTheDocument();
 
     openMenu();
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "anthropic" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "מפתחות API משלכם" }), {
+      target: { value: "anthropic" },
+    });
     fireEvent.change(screen.getByPlaceholderText("API Key..."), {
       target: { value: "my-test-key" },
     });
@@ -63,7 +65,9 @@ describe("ApiKeyMenu", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "הוספת מפתח" }));
 
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "groq" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "מפתחות API משלכם" }), {
+      target: { value: "groq" },
+    });
     fireEvent.change(screen.getByPlaceholderText("API Key..."), { target: { value: "groq-key" } });
     fireEvent.click(screen.getByRole("button", { name: "הוספת מפתח" }));
 
@@ -84,7 +88,9 @@ describe("ApiKeyMenu", () => {
 
     // Just browsing to another provider (without adding a key) must not
     // change the active provider either.
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "openrouter" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "מפתחות API משלכם" }), {
+      target: { value: "openrouter" },
+    });
     expect(localStorage.getItem("tripweaver_api_provider")).toBe("gemini");
 
     fireEvent.change(screen.getByPlaceholderText("API Key..."), {
@@ -106,6 +112,24 @@ describe("ApiKeyMenu", () => {
     fireEvent.click(screen.getByRole("button", { name: /הסרת מפתח/ }));
     expect(screen.getByRole("button", { name: /הגדרת מפתח API/ })).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem("tripweaver_api_keys") ?? "{}")).toEqual({});
+  });
+
+  it("defaults the backend selector to legacy and persists a change", () => {
+    render(<ApiKeyMenu />);
+    openMenu();
+    const backendSelect = screen.getByRole("combobox", { name: "מנוע השרת" });
+    expect(backendSelect).toHaveValue("legacy");
+
+    fireEvent.change(backendSelect, { target: { value: "model_dispatcher" } });
+    expect(backendSelect).toHaveValue("model_dispatcher");
+    expect(localStorage.getItem("tripweaver_backend")).toBe("model_dispatcher");
+  });
+
+  it("remembers a previously chosen backend across remounts", () => {
+    localStorage.setItem("tripweaver_backend", "model_dispatcher");
+    render(<ApiKeyMenu />);
+    openMenu();
+    expect(screen.getByRole("combobox", { name: "מנוע השרת" })).toHaveValue("model_dispatcher");
   });
 
   it("toggles LLM key visibility", () => {

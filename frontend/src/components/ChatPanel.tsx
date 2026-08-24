@@ -1,4 +1,5 @@
-import type { RefObject } from "react";
+import { useState, type RefObject } from "react";
+import { ExternalLink } from "lucide-react";
 import { useI18n } from "../i18n/useI18n";
 import {
   buildExternalChatUrl,
@@ -10,6 +11,29 @@ import LanguageIndicator from "./LanguageIndicator";
 export interface AgentMessage {
   role: string;
   text: string;
+}
+
+/** One row of "ChatGPT / Claude / Gemini / Groq" deep links for `question`,
+ * shared by both the failure-notice path and the proactive toggle below. */
+function ExternalChatLinks({ question }: { question: string }) {
+  const { t } = useI18n();
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">
+      <span>{t("chat.askElsewhere")}</span>
+      {EXTERNAL_CHAT_PROVIDERS.map((provider) => (
+        <a
+          key={provider.id}
+          href={buildExternalChatUrl(provider, question)}
+          target="_blank"
+          rel="noreferrer"
+          onClick={() => copyToClipboard(question)}
+          className="font-medium text-primary hover:text-primary-dark underline"
+        >
+          {provider.name}
+        </a>
+      ))}
+    </div>
+  );
 }
 
 /**
@@ -45,6 +69,8 @@ export default function ChatPanel({
   language?: string | null;
 }) {
   const { t } = useI18n();
+  const [showExternalOptions, setShowExternalOptions] = useState(false);
+  const trimmedInput = chatInput.trim();
   return (
     <div className="flex flex-col h-full">
       <div className="flex justify-end mb-2">
@@ -94,22 +120,26 @@ export default function ChatPanel({
               </button>
             )}
           </div>
-          {failedText && (
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">
-              <span>{t("chat.askElsewhere")}</span>
-              {EXTERNAL_CHAT_PROVIDERS.map((provider) => (
-                <a
-                  key={provider.id}
-                  href={buildExternalChatUrl(provider, failedText)}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={() => copyToClipboard(failedText)}
-                  className="font-medium text-primary hover:text-primary-dark underline"
-                >
-                  {provider.name}
-                </a>
-              ))}
-            </div>
+          {failedText && <ExternalChatLinks question={failedText} />}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between mb-1">
+        <button
+          type="button"
+          onClick={() => setShowExternalOptions((v) => !v)}
+          className="flex items-center gap-1 text-[11px] text-ink-muted hover:text-primary"
+        >
+          <ExternalLink size={12} />
+          {t("chat.askExternallyToggle")}
+        </button>
+      </div>
+      {showExternalOptions && (
+        <div className="mb-2">
+          {trimmedInput ? (
+            <ExternalChatLinks question={trimmedInput} />
+          ) : (
+            <p className="text-xs text-ink-muted">{t("chat.askExternallyNeedsText")}</p>
           )}
         </div>
       )}

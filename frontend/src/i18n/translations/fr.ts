@@ -70,6 +70,8 @@ export const fr: Record<TranslationKey, string> = {
   "chat.inputPlaceholder": "Répondez à l'agent (ex. « oui, ajoute-le »)",
   "chat.send": "Envoyer",
   "chat.askElsewhere": "Ou demandez directement :",
+  "chat.askExternallyToggle": "Demander directement à une IA externe",
+  "chat.askExternallyNeedsText": "Écrivez d'abord un message pour l'envoyer à une IA externe.",
 
   // Step 4 — design & deploy
   "step4.heading": "Dernière étape : concevez votre app",
@@ -295,6 +297,11 @@ export const fr: Record<TranslationKey, string> = {
   "apiKey.inputPlaceholder": "Clé API...",
   "apiKey.primaryNote": "Ce fournisseur est essayé en premier à chaque requête.",
   "apiKey.makePrimary": "Définir comme fournisseur principal",
+  "apiKey.backendLabel": "Moteur du serveur",
+  "apiKey.backendLegacy": "Standard",
+  "apiKey.backendModelDispatcher": "Model Dispatcher (partagé)",
+  "apiKey.backendNote":
+    "Réglage avancé/de test — si le serveur n'a pas configuré Model Dispatcher, la requête revient simplement au comportement standard.",
 
   // Cloud menu (sign-in, save, share, my trips)
   "cloud.importSuccess": "Le voyage a été importé depuis le fichier.",

@@ -215,6 +215,7 @@ class TripBuilder:
         self._api_keys: list[str] | None = None
         self._provider: str | None = None
         self._credentials: list[ProviderCredentials] | None = None
+        self._backend: str | None = None
 
     def load_initial_text(self, text: str) -> "TripBuilder":
         """Receives the raw text from the user."""
@@ -249,6 +250,14 @@ class TripBuilder:
         self._credentials = credentials
         return self
 
+    def set_backend(self, backend: str | None) -> "TripBuilder":
+        """Sets which LLMService implementation serves this request ('legacy' or
+        'model_dispatcher'), overriding the server's LLM_BACKEND env-var default
+        just for this call. None (the default) leaves that server-wide default in
+        place — see LLMService._execute."""
+        self._backend = backend
+        return self
+
     async def extract_with_llm(self) -> "TripBuilder":
         """Invokes the LLMService to parse the text."""
         self._trip = await LLMService.parse_trip_text(
@@ -258,6 +267,7 @@ class TripBuilder:
             provider=self._provider,
             api_keys=self._api_keys,
             credentials=self._credentials,
+            backend=self._backend,
         )
         return self
 
@@ -280,6 +290,7 @@ class TripBuilder:
             provider=self._provider,
             api_keys=self._api_keys,
             credentials=self._credentials,
+            backend=self._backend,
         )
 
         if _looks_truncated(previous_trip, agent_response.updated_trip, user_message):
@@ -293,6 +304,7 @@ class TripBuilder:
                 provider=self._provider,
                 api_keys=self._api_keys,
                 credentials=self._credentials,
+                backend=self._backend,
             )
             if _looks_truncated(previous_trip, agent_response.updated_trip, user_message):
                 # 409, not 502/504: this isn't an upstream/provider failure, it's our
@@ -322,6 +334,7 @@ class TripBuilder:
             provider=self._provider,
             api_keys=self._api_keys,
             credentials=self._credentials,
+            backend=self._backend,
         )
         return self
 
@@ -362,6 +375,7 @@ async def parse_initial_trip(request: ParseRequest) -> dict:
     builder.set_api_keys(request.api_keys)
     builder.set_provider(request.provider)
     builder.set_credentials(request.credentials)
+    builder.set_backend(request.backend)
 
     # Execute the LLM pipeline asynchronously
     builder.load_initial_text(request.raw_text)
@@ -382,6 +396,7 @@ async def agent_interaction(request: AgentInteractRequest) -> dict:
     builder.set_api_keys(request.api_keys)
     builder.set_provider(request.provider)
     builder.set_credentials(request.credentials)
+    builder.set_backend(request.backend)
 
     # AI modifies the trip and generates a reply
     reply_text = await builder.process_agent_update(request.user_message)
@@ -400,6 +415,7 @@ async def enhance_trip_endpoint(request: EnhanceRequest) -> dict:
     builder.set_api_keys(request.api_keys)
     builder.set_provider(request.provider)
     builder.set_credentials(request.credentials)
+    builder.set_backend(request.backend)
 
     await builder.enhance(request.options)
 
