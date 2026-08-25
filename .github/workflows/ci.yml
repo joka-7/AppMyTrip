@@ -12,10 +12,20 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v4
+        with:
+          # backend/vendor/model-dispatcher is a git submodule (see
+          # backend/.gitmodules), needed to install and test the opt-in
+          # LLM_BACKEND=model_dispatcher path below — a plain checkout
+          # leaves it empty.
+          submodules: true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - run: pip install -r requirements-dev.txt
+      # Opt-in and kept out of requirements-dev.txt (see
+      # requirements-model-dispatcher.txt for why) — installed as its own
+      # step so test_llm_model_dispatcher.py is still exercised in CI.
+      - run: pip install -r requirements-model-dispatcher.txt
       - run: ruff check .
       - run: ruff format --check .
       - run: pytest

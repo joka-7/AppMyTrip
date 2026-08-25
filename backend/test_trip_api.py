@@ -916,6 +916,23 @@ def test_agent_endpoint_rejects_after_retry_still_looks_truncated(monkeypatch):
     assert mock.await_count == 2
 
 
+def test_agent_endpoint_passes_through_caller_backend(monkeypatch):
+    trip = _multi_day_trip(1)
+    mock = AsyncMock(return_value=AgentResponse(updated_trip=trip, agent_reply="עדכנתי"))
+    monkeypatch.setattr(LLMService, "agent_interaction", mock)
+
+    resp = client.post(
+        "/api/trip/agent",
+        json={
+            "trip_data": trip.model_dump(),
+            "user_message": "add a coffee stop",
+            "backend": "model_dispatcher",
+        },
+    )
+    assert resp.status_code == 200
+    assert mock.await_args.kwargs["backend"] == "model_dispatcher"
+
+
 def test_cors_headers_present():
     # A cross-origin POST should be echoed an Access-Control-Allow-Origin header.
     resp = client.post(
@@ -948,7 +965,13 @@ def test_parse_endpoint_passes_through_supplied_preferences(monkeypatch):
     captured = {}
 
     async def fake_parse(
-        raw_text, preferences=None, api_key=None, provider=None, api_keys=None, credentials=None
+        raw_text,
+        preferences=None,
+        api_key=None,
+        provider=None,
+        api_keys=None,
+        credentials=None,
+        backend=None,
     ):
         captured["preferences"] = preferences
         return _sample_trip()
@@ -964,7 +987,13 @@ def test_parse_endpoint_no_preferences_supplied(monkeypatch):
     captured = {}
 
     async def fake_parse(
-        raw_text, preferences=None, api_key=None, provider=None, api_keys=None, credentials=None
+        raw_text,
+        preferences=None,
+        api_key=None,
+        provider=None,
+        api_keys=None,
+        credentials=None,
+        backend=None,
     ):
         captured["preferences"] = preferences
         return _sample_trip()
@@ -980,7 +1009,13 @@ def test_parse_endpoint_passes_through_caller_api_key(monkeypatch):
     captured = {}
 
     async def fake_parse(
-        raw_text, preferences=None, api_key=None, provider=None, api_keys=None, credentials=None
+        raw_text,
+        preferences=None,
+        api_key=None,
+        provider=None,
+        api_keys=None,
+        credentials=None,
+        backend=None,
     ):
         captured["api_key"] = api_key
         return _sample_trip()
@@ -996,7 +1031,13 @@ def test_parse_endpoint_passes_through_caller_api_keys_list(monkeypatch):
     captured = {}
 
     async def fake_parse(
-        raw_text, preferences=None, api_key=None, provider=None, api_keys=None, credentials=None
+        raw_text,
+        preferences=None,
+        api_key=None,
+        provider=None,
+        api_keys=None,
+        credentials=None,
+        backend=None,
     ):
         captured["api_keys"] = api_keys
         return _sample_trip()
@@ -1015,7 +1056,13 @@ def test_parse_endpoint_passes_through_caller_provider(monkeypatch):
     captured = {}
 
     async def fake_parse(
-        raw_text, preferences=None, api_key=None, provider=None, api_keys=None, credentials=None
+        raw_text,
+        preferences=None,
+        api_key=None,
+        provider=None,
+        api_keys=None,
+        credentials=None,
+        backend=None,
     ):
         captured["provider"] = provider
         return _sample_trip()
@@ -1034,7 +1081,13 @@ def test_parse_endpoint_passes_through_caller_credentials(monkeypatch):
     captured = {}
 
     async def fake_parse(
-        raw_text, preferences=None, api_key=None, provider=None, api_keys=None, credentials=None
+        raw_text,
+        preferences=None,
+        api_key=None,
+        provider=None,
+        api_keys=None,
+        credentials=None,
+        backend=None,
     ):
         captured["credentials"] = credentials
         return _sample_trip()
@@ -1056,6 +1109,60 @@ def test_parse_endpoint_passes_through_caller_credentials(monkeypatch):
         ("gemini", ["g1", "g2"]),
         ("groq", ["q1"]),
     ]
+
+
+def test_parse_endpoint_passes_through_caller_backend(monkeypatch):
+    captured = {}
+
+    async def fake_parse(
+        raw_text,
+        preferences=None,
+        api_key=None,
+        provider=None,
+        api_keys=None,
+        credentials=None,
+        backend=None,
+    ):
+        captured["backend"] = backend
+        return _sample_trip()
+
+    monkeypatch.setattr(LLMService, "parse_trip_text", fake_parse)
+
+    resp = client.post(
+        "/api/trip/parse",
+        json={"raw_text": "Rome", "backend": "model_dispatcher"},
+    )
+    assert resp.status_code == 200
+    assert captured["backend"] == "model_dispatcher"
+
+
+def test_parse_endpoint_defaults_backend_to_none_when_omitted(monkeypatch):
+    captured = {}
+
+    async def fake_parse(
+        raw_text,
+        preferences=None,
+        api_key=None,
+        provider=None,
+        api_keys=None,
+        credentials=None,
+        backend=None,
+    ):
+        captured["backend"] = backend
+        return _sample_trip()
+
+    monkeypatch.setattr(LLMService, "parse_trip_text", fake_parse)
+
+    resp = client.post("/api/trip/parse", json={"raw_text": "Rome"})
+    assert resp.status_code == 200
+    assert captured["backend"] is None
+
+
+def test_parse_endpoint_rejects_an_unknown_backend_value():
+    resp = client.post(
+        "/api/trip/parse", json={"raw_text": "Rome", "backend": "not-a-real-backend"}
+    )
+    assert resp.status_code == 422
 
 
 def test_parse_endpoint_requires_api_key_when_none_configured(monkeypatch):
@@ -1686,6 +1793,23 @@ def test_enhance_endpoint(monkeypatch):
     assert resp.status_code == 200
     body = resp.json()
     assert body["trip_data"]["days"][0]["activities"][0]["price"] == 10
+
+
+def test_enhance_endpoint_passes_through_caller_backend(monkeypatch):
+    trip = _trip_with_food()
+    mock = AsyncMock(return_value=trip.model_copy(deep=True))
+    monkeypatch.setattr(LLMService, "enhance_trip", mock)
+
+    resp = client.post(
+        "/api/trip/enhance",
+        json={
+            "trip_data": trip.model_dump(),
+            "options": {"prices": True},
+            "backend": "model_dispatcher",
+        },
+    )
+    assert resp.status_code == 200
+    assert mock.await_args.kwargs["backend"] == "model_dispatcher"
 
 
 def test_enhance_trip_applies_succeeding_options_when_another_option_fails(monkeypatch):

@@ -11,6 +11,15 @@ dependencies = [
     "piper-tts>=1.2; python_version >= '3.10'",
 ]
 
+[project.optional-dependencies]
+# Opt-in alternative LLM backend, selected via LLM_BACKEND=model_dispatcher
+# (default stays the existing httpx-based path in services/llm.py) — see
+# services/llm_model_dispatcher.py and requirements-model-dispatcher.txt for
+# why this is kept out of the base dependencies (Vercel doesn't fetch git
+# submodules by default; see requirements-model-dispatcher.txt).
+# `uv sync --extra model-dispatcher` after `git submodule update --init`.
+model-dispatcher = ["model-dispatcher[openai,anthropic,gemini]"]
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",
@@ -21,9 +30,20 @@ dev = [
 [tool.uv]
 package = false
 
+[tool.uv.sources]
+# Points the plain "model-dispatcher" requirement above at the local
+# submodule checkout instead of an index/URL — `git submodule update --init`
+# after cloning, then `uv sync` installs it editable from there. To bump the
+# version: cd into the submodule, checkout the new commit/tag, come back up,
+# and commit the updated submodule pointer.
+model-dispatcher = { path = "vendor/model-dispatcher", editable = true }
+
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+# vendor/model-dispatcher is a git submodule — lint/format it under its own
+# rules (via its own pyproject.toml), not this repo's.
+extend-exclude = ["vendor"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
@@ -33,3 +53,7 @@ ignore = ["E501", "B008"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# Without this, pytest's default recursive discovery also picks up (and
+# runs) vendor/model-dispatcher's own test suite — that submodule tests
+# itself independently; it's not part of this repo's suite.
+norecursedirs = ["vendor", ".venv"]

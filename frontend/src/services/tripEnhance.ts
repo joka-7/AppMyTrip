@@ -1,6 +1,6 @@
 import type { Activity, EnhanceOptions, TripData } from "../api";
 import { enhanceTrip } from "../api";
-import { getAllCredentials, getApiKeys, getApiProvider } from "./apiKey";
+import { getAllCredentials, getApiKeys, getApiProvider, getBackend } from "./apiKey";
 
 /**
  * Used when Step 2 was skipped (or on the shared-trip viewer, which has no
@@ -60,6 +60,7 @@ export async function enhanceActivities(
       getApiKeys(),
       getApiProvider(),
       getAllCredentials(),
+      getBackend(),
     );
     return new Map(res.trip_data.days.flatMap((d) => d.activities).map((a) => [a.id, a]));
   } catch (err) {

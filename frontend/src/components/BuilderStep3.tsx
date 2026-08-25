@@ -14,6 +14,7 @@ export default function BuilderStep3({
   isSendingMessage,
   chatNotice,
   onRetryChat,
+  failedChatText,
   onContinue,
   onBack,
   isGeneratingMedia,
@@ -29,6 +30,7 @@ export default function BuilderStep3({
   isSendingMessage?: boolean;
   chatNotice?: string | null;
   onRetryChat?: () => void;
+  failedChatText?: string | null;
   onContinue: () => void;
   onBack: () => void;
   isGeneratingMedia: boolean;
@@ -63,6 +65,7 @@ export default function BuilderStep3({
           isSending={isSendingMessage}
           notice={chatNotice}
           onRetry={onRetryChat}
+          failedText={failedChatText}
           language={language}
         />
       </div>

@@ -20,7 +20,7 @@ import ProgressBar from "./components/ProgressBar";
 import { useChecklistSuggest } from "./hooks/useChecklistSuggest";
 import { useTripEditing } from "./hooks/useTripEditing";
 import { DEFAULT_APP_DESIGN, type AppDesign } from "./services/appDesign";
-import { getApiKeys, getApiProvider, getAllCredentials } from "./services/apiKey";
+import { getApiKeys, getApiProvider, getAllCredentials, getBackend } from "./services/apiKey";
 import {
   clearDraft,
   isRecoverableDraft,
@@ -310,6 +310,7 @@ function TripBuilder() {
         getApiKeys(),
         getApiProvider(),
         getAllCredentials(),
+        getBackend(),
       );
       setTripData(normalizeTripForLoad(res.trip_data));
       setTripId(null);
@@ -389,6 +390,7 @@ function TripBuilder() {
         getApiKeys(),
         getApiProvider(),
         getAllCredentials(),
+        getBackend(),
       );
       setTripData(normalizeTripForLoad(res.trip_data));
       setFailedEnhanceOptions(null);
@@ -420,6 +422,7 @@ function TripBuilder() {
         getApiKeys(),
         getApiProvider(),
         getAllCredentials(),
+        getBackend(),
       );
       // Applied right away — the agent's edit is the authoritative new state,
       // not something to hold back while the (slower) enhancement pass below
@@ -610,6 +613,7 @@ function TripBuilder() {
                   isSendingMessage={isSendingMessage}
                   chatNotice={chatNotice}
                   onRetryChat={failedChatText ? handleRetryChat : undefined}
+                  failedChatText={failedChatText}
                   onContinue={handleContinueToDesign}
                   onBack={() => goToStep(2)}
                   isGeneratingMedia={isGeneratingMedia}
@@ -665,6 +669,7 @@ function TripBuilder() {
               isSendingMessage={isSendingMessage}
               chatNotice={chatNotice}
               onRetryChat={failedChatText ? handleRetryChat : undefined}
+              failedChatText={failedChatText}
               onUpdateActivity={handleUpdateActivity}
               onAddActivity={handleAddActivity}
               onDeleteActivity={handleDeleteActivity}
@@ -714,6 +719,7 @@ function TripBuilder() {
                   isSendingMessage={isSendingMessage}
                   chatNotice={chatNotice}
                   onRetryChat={failedChatText ? handleRetryChat : undefined}
+                  failedChatText={failedChatText}
                   onUpdateActivity={handleUpdateActivity}
                   onAddActivity={handleAddActivity}
                   onDeleteActivity={handleDeleteActivity}
@@ -835,6 +841,7 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
         getApiKeys(),
         getApiProvider(),
         getAllCredentials(),
+        getBackend(),
       );
       // See TripBuilder's own handleSendMessage for why this is normalized and
       // applied immediately, with new activities enhanced (and merged in) as a
@@ -936,6 +943,7 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
         isSendingMessage={isSendingMessage}
         chatNotice={chatNotice}
         onRetryChat={failedChatText ? handleRetryChat : undefined}
+        failedChatText={failedChatText}
         onUpdateActivity={handleUpdateActivity}
         onAddActivity={handleAddActivity}
         onDeleteActivity={handleDeleteActivity}
