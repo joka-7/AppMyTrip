@@ -42,7 +42,10 @@ test.describe("trip builder flow", () => {
     });
   });
 
-  test("walks through steps 1 -> 3 -> 4 with the live preview updating", async ({ page }) => {
+  test("walks through steps 1 -> 3 -> 4 with the live preview updating", async ({
+    page,
+    isMobile,
+  }) => {
     await page.goto("/");
 
     await expect(page.getByText("שלב 1 מתוך 4")).toBeVisible();
@@ -53,7 +56,21 @@ test.describe("trip builder flow", () => {
     await page.getByRole("button", { name: "דלג, המשך לסוכן" }).click();
 
     await expect(page.getByText("שלב 3 מתוך 4")).toBeVisible();
-    await expect(page.getByText("Spanish Steps")).toBeVisible();
+
+    if (isMobile) {
+      // The side-by-side preview is desktop-only — a 350px bezel inside a
+      // phone-width column is clipped and just costs a screen of scrolling. On a
+      // phone the navbar's "preview app" button opens it full-screen instead,
+      // so that's the path worth asserting here.
+      await page.getByRole("button", { name: "תצוגה מקדימה של האפליקציה" }).click();
+      // Scoped to the dialog: the desktop preview is display:none rather than
+      // unmounted, so an unscoped lookup matches it too.
+      const preview = page.getByRole("dialog", { name: "תצוגה מקדימה של האפליקציה" });
+      await expect(preview.getByText("Spanish Steps")).toBeVisible();
+      await preview.getByRole("button", { name: "חזרה" }).click();
+    } else {
+      await expect(page.getByText("Spanish Steps")).toBeVisible();
+    }
 
     const chatInput = page.getByPlaceholder("ענה לסוכן (למשל: 'כן, תוסיף')");
     await chatInput.fill("הוסיפו מסעדה");

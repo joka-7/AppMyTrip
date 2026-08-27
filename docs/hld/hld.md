@@ -121,7 +121,7 @@ flowchart TB
 |-----------|----------------|
 | `App.tsx` | Chooses **builder mode** vs **shared-viewer mode** from the `?shared=<id>` URL param; owns all trip state and mutation handlers |
 | `BuilderStep1..4` | The wizard: (1) paste text, (2) opt-in enhancements, (3) AI chat + edit, (4) theme + save/share |
-| `AppFrame` | The actual "generated app" (header, day tabs, itinerary/map/price/chat tabs, podcast player, bottom nav). Reused by the live preview and the shared page |
+| `AppFrame` | The actual "generated app" (header, day tabs, itinerary/map/price/chat tabs, podcast player, bottom nav). Reused by the live preview and the shared page. A "manage days" panel on the day-tab bar adds/deletes/reorders whole days (move earlier/later, jump to start/end). A small "Made with AppMyTrip" attribution strip below the bottom nav links back to the builder's own origin, in the current UI language |
 | `api.ts` | Typed client for the four backend endpoints; also the single source of truth for the shared `TripData`/`Activity` TypeScript types |
 | `services/*` | `apiKey` (BYO key in localStorage), `tripsStore` + `firebase` (auth + Firestore), plus helpers (`hebrewDate`, `language`, `tripFile`, `env`) |
 
@@ -228,6 +228,14 @@ erDiagram
         string url
         string directions_car
         string directions_transit
+        string map_url "user-pasted Google Maps link"
+        enum travel_mode "driving|walking|bicycling|transit"
+    }
+    TRIP_DAY ||--o{ CHECKLIST_ITEM : "needs for the day"
+    TRIP_DATA ||--o{ CHECKLIST_ITEM : "needs for the trip"
+    CHECKLIST_ITEM {
+        string id
+        string text
     }
 ```
 
@@ -239,6 +247,33 @@ erDiagram
   Step 2 enhancement and the media step, keeping the default parse fast.
 - The TypeScript `TripData`/`Activity` interfaces in `frontend/src/api.ts` mirror
   the Pydantic models in `backend/models.py` — they are two views of one contract.
+  A field added to only one side is silently dropped: Pydantic discards unknown
+  keys, so every parse/agent/enhance round-trip strips it.
+- **`Activity.map_url`** is a user override for when the AI's coordinates land on
+  the wrong place. Pasting a Maps link both replaces the "open in Google Maps"
+  target and, when the link carries coordinates, repairs `map_coordinates` — so
+  the in-app pin and the directions links get corrected too. When the pasted link
+  is a shortened one (no coordinates, unresolvable from the browser) the pin stays
+  wrong, so everything derived from it is hidden rather than offered.
+- **`Activity.travel_mode`** describes the *leg into* a stop, not the stop and
+  not the day: a real day mixes driving, walking, hiking and buses, so each leg
+  is decided on its own and the first stop of a day has no mode at all. Normally
+  unset and inferred (`frontend/src/services/travelMode.ts`) from the activity
+  itself first — a bus/ferry is transit, a trail is hiking — falling back to
+  distance only when the activity says nothing; an explicit value is a user or AI
+  override that always wins. It decides which links a stop offers: Waze only on a
+  driving leg, since it has no walking/cycling/transit mode. There is no
+  whole-day route link, because Google Maps applies one `travelmode` to an entire
+  route and would therefore be wrong for most legs of a mixed day.
+- **Checklists** ("what we need") hang off both `TripDay` and `TripData`: per-day
+  items for that day's activities, trip-wide items for documents and chargers.
+  Tick state is deliberately *not* in the model — it lives in each viewer's
+  localStorage, so a shared link works read-only and one person packing doesn't
+  tick the box for everyone.
+- **`TripDay.dayNum`** is kept as a gapless `1..N` sequence matching array order —
+  day tabs, `icsExport`'s per-day calendar-date math, and the Hebrew weekday
+  labels all key off it. `frontend/src/hooks/useTripEditing.ts` renumbers it after
+  every add/delete/reorder of a day.
 
 ---
 
@@ -351,7 +386,7 @@ flowchart LR
 | **Security** | No secrets on our server (BYO key); Firestore rules enforce owner-only writes + public-read shares; API keys live only in the caller's browser and are sent solely to our backend |
 | **CORS** | Enabled on the backend, origins configurable via `CORS_ORIGINS` (default `*` for local dev) |
 | **Error handling** | Backend maps failures to precise HTTP codes (`401` no key, `422` bad LLM schema, `429` rate-limit, `502` LLM/truncation); frontend shows localized notices and degrades gracefully |
-| **i18n / RTL** | UI is Hebrew/RTL (`dir="rtl"`); the LLM detects the trip's dominant language, sets `TripData.language`, and replies in it; `LanguageIndicator` surfaces it |
+| **i18n / RTL** | UI is Hebrew/RTL (`dir="rtl"`) by default; the LLM detects the trip's dominant language, sets `TripData.language`, and replies in it; `LanguageIndicator` surfaces it. `LanguageSwitcher` (he/en/fr) is available in the builder navbar and, since a shared-link visitor is a different person from the builder with their own preference, in `SharedAppPage` too. A first-time shared-link visitor with no stored preference gets the UI defaulted to the trip's own `language` (`setLangIfUnset`) rather than the hardcoded Hebrew fallback; an explicit choice — the builder's or a returning visitor's — is never overridden |
 | **Offline / PWA** | Installable PWA (manifest + Workbox precache); backend-independent demo fallback keeps it usable offline |
 | **Performance** | Default parse/chat stay lean (enrichment deferred to opt-in Step 2); enhancement calls run concurrently; async I/O end-to-end (`httpx.AsyncClient`, `asyncio.to_thread` for Piper) |
 | **Observability** | Prototype-level: server errors surface as HTTP detail strings; client logs to console. No metrics/tracing yet |

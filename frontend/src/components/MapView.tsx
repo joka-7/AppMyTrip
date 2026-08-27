@@ -10,12 +10,13 @@ import {
 import { useEffect, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { ArrowRight, ExternalLink, MapPinPlus } from "lucide-react";
+import { ArrowRight, ExternalLink, MapPinPlus, Navigation } from "lucide-react";
 import type { Activity } from "../api";
 import { useI18n } from "../i18n/useI18n";
 import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABEL_KEYS } from "../services/activityTypes";
 import { newActivityId } from "../services/id";
-import { googleMapsPlaceUrl, googleMapsDirectionsUrl } from "../services/mapLinks";
+import { googleMapsPlaceUrl, hasUnverifiedPin, wazeUrl } from "../services/mapLinks";
+import { isDrivingMode, legTravelMode } from "../services/travelMode";
 import { type MapTileStyle, MAP_TILE_URLS } from "../services/appDesign";
 import { sequenceLabel } from "../services/sequenceLabel";
 
@@ -149,6 +150,11 @@ export default function MapView({
     ? allCoordActs.find((a) => a.id === focusActivityId)
     : undefined;
   const coordActs = focusedAct ? [focusedAct] : allCoordActs;
+  // The leg *into* the focused stop, taken from the full day (not the
+  // coordinate-filtered list) so the predecessor is the real previous activity.
+  const focusedMode = focusedAct
+    ? legTravelMode(activities[activities.indexOf(focusedAct) - 1], focusedAct)
+    : null;
   const canAdd = Boolean(onAddActivity) && !focusedAct;
   const tiles = MAP_TILE_URLS[mapTileStyle];
 
@@ -211,28 +217,33 @@ export default function MapView({
             {t("map.backToFullDay")}
           </button>
         )}
-        {focusedAct ? (
-          <a
-            href={googleMapsPlaceUrl(focusedAct)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="self-start flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary-dark bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors"
-          >
-            <ExternalLink size={14} />
-            {t("map.openInGoogleMaps")}
-          </a>
-        ) : (
-          coordActs.length > 1 && (
+        {/* No whole-day route link: Google Maps applies a single travelmode to
+            an entire route, and a real day mixes driving, walking, hiking and
+            buses, so one day-long link is wrong for most of its legs. Navigation
+            is per leg — on each stop's popup here, and on the itinerary cards. */}
+        {focusedAct && (
+          <>
             <a
-              href={googleMapsDirectionsUrl(coordActs)}
+              href={googleMapsPlaceUrl(focusedAct)}
               target="_blank"
               rel="noopener noreferrer"
               className="self-start flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary-dark bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors"
             >
               <ExternalLink size={14} />
-              {t("map.openRoute")}
+              {t("map.openInGoogleMaps")}
             </a>
-          )
+            {isDrivingMode(focusedMode) && !hasUnverifiedPin(focusedAct) && (
+              <a
+                href={wazeUrl(focusedAct)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="self-start flex items-center gap-1.5 text-xs font-medium text-[#05c8f7] hover:text-[#0499bd] bg-[#05c8f7]/10 hover:bg-[#05c8f7]/20 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <Navigation size={14} />
+                {t("map.openInWaze")}
+              </a>
+            )}
+          </>
         )}
         {canAdd && !pendingLocation && (
           <span className="flex items-center gap-1.5 text-xs text-ink-muted">

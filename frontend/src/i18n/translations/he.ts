@@ -31,6 +31,9 @@ export const he = {
   "step1.preferencesPlaceholder": "למשל: רוצים אוכל חלבי",
   "step1.continueWithoutReprocessing": "המשך לעריכה (ללא ניתוח מחדש)",
   "step1.processing": "ה-AI מנתח את הטקסט...",
+  "step1.hint.reading": "קורא את הטקסט שהזנתם...",
+  "step1.hint.structuring": "מחלק את הטיול לימים...",
+  "step1.hint.activities": "מזהה פעילויות ושעות...",
   "step1.reprocess": "נתח מחדש (יחליף את הטיול הקיים)",
   "step1.submit": "צור מבנה אפליקציה ראשוני",
   "step1.exampleRawText":
@@ -43,12 +46,17 @@ export const he = {
   "step2.selectAll": "בחר את כל האפשרויות",
   "step2.skip": "דלג, המשך לסוכן",
   "step2.submitting": "מוסיף את הפרטים...",
+  "step2.hint.fetching": "אוסף פרטים מהמקורות...",
+  "step2.hint.enriching": "משלב את השיפורים בלו״ז...",
+  "step2.hint.almost": "כמעט מוכן...",
   "step2.submit": "הוסף את הפרטים שנבחרו",
   "step2.opt.directions_car": "הוספת הוראות הגעה ברכב",
   "step2.opt.directions_transit": "הוספת הוראות הגעה בתחבורה ציבורית",
   "step2.opt.prices": "הוספת מחירים משוערים",
   "step2.opt.podcast": "הוספת פודקאסט היסטורי",
   "step2.opt.links": "הוספת קישורים לאתרי האטרקציות/תחבורה",
+  "step2.opt.packing": "הוספת רשימת ציוד לכל יום",
+  "step2.opt.travel_mode": "זיהוי אופן ההגעה בין העצירות",
 
   // Step 3 — completion agent
   "step3.heading": "סוכן השלמות AI",
@@ -61,6 +69,12 @@ export const he = {
   // Chat panel
   "chat.inputPlaceholder": "ענה לסוכן (למשל: 'כן, תוסיף')",
   "chat.send": "שלח",
+  // Shown alongside a failed-turn notice, next to links straight into a free
+  // external AI chat product (ChatGPT/Claude/etc.) — offered once every saved
+  // credential has already failed, so there's nothing left for us to retry.
+  "chat.askElsewhere": "אפשר גם לשאול ישירות:",
+  "chat.askExternallyToggle": "שאלו AI חיצוני ישירות",
+  "chat.askExternallyNeedsText": "כתבו הודעה קודם כדי לשלוח אותה ל-AI חיצוני.",
 
   // Step 4 — design & deploy
   "step4.heading": "שלב אחרון: עיצוב האפליקציה שלך",
@@ -77,6 +91,7 @@ export const he = {
   "step4.copied": "הועתק!",
   "step4.copyFailed": "ההעתקה ללוח נכשלה",
   "step4.copyLink": "העתק קישור",
+  "step4.share": "שיתוף",
   "step4.openLink": "מעבר לקישור",
   "step4.deployError": "משהו השתבש בעת השמירה והשיתוף. נסו שוב בעוד רגע.",
   "step4.deployHint":
@@ -108,6 +123,7 @@ export const he = {
   "step4.welcomePlaceholder": "לדוגמה: ברוכים הבאים לטיול! כל השינויים נשמרים מקומית.",
   "step4.welcomeDismiss": "הבנתי",
   "step4.accentColorLabel": "צבע מותאם אישית",
+  "step4.accentColorReset": "איפוס לצבע ברירת מחדל",
   "step4.headerStyleLabel": "סגנון כותרת",
   "step4.headerStyle.solid": "אחיד",
   "step4.headerStyle.gradient": "גרדיאנט",
@@ -163,12 +179,47 @@ export const he = {
   "appFrame.localOnlyNotice": "שינויים שתבצעו כאן יישמרו רק בדפדפן הזה ולא יישלחו לשרת.",
   "appFrame.scrollPrevAria": "גלילה לימים קודמים",
   "appFrame.scrollNextAria": "גלילה לימים נוספים",
+  "appFrame.manageDaysAria": "ניהול ימים",
+  "appFrame.manageDaysHeading": "שינוי סדר הימים, הוספה או מחיקה",
+  "appFrame.addDay": "הוספת יום",
+  "appFrame.moveDayToStartAria": "העברה להתחלה",
+  "appFrame.moveDayEarlierAria": "העברה קודם",
+  "appFrame.moveDayLaterAria": "העברה מאוחר יותר",
+  "appFrame.moveDayToEndAria": "העברה לסוף",
+  "appFrame.deleteDayAria": "מחיקת יום",
+  "appFrame.madeWith": "נוצר באמצעות AppMyTrip — תכננו גם אתם אפליקציית טיול משלכם",
   "appFrame.day": "יום {num}",
   "appFrame.emptyState": "הזינו את תיאור הטיול כדי לראות כאן תצוגה מקדימה חיה של האפליקציה.",
   "appFrame.tab.itinerary": 'לו"ז',
   "appFrame.tab.map": "מפה",
   "appFrame.tab.price": "תמחור",
   "appFrame.tab.chat": "צ'אט AI",
+  "appFrame.tab.checklist": "מה לוקחים",
+
+  // "What we need" checklist
+  "checklist.tripWide": "לכל הטיול",
+  "checklist.dayHeading": "יום {num}",
+  "checklist.empty": "עדיין אין פריטים. הוסיפו מה צריך לקחת, או בקשו הצעות מה-AI.",
+  "checklist.addPlaceholder": "מה צריך לקחת?",
+  "checklist.add": "הוספה",
+  "checklist.addAria": "הוספת פריט לרשימה",
+  "checklist.editAria": "עריכת הפריט {text}",
+  "checklist.deleteAria": "מחיקת הפריט {text}",
+  "checklist.showAllDays": "הצגת כל הימים",
+  "checklist.showThisDay": "הצגת היום הנוכחי בלבד",
+  "checklist.suggest": "הצעות AI",
+  "checklist.suggesting": "מכינים הצעות...",
+  "checklist.suggestFailed": "לא הצלחנו להביא הצעות. נסו שוב.",
+  "checklist.packed": "{done} מתוך {total} נארזו",
+
+  // Travel modes
+  "travelMode.driving": "נסיעה ברכב",
+  "travelMode.transit": "תחבורה ציבורית",
+  "travelMode.bicycling": "אופניים",
+  "travelMode.walking": "הליכה ברגל",
+  "travelMode.hiking": "טיול רגלי",
+  "travelMode.auto": "זיהוי אוטומטי",
+  "travelMode.label": "אופן ההגעה",
 
   // Itinerary list
   "itinerary.priceLabel": "מחיר",
@@ -182,6 +233,14 @@ export const he = {
   "itinerary.addActivity": "הוספת פעילות ליום זה",
   "itinerary.urlAria": "קישור לאתר הפעילות",
   "itinerary.showOnMapAria": "הצגת הפעילות על המפה",
+  "itinerary.mapUrlLabel": "קישור ל-Google Maps",
+  "itinerary.mapUrlHint": "הדביקו קישור אם הסימון על המפה שגוי",
+  "itinerary.mapUrlPinUpdated": "המיקום על המפה עודכן לפי הקישור",
+  "itinerary.mapUrlNoCoords": "הקישור יישמר, אך לא ניתן לעדכן ממנו את הסימון על המפה",
+  "itinerary.openInMapsAria": "פתיחת המיקום ב-Google Maps",
+  "itinerary.directionsAria": "הוראות הגעה מהעצירה הקודמת ({mode})",
+  "itinerary.wazeAria": "ניווט ל-{title} ב-Waze",
+  "itinerary.waze": "Waze",
   "itinerary.editAria": "עריכת פעילות",
   "itinerary.deleteAria": "מחיקת פעילות",
   "itinerary.editPriceAria": "עריכת מחיר",
@@ -201,7 +260,7 @@ export const he = {
   "map.noCoords": "אין קואורדינטות להצגה על המפה ביום זה.",
   "map.backToFullDay": "חזרה למפת היום המלאה",
   "map.openInGoogleMaps": "פתיחה ב-Google Maps",
-  "map.openRoute": "פתיחת מסלול והוראות הגעה ב-Google Maps",
+  "map.openInWaze": "ניווט ב-Waze",
   "map.clickToAdd": "לחצו על המפה כדי להוסיף פעילות חדשה במיקום זה",
 
   // Price summary
@@ -230,6 +289,11 @@ export const he = {
   "apiKey.inputPlaceholder": "API Key...",
   "apiKey.primaryNote": "הספק הזה מנוסה ראשון בכל בקשה.",
   "apiKey.makePrimary": "הפוך לספק הראשי",
+  "apiKey.backendLabel": "מנוע השרת",
+  "apiKey.backendLegacy": "רגיל",
+  "apiKey.backendModelDispatcher": "Model Dispatcher (משותף)",
+  "apiKey.backendNote":
+    "הגדרה מתקדמת לבדיקות — אם השרת לא הגדיר את Model Dispatcher, הבקשה תיפול חזרה להתנהגות הרגילה.",
 
   // Cloud menu (sign-in, save, share, my trips)
   "cloud.importSuccess": "הטיול יובא מהקובץ.",
@@ -243,7 +307,12 @@ export const he = {
   "cloud.shareFailed": "שיתוף הטיול נכשל.",
   "cloud.loadFailed": "טעינת הטיול נכשלה.",
   "cloud.deleteFailed": "מחיקת הטיול נכשלה.",
+  "cloud.deleteAria": "מחיקת הטיול {name}",
+  "cloud.deleteConfirmAria": "אישור מחיקת הטיול {name}",
+  "cloud.deleteConfirm": "למחוק?",
   "cloud.export": "ייצוא",
+  "cloud.exportIcs": "ייצוא ליומן",
+  "cloud.print": "הדפסה",
   "cloud.import": "ייבוא",
   "cloud.signingIn": "מתחבר...",
   "cloud.signIn": "התחברות עם Google",
@@ -277,6 +346,8 @@ export const he = {
   "sharedPage.settingsAria": "הגדרות הטיול",
   "sharedPage.myTripsAria": "מעבר לטיולים שלי",
   "sharedPage.export": "ייצוא לקובץ",
+  "sharedPage.exportIcs": "ייצוא ליומן (.ics)",
+  "sharedPage.print": "הדפסת הלו״ז",
   "sharedPage.import": "ייבוא מקובץ",
   "sharedPage.saving": "שומר...",
   "sharedPage.saveToAccount": "שמירה לחשבון שלי",
@@ -306,6 +377,10 @@ export const he = {
   // Podcast (browser TTS) errors
   "podcastPlayer.noTTS": "הדפדפן הזה לא תומך בהקראת טקסט.",
   "podcastPlayer.ttsFailed": "הקראת הפודקאסט נכשלה. ייתכן שלדפדפן הזה אין קול מתאים.",
+
+  // Builder draft recovery (localStorage)
+  "draft.recoverPrompt": "נמצאה טיוטה שמורה מהפעם הקודמת — לשחזר אותה?",
+  "draft.restore": "שחזור טיוטה",
 
   // Language indicator (agent reply language)
   "languageIndicator.explainer":

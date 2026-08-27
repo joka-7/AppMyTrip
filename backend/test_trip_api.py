@@ -916,11 +916,28 @@ def test_agent_endpoint_rejects_after_retry_still_looks_truncated(monkeypatch):
     assert mock.await_count == 2
 
 
+def test_agent_endpoint_passes_through_caller_backend(monkeypatch):
+    trip = _multi_day_trip(1)
+    mock = AsyncMock(return_value=AgentResponse(updated_trip=trip, agent_reply="עדכנתי"))
+    monkeypatch.setattr(LLMService, "agent_interaction", mock)
+
+    resp = client.post(
+        "/api/trip/agent",
+        json={
+            "trip_data": trip.model_dump(),
+            "user_message": "add a coffee stop",
+            "backend": "model_dispatcher",
+        },
+    )
+    assert resp.status_code == 200
+    assert mock.await_args.kwargs["backend"] == "model_dispatcher"
+
+
 def test_cors_headers_present():
     # A cross-origin POST should be echoed an Access-Control-Allow-Origin header.
     resp = client.post(
         "/api/trip/generate-media",
-        json={"trip_data": _sample_trip().model_dump(), "user_message": ""},
+        json={"trip_data": _sample_trip().model_dump()},
         headers={"Origin": "http://localhost:5173"},
     )
     assert resp.status_code == 200
@@ -930,7 +947,7 @@ def test_cors_headers_present():
 def test_generate_media_endpoint():
     resp = client.post(
         "/api/trip/generate-media",
-        json={"trip_data": _sample_trip().model_dump(), "user_message": ""},
+        json={"trip_data": _sample_trip().model_dump()},
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -948,7 +965,13 @@ def test_parse_endpoint_passes_through_supplied_preferences(monkeypatch):
     captured = {}
 
     async def fake_parse(
-        raw_text, preferences=None, api_key=None, provider=None, api_keys=None, credentials=None
+        raw_text,
+        preferences=None,
+        api_key=None,
+        provider=None,
+        api_keys=None,
+        credentials=None,
+        backend=None,
     ):
         captured["preferences"] = preferences
         return _sample_trip()
@@ -964,7 +987,13 @@ def test_parse_endpoint_no_preferences_supplied(monkeypatch):
     captured = {}
 
     async def fake_parse(
-        raw_text, preferences=None, api_key=None, provider=None, api_keys=None, credentials=None
+        raw_text,
+        preferences=None,
+        api_key=None,
+        provider=None,
+        api_keys=None,
+        credentials=None,
+        backend=None,
     ):
         captured["preferences"] = preferences
         return _sample_trip()
@@ -980,7 +1009,13 @@ def test_parse_endpoint_passes_through_caller_api_key(monkeypatch):
     captured = {}
 
     async def fake_parse(
-        raw_text, preferences=None, api_key=None, provider=None, api_keys=None, credentials=None
+        raw_text,
+        preferences=None,
+        api_key=None,
+        provider=None,
+        api_keys=None,
+        credentials=None,
+        backend=None,
     ):
         captured["api_key"] = api_key
         return _sample_trip()
@@ -996,7 +1031,13 @@ def test_parse_endpoint_passes_through_caller_api_keys_list(monkeypatch):
     captured = {}
 
     async def fake_parse(
-        raw_text, preferences=None, api_key=None, provider=None, api_keys=None, credentials=None
+        raw_text,
+        preferences=None,
+        api_key=None,
+        provider=None,
+        api_keys=None,
+        credentials=None,
+        backend=None,
     ):
         captured["api_keys"] = api_keys
         return _sample_trip()
@@ -1015,7 +1056,13 @@ def test_parse_endpoint_passes_through_caller_provider(monkeypatch):
     captured = {}
 
     async def fake_parse(
-        raw_text, preferences=None, api_key=None, provider=None, api_keys=None, credentials=None
+        raw_text,
+        preferences=None,
+        api_key=None,
+        provider=None,
+        api_keys=None,
+        credentials=None,
+        backend=None,
     ):
         captured["provider"] = provider
         return _sample_trip()
@@ -1034,7 +1081,13 @@ def test_parse_endpoint_passes_through_caller_credentials(monkeypatch):
     captured = {}
 
     async def fake_parse(
-        raw_text, preferences=None, api_key=None, provider=None, api_keys=None, credentials=None
+        raw_text,
+        preferences=None,
+        api_key=None,
+        provider=None,
+        api_keys=None,
+        credentials=None,
+        backend=None,
     ):
         captured["credentials"] = credentials
         return _sample_trip()
@@ -1056,6 +1109,60 @@ def test_parse_endpoint_passes_through_caller_credentials(monkeypatch):
         ("gemini", ["g1", "g2"]),
         ("groq", ["q1"]),
     ]
+
+
+def test_parse_endpoint_passes_through_caller_backend(monkeypatch):
+    captured = {}
+
+    async def fake_parse(
+        raw_text,
+        preferences=None,
+        api_key=None,
+        provider=None,
+        api_keys=None,
+        credentials=None,
+        backend=None,
+    ):
+        captured["backend"] = backend
+        return _sample_trip()
+
+    monkeypatch.setattr(LLMService, "parse_trip_text", fake_parse)
+
+    resp = client.post(
+        "/api/trip/parse",
+        json={"raw_text": "Rome", "backend": "model_dispatcher"},
+    )
+    assert resp.status_code == 200
+    assert captured["backend"] == "model_dispatcher"
+
+
+def test_parse_endpoint_defaults_backend_to_none_when_omitted(monkeypatch):
+    captured = {}
+
+    async def fake_parse(
+        raw_text,
+        preferences=None,
+        api_key=None,
+        provider=None,
+        api_keys=None,
+        credentials=None,
+        backend=None,
+    ):
+        captured["backend"] = backend
+        return _sample_trip()
+
+    monkeypatch.setattr(LLMService, "parse_trip_text", fake_parse)
+
+    resp = client.post("/api/trip/parse", json={"raw_text": "Rome"})
+    assert resp.status_code == 200
+    assert captured["backend"] is None
+
+
+def test_parse_endpoint_rejects_an_unknown_backend_value():
+    resp = client.post(
+        "/api/trip/parse", json={"raw_text": "Rome", "backend": "not-a-real-backend"}
+    )
+    assert resp.status_code == 422
 
 
 def test_parse_endpoint_requires_api_key_when_none_configured(monkeypatch):
@@ -1578,6 +1685,101 @@ def test_enhance_trip_fires_one_concurrent_call_per_option_and_merges_only_that_
             assert act.title == original_titles[act.id]
 
 
+def test_enhance_trip_merges_day_and_trip_level_checklists(monkeypatch):
+    # The merge used to copy activity fields only, keyed by activity id, so a
+    # field living on the day or the trip would have been silently dropped.
+    trip = _trip_with_food()
+    data = trip.model_dump()
+    data["checklist"] = [{"id": "t1", "text": "Passport"}]
+    for day in data["days"]:
+        day["checklist"] = [{"id": f"d{day['dayNum']}", "text": "Walking shoes"}]
+        for act in day["activities"]:
+            # Noise the packing call is not allowed to write back.
+            act["price"] = 999
+    monkeypatch.setattr(LLMService, "_execute_with_retry", AsyncMock(return_value=data))
+
+    result = asyncio.run(LLMService.enhance_trip(trip, EnhanceOptions(packing=True)))
+
+    assert [item.text for item in result.checklist] == ["Passport"]
+    assert [item.text for item in result.days[0].checklist] == ["Walking shoes"]
+    for day in result.days:
+        for act in day.activities:
+            assert act.price is None
+
+
+def test_enhance_trip_matches_checklists_by_day_number_not_position(monkeypatch):
+    # A response that reorders or drops a day must not write one day's checklist
+    # onto another day.
+    trip = _sample_trip()
+    trip.days.append(TripDay(dayNum=2, activities=[]))
+    data = trip.model_dump()
+    data["days"] = [d for d in data["days"] if d["dayNum"] == 2]
+    data["days"][0]["checklist"] = [{"id": "x", "text": "Day two only"}]
+    monkeypatch.setattr(LLMService, "_execute_with_retry", AsyncMock(return_value=data))
+
+    result = asyncio.run(LLMService.enhance_trip(trip, EnhanceOptions(packing=True)))
+
+    assert result.days[0].checklist == []
+    assert [item.text for item in result.days[1].checklist] == ["Day two only"]
+
+
+def test_enhance_trip_fills_travel_mode(monkeypatch):
+    trip = _trip_with_food()
+    data = trip.model_dump()
+    for day in data["days"]:
+        for act in day["activities"]:
+            act["travel_mode"] = "hiking"
+    monkeypatch.setattr(LLMService, "_execute_with_retry", AsyncMock(return_value=data))
+
+    result = asyncio.run(LLMService.enhance_trip(trip, EnhanceOptions(travel_mode=True)))
+
+    for day in result.days:
+        for act in day.activities:
+            assert act.travel_mode == "hiking"
+
+
+def test_trip_round_trip_preserves_new_fields():
+    # These live on the frontend model too; if they're missing here Pydantic
+    # drops them on every parse/agent/enhance call (as it already does for
+    # startWeekday), so a user's pasted map link or packing list would vanish on
+    # the next chat message.
+    payload = {
+        "title": "T",
+        "dates": "1-2",
+        "checklist": [{"id": "t1", "text": "Passport"}],
+        "days": [
+            {
+                "dayNum": 1,
+                "checklist": [{"id": "d1", "text": "Boots"}],
+                "activities": [
+                    {
+                        "id": "a1",
+                        "time": "10:00",
+                        "title": "Stop",
+                        "desc": "",
+                        "type": "attraction",
+                        "map_url": "https://maps.app.goo.gl/abc",
+                        "travel_mode": "walking",
+                    }
+                ],
+            }
+        ],
+    }
+    parsed = TripData(**payload)
+    assert parsed.checklist[0].text == "Passport"
+    assert parsed.days[0].checklist[0].text == "Boots"
+    assert parsed.days[0].activities[0].map_url == "https://maps.app.goo.gl/abc"
+    assert parsed.days[0].activities[0].travel_mode == "walking"
+    assert parsed.model_dump()["days"][0]["activities"][0]["travel_mode"] == "walking"
+
+
+def test_activity_rejects_an_unknown_travel_mode():
+    with pytest.raises(ValidationError):
+        Activity(
+            id="x", time="09:00", title="t", desc="d", type="attraction", travel_mode="teleport"
+        )
+
+
 def test_enhance_endpoint(monkeypatch):
     trip = _trip_with_food()
     enhanced = trip.model_copy(deep=True)
@@ -1591,6 +1793,23 @@ def test_enhance_endpoint(monkeypatch):
     assert resp.status_code == 200
     body = resp.json()
     assert body["trip_data"]["days"][0]["activities"][0]["price"] == 10
+
+
+def test_enhance_endpoint_passes_through_caller_backend(monkeypatch):
+    trip = _trip_with_food()
+    mock = AsyncMock(return_value=trip.model_copy(deep=True))
+    monkeypatch.setattr(LLMService, "enhance_trip", mock)
+
+    resp = client.post(
+        "/api/trip/enhance",
+        json={
+            "trip_data": trip.model_dump(),
+            "options": {"prices": True},
+            "backend": "model_dispatcher",
+        },
+    )
+    assert resp.status_code == 200
+    assert mock.await_args.kwargs["backend"] == "model_dispatcher"
 
 
 def test_enhance_trip_applies_succeeding_options_when_another_option_fails(monkeypatch):

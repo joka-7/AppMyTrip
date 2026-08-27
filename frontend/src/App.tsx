@@ -1,7 +1,15 @@
-import React, { lazy, Suspense, useState, useEffect, useRef } from "react";
+import React, {
+  lazy,
+  Suspense,
+  useState,
+  useEffect,
+  useRef,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { ChevronLeft, Smartphone, Wand2 } from "lucide-react";
 import { parseTrip, agentInteract, generateMedia, enhanceTrip, ApiError } from "./api";
-import type { Activity, EnhanceOptions, TripData } from "./api";
+import type { EnhanceOptions, TripData } from "./api";
 import ApiKeyMenu from "./components/ApiKeyMenu";
 import ApiNotice from "./components/ApiNotice";
 import BuilderStep1 from "./components/BuilderStep1";
@@ -9,10 +17,25 @@ import type { AgentMessage } from "./components/BuilderStep3";
 import CloudMenu from "./components/CloudMenu";
 import InstallAppButton from "./components/InstallAppButton";
 import ProgressBar from "./components/ProgressBar";
+import { useChecklistSuggest } from "./hooks/useChecklistSuggest";
+import { useTripEditing } from "./hooks/useTripEditing";
 import { DEFAULT_APP_DESIGN, type AppDesign } from "./services/appDesign";
-import { getApiKeys, getApiProvider, getAllCredentials } from "./services/apiKey";
-import { tripStartWeekdayIndex } from "./services/hebrewDate";
+import { getApiKeys, getApiProvider, getAllCredentials, getBackend } from "./services/apiKey";
+import {
+  clearDraft,
+  isRecoverableDraft,
+  loadDraft,
+  saveDraft,
+  type BuilderDraft,
+} from "./services/draftStore";
 import { normalizeTripForLoad } from "./services/normalizeTrip";
+import {
+  ALL_ENHANCE_OPTIONS,
+  effectiveEnhanceOptions,
+  enhanceActivities,
+  findNewActivities,
+  mergeEnhancedActivities,
+} from "./services/tripEnhance";
 import {
   addSharedTripAdmin,
   getCurrentSession,
@@ -24,7 +47,7 @@ import {
   signInWithGoogle,
   type CloudSession,
 } from "./services/tripsStore";
-import { translate } from "./i18n/store";
+import { setLangIfUnset, translate } from "./i18n/store";
 import { useI18n } from "./i18n/useI18n";
 import LanguageSwitcher from "./components/LanguageSwitcher";
 
@@ -113,79 +136,6 @@ function appendErrorDetail(message: string, detail: string): string {
   return `${message}\n${label} ${LRI}${short}${PDI}`;
 }
 
-// Fallback used to enrich activities added after Step 2 (via chat or the "+" button)
-// when the user skipped Step 2 entirely and so never chose any extras to remember.
-const ALL_ENHANCE_OPTIONS: EnhanceOptions = {
-  directions_car: true,
-  directions_transit: true,
-  prices: true,
-  podcast: true,
-  links: true,
-};
-
-/** The remembered Step 2 selections, or every extra if none were ever chosen
- * (e.g. Step 2 was skipped) — TripBuilder's own fallback rule. The shared-trip
- * viewer has no Step 2 of its own to remember, so it always uses every extra. */
-const effectiveEnhanceOptions = (options: EnhanceOptions): EnhanceOptions =>
-  Object.values(options).some(Boolean) ? options : ALL_ENHANCE_OPTIONS;
-
-/** Activities present in `after` but not in `before`, by id — used to find what
- * a chat turn or a manual "+" add just introduced, so only those (not the whole
- * trip) get sent through the enhancement pass below. */
-function findNewActivities(before: TripData, after: TripData): Activity[] {
-  const priorIds = new Set(before.days.flatMap((d) => d.activities.map((a) => a.id)));
-  return after.days.flatMap((d) => d.activities).filter((a) => !priorIds.has(a.id));
-}
-
-/**
- * Sends just the given (newly-added) activities through /api/trip/enhance so
- * they get the same extras (directions/prices/podcast briefs/links, plus
- * always real map coordinates) as everything else — without re-sending the
- * whole trip. Returns an id -> enhanced-Activity map (empty on failure, so a
- * failed enhancement never blocks the add itself) for the caller to merge into
- * whatever the *current* trip state is by the time it resolves, rather than
- * overwriting it with a snapshot captured before the `await`.
- */
-async function enhanceActivities(
-  activities: Activity[],
-  tripMeta: Pick<TripData, "title" | "dates" | "language">,
-  options: EnhanceOptions,
-): Promise<Map<string, Activity>> {
-  if (activities.length === 0) return new Map();
-  try {
-    const res = await enhanceTrip(
-      {
-        title: tripMeta.title,
-        dates: tripMeta.dates,
-        language: tripMeta.language,
-        days: [{ dayNum: 1, activities }],
-      },
-      options,
-      getApiKeys(),
-      getApiProvider(),
-      getAllCredentials(),
-    );
-    return new Map(res.trip_data.days.flatMap((d) => d.activities).map((a) => [a.id, a]));
-  } catch (err) {
-    console.error("Failed to enhance newly added activities:", err);
-    return new Map();
-  }
-}
-
-/** Merges an id -> Activity map (see enhanceActivities) into a trip's
- * activities wherever the id matches; a no-op (returns `trip` unchanged) when
- * the map is empty, e.g. after a failed enhancement. */
-function mergeEnhancedActivities(trip: TripData, enhancedById: Map<string, Activity>): TripData {
-  if (enhancedById.size === 0) return trip;
-  return {
-    ...trip,
-    days: trip.days.map((d) => ({
-      ...d,
-      activities: d.activities.map((a) => enhancedById.get(a.id) ?? a),
-    })),
-  };
-}
-
 // Generic sample trip used as an offline demo / fallback when the backend is
 // unreachable (e.g. no GEMINI_API_KEY). Intentionally not tied to a specific
 // real destination; coordinates are clustered so the auto-fit map looks sensible.
@@ -253,15 +203,17 @@ const buildDemoTrip = (): TripData => ({
   ],
 });
 
-// Falls back to the wand icon until frontend/public/logo.png is committed.
+// Uses the square, full-bleed app icon rather than logo.png: logo.png is 193x180
+// with wide margins, so squeezing it into a square box both distorted it and
+// made the artwork look small. Falls back to the wand icon if it can't load.
 function AppLogo() {
   const [failed, setFailed] = useState(false);
-  if (failed) return <Wand2 size={44} className="text-primary" />;
+  if (failed) return <Wand2 size={56} className="text-primary" />;
   return (
     <img
-      src="/logo.png"
+      src="/icon-192.png"
       alt="AppMyTrip"
-      className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl"
+      className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl shrink-0"
       onError={() => setFailed(true)}
     />
   );
@@ -293,6 +245,10 @@ function TripBuilder() {
   const [chatInput, setChatInput] = useState("");
   // Set when a backend call fails and we fall back to local mock behaviour.
   const [apiNotice, setApiNotice] = useState<string | null>(null);
+  // Chat-turn failures stay in the chat panel (with a Retry button) rather than
+  // competing with the top ApiNotice used for parse/enhance/media.
+  const [chatNotice, setChatNotice] = useState<string | null>(null);
+  const [failedChatText, setFailedChatText] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Starts empty; populated by /api/trip/parse (or DEMO_TRIP on fallback).
@@ -309,6 +265,14 @@ function TripBuilder() {
   const [previewOpen, setPreviewOpen] = useState(false);
 
   const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([]);
+  // Offer to restore a mid-build draft after a refresh — only set once on mount.
+  const [pendingDraft, setPendingDraft] = useState<BuilderDraft | null>(() => {
+    const draft = loadDraft();
+    return isRecoverableDraft(draft) ? draft : null;
+  });
+  // Skip the first autosave tick so mounting with an empty builder does not
+  // overwrite a recoverable draft before the user chooses Restore / Discard.
+  const draftReadyRef = useRef(!pendingDraft);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -346,6 +310,7 @@ function TripBuilder() {
         getApiKeys(),
         getApiProvider(),
         getAllCredentials(),
+        getBackend(),
       );
       setTripData(normalizeTripForLoad(res.trip_data));
       setTripId(null);
@@ -375,6 +340,46 @@ function TripBuilder() {
   // the chosen extras with no easy way back was worse than necessary.
   const [failedEnhanceOptions, setFailedEnhanceOptions] = useState<EnhanceOptions | null>(null);
 
+  const applyDraft = (draft: BuilderDraft) => {
+    rawTextTouchedRef.current = draft.rawTextTouched;
+    setRawText(draft.rawText);
+    setPreferences(draft.preferences);
+    setTripData(draft.tripData);
+    setAppDesign(draft.appDesign);
+    setTripId(draft.tripId);
+    setAgentMessages(draft.agentMessages);
+    setEnhanceOptions(draft.enhanceOptions);
+    setStep(draft.step);
+    window.history.replaceState({ appStep: draft.step }, "");
+    draftReadyRef.current = true;
+    setPendingDraft(null);
+  };
+
+  const discardDraft = () => {
+    clearDraft();
+    draftReadyRef.current = true;
+    setPendingDraft(null);
+  };
+
+  // Debounced local draft so a refresh mid-build can offer recovery.
+  useEffect(() => {
+    if (!draftReadyRef.current) return;
+    const timer = window.setTimeout(() => {
+      saveDraft({
+        step,
+        rawText,
+        rawTextTouched: rawTextTouchedRef.current,
+        preferences,
+        tripData,
+        appDesign,
+        tripId,
+        agentMessages,
+        enhanceOptions,
+      });
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [step, rawText, preferences, tripData, appDesign, tripId, agentMessages, enhanceOptions]);
+
   const handleEnhance = async (options: EnhanceOptions) => {
     setEnhanceOptions(options);
     setIsEnhancing(true);
@@ -385,6 +390,7 @@ function TripBuilder() {
         getApiKeys(),
         getApiProvider(),
         getAllCredentials(),
+        getBackend(),
       );
       setTripData(normalizeTripForLoad(res.trip_data));
       setFailedEnhanceOptions(null);
@@ -399,14 +405,13 @@ function TripBuilder() {
     }
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim()) return;
+  const sendChatMessage = async (userText: string) => {
+    if (!userText.trim()) return;
 
-    const userText = chatInput;
     const priorTrip = tripData;
     setAgentMessages((prev) => [...prev, { role: "user", text: userText }]);
     setChatInput("");
+    setChatNotice(null);
     setIsSendingMessage(true);
 
     try {
@@ -417,6 +422,7 @@ function TripBuilder() {
         getApiKeys(),
         getApiProvider(),
         getAllCredentials(),
+        getBackend(),
       );
       // Applied right away — the agent's edit is the authoritative new state,
       // not something to hold back while the (slower) enhancement pass below
@@ -425,6 +431,7 @@ function TripBuilder() {
       // can never clobber an edit made while it was in flight.
       setTripData(normalizeTripForLoad(res.trip_data));
       setAgentMessages((prev) => [...prev, { role: "agent", text: res.agent_reply }]);
+      setFailedChatText(null);
 
       const newActivities = findNewActivities(priorTrip, res.trip_data);
       if (newActivities.length > 0) {
@@ -440,7 +447,8 @@ function TripBuilder() {
     } catch (err) {
       console.error(err);
       const message = describeApiError(err, t("notice.updateFailed"));
-      setApiNotice(message);
+      setChatNotice(message);
+      setFailedChatText(userText);
       setFailedEnhanceOptions(null);
       setAgentMessages((prev) => [...prev, { role: "agent", text: message }]);
     } finally {
@@ -448,66 +456,34 @@ function TripBuilder() {
     }
   };
 
-  const handleUpdateActivity = (dayIndex: number, activityId: string, patch: Partial<Activity>) => {
-    setTripData((prev) => ({
-      ...prev,
-      days: prev.days.map((d, idx) =>
-        idx !== dayIndex
-          ? d
-          : {
-              ...d,
-              activities: d.activities.map((a) => (a.id === activityId ? { ...a, ...patch } : a)),
-            },
-      ),
-    }));
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await sendChatMessage(chatInput);
   };
 
-  const handleAddActivity = async (dayIndex: number, activity: Activity) => {
-    const priorTrip = tripData;
-    // Applied immediately via a functional update — safe against whatever
-    // else happens to tripData while the enhancement call below is in flight.
-    setTripData((prev) =>
-      normalizeTripForLoad({
-        ...prev,
-        days: prev.days.map((d, idx) =>
-          idx !== dayIndex ? d : { ...d, activities: [...d.activities, activity] },
-        ),
-      }),
-    );
-    const enhancedById = await enhanceActivities(
-      [activity],
-      priorTrip,
-      effectiveEnhanceOptions(enhanceOptions),
-    );
-    if (enhancedById.size === 0) return;
-    // Patches the newly-added activity by id into whatever tripData looks
-    // like *now* — not the snapshot captured before the await above — so any
-    // edit made in the meantime (e.g. deleting a different activity) survives.
-    setTripData((prev) => normalizeTripForLoad(mergeEnhancedActivities(prev, enhancedById)));
+  const handleRetryChat = async () => {
+    if (!failedChatText) return;
+    await sendChatMessage(failedChatText);
   };
 
-  const handleDeleteActivity = (dayIndex: number, activityId: string) => {
-    setTripData((prev) => ({
-      ...prev,
-      days: prev.days.map((d, idx) =>
-        idx !== dayIndex
-          ? d
-          : { ...d, activities: d.activities.filter((a) => a.id !== activityId) },
-      ),
-    }));
-  };
+  const {
+    handleUpdateActivity,
+    handleAddActivity,
+    handleDeleteActivity,
+    handleUpdateTrip,
+    handleAddDay,
+    handleDeleteDay,
+    handleMoveDay,
+    handleAddChecklistItem,
+    handleUpdateChecklistItem,
+    handleDeleteChecklistItem,
+  } = useTripEditing(setTripData, effectiveEnhanceOptions(enhanceOptions));
 
-  const handleUpdateTrip = (
-    patch: Partial<Pick<TripData, "title" | "dates" | "photo_album_url">>,
-  ) => {
-    setTripData((prev) => {
-      const next = { ...prev, ...patch };
-      if (patch.dates !== undefined) {
-        next.startWeekday = tripStartWeekdayIndex(patch.dates);
-      }
-      return next;
-    });
-  };
+  const {
+    suggest: handleSuggestChecklist,
+    isSuggesting: isSuggestingChecklist,
+    error: checklistSuggestError,
+  } = useChecklistSuggest(tripData, setTripData);
 
   const handleContinueToDesign = async () => {
     setIsGeneratingMedia(true);
@@ -527,12 +503,12 @@ function TripBuilder() {
   return (
     <div className="min-h-screen bg-surface font-sans" dir={dir}>
       {/* Top Navbar */}
-      <nav className="bg-white shadow-card border-b border-outline/20 px-4 sm:px-6 py-4 flex flex-wrap justify-between items-center gap-3 sticky top-0 z-30">
-        <div className="flex items-center gap-2">
+      <nav className="no-print bg-white shadow-card border-b border-outline/20 px-4 sm:px-6 py-4 flex flex-wrap justify-between items-center gap-3 sticky top-0 z-30">
+        <div className="flex items-center gap-2 min-w-0">
           <AppLogo />
-          <h1 className="text-lg sm:text-xl font-bold text-ink">{t("nav.title")}</h1>
+          <h1 className="text-lg sm:text-xl font-bold text-ink truncate">{t("nav.title")}</h1>
         </div>
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
           <div className="text-sm font-medium text-ink-muted bg-surface-container px-3 py-1 rounded-full">
             {t("nav.step", { step })}
           </div>
@@ -579,6 +555,15 @@ function TripBuilder() {
         </div>
       </nav>
 
+      {pendingDraft && (
+        <ApiNotice
+          message={t("draft.recoverPrompt")}
+          onDismiss={discardDraft}
+          actionLabel={t("draft.restore")}
+          onAction={() => applyDraft(pendingDraft)}
+        />
+      )}
+
       <ApiNotice
         message={apiNotice}
         onDismiss={() => {
@@ -589,9 +574,9 @@ function TripBuilder() {
         onAction={failedEnhanceOptions ? () => handleEnhance(failedEnhanceOptions) : undefined}
       />
 
-      <div className="max-w-7xl mx-auto p-6 flex flex-col lg:flex-row gap-8">
+      <div className="max-w-7xl mx-auto p-4 sm:p-6 flex flex-col lg:flex-row gap-8 print:block print:max-w-none print:p-0">
         {/* Left Side: Builder Interface */}
-        <div className="flex-1 bg-white rounded-2xl shadow-card border border-outline/20 p-8 flex flex-col">
+        <div className="no-print flex-1 min-w-0 bg-white rounded-2xl shadow-card border border-outline/20 p-4 sm:p-8 flex flex-col">
           <ProgressBar step={step} />
 
           {/* Dynamic Content based on Step */}
@@ -626,6 +611,9 @@ function TripBuilder() {
                   onChangeChatInput={setChatInput}
                   onSendMessage={handleSendMessage}
                   isSendingMessage={isSendingMessage}
+                  chatNotice={chatNotice}
+                  onRetryChat={failedChatText ? handleRetryChat : undefined}
+                  failedChatText={failedChatText}
                   onContinue={handleContinueToDesign}
                   onBack={() => goToStep(2)}
                   isGeneratingMedia={isGeneratingMedia}
@@ -653,9 +641,15 @@ function TripBuilder() {
           </div>
         </div>
 
-        {/* Right Side: App Live Preview */}
-        <div className="flex-1 flex justify-center items-center bg-surface-container rounded-2xl border border-outline/20 py-10 relative overflow-hidden">
-          <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-4 py-1.5 rounded-full text-xs font-bold text-ink-muted uppercase tracking-wider shadow-sm z-10 flex items-center gap-2 border border-outline/20">
+        {/* Right Side: App Live Preview.
+            Hidden below `lg`: the bezel is a fixed 350px + 12px borders, so on a
+            phone it renders clipped inside a narrower column and just wastes a
+            screen of scrolling — the "preview app" button in the navbar opens it
+            full-screen instead. `print:!block` is important-flagged so printing
+            from a phone still gets the itinerary, which is rendered through this
+            subtree. */}
+        <div className="flex-1 hidden lg:flex justify-center items-center bg-surface-container rounded-2xl border border-outline/20 py-10 relative overflow-hidden print:bg-white print:border-0 print:rounded-none print:py-0 print:shadow-none print:!block">
+          <div className="no-print absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-4 py-1.5 rounded-full text-xs font-bold text-ink-muted uppercase tracking-wider shadow-sm z-10 flex items-center gap-2 border border-outline/20">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
             Live Preview
           </div>
@@ -673,10 +667,22 @@ function TripBuilder() {
               onSendMessage={handleSendMessage}
               chatEndRef={chatEndRef}
               isSendingMessage={isSendingMessage}
+              chatNotice={chatNotice}
+              onRetryChat={failedChatText ? handleRetryChat : undefined}
+              failedChatText={failedChatText}
               onUpdateActivity={handleUpdateActivity}
               onAddActivity={handleAddActivity}
               onDeleteActivity={handleDeleteActivity}
               onUpdateTrip={handleUpdateTrip}
+              onAddDay={handleAddDay}
+              onDeleteDay={handleDeleteDay}
+              onMoveDay={handleMoveDay}
+              onAddChecklistItem={handleAddChecklistItem}
+              onUpdateChecklistItem={handleUpdateChecklistItem}
+              onDeleteChecklistItem={handleDeleteChecklistItem}
+              onSuggestChecklist={handleSuggestChecklist}
+              isSuggestingChecklist={isSuggestingChecklist}
+              checklistSuggestError={checklistSuggestError}
             />
           </Suspense>
         </div>
@@ -684,6 +690,9 @@ function TripBuilder() {
 
       {previewOpen && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("nav.preview")}
           className="fixed inset-0 z-50 h-dvh overflow-hidden bg-surface-container flex justify-center"
           dir={dir}
         >
@@ -708,10 +717,22 @@ function TripBuilder() {
                   onSendMessage={handleSendMessage}
                   chatEndRef={chatEndRef}
                   isSendingMessage={isSendingMessage}
+                  chatNotice={chatNotice}
+                  onRetryChat={failedChatText ? handleRetryChat : undefined}
+                  failedChatText={failedChatText}
                   onUpdateActivity={handleUpdateActivity}
                   onAddActivity={handleAddActivity}
                   onDeleteActivity={handleDeleteActivity}
                   onUpdateTrip={handleUpdateTrip}
+                  onAddDay={handleAddDay}
+                  onDeleteDay={handleDeleteDay}
+                  onMoveDay={handleMoveDay}
+                  onAddChecklistItem={handleAddChecklistItem}
+                  onUpdateChecklistItem={handleUpdateChecklistItem}
+                  onDeleteChecklistItem={handleDeleteChecklistItem}
+                  onSuggestChecklist={handleSuggestChecklist}
+                  isSuggestingChecklist={isSuggestingChecklist}
+                  checklistSuggestError={checklistSuggestError}
                 />
               </Suspense>
             </div>
@@ -740,6 +761,7 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
   const [chatInput, setChatInput] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [chatNotice, setChatNotice] = useState<string | null>(null);
+  const [failedChatText, setFailedChatText] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [session, setSession] = useState<CloudSession | null>(getCurrentSession());
   const [adminEmails, setAdminEmails] = useState<string[]>([]);
@@ -747,6 +769,12 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
   useEffect(() => {
     loadSharedTrip(tripId)
       .then((result) => {
+        // A visitor opening a shared link for the first time has no language
+        // preference of their own yet — default the UI (including the
+        // "Made with AppMyTrip" footer) to the trip's own language rather
+        // than the hardcoded Hebrew fallback. Never overrides an explicit
+        // choice (the builder's own, or a returning visitor's).
+        setLangIfUnset(result.trip.language);
         setTrip(result.trip);
         setAppDesign(result.appDesign);
         setAdminEmails(result.meta.adminEmails);
@@ -796,11 +824,9 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
     return shareTrip(currentSession.uid, newTripId, trip, appDesign);
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim() || !trip) return;
+  const sendChatMessage = async (userText: string) => {
+    if (!userText.trim() || !trip) return;
 
-    const userText = chatInput;
     const priorTrip = trip;
     setAgentMessages((prev) => [...prev, { role: "user", text: userText }]);
     setChatInput("");
@@ -815,12 +841,14 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
         getApiKeys(),
         getApiProvider(),
         getAllCredentials(),
+        getBackend(),
       );
       // See TripBuilder's own handleSendMessage for why this is normalized and
       // applied immediately, with new activities enhanced (and merged in) as a
       // separate, non-blocking step below.
       setTrip(normalizeTripForLoad(res.trip_data));
       setAgentMessages((prev) => [...prev, { role: "agent", text: res.agent_reply }]);
+      setFailedChatText(null);
 
       const newActivities = findNewActivities(priorTrip, res.trip_data);
       if (newActivities.length > 0) {
@@ -841,73 +869,46 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
     } catch (err) {
       console.error(err);
       setChatNotice(describeApiError(err, t("notice.updateFailed")));
+      setFailedChatText(userText);
     } finally {
       setIsSendingMessage(false);
     }
   };
 
-  const handleUpdateActivity = (dayIndex: number, activityId: string, patch: Partial<Activity>) => {
-    setTrip((prev) =>
-      prev
-        ? {
-            ...prev,
-            days: prev.days.map((d, idx) =>
-              idx !== dayIndex
-                ? d
-                : {
-                    ...d,
-                    activities: d.activities.map((a) =>
-                      a.id === activityId ? { ...a, ...patch } : a,
-                    ),
-                  },
-            ),
-          }
-        : prev,
-    );
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await sendChatMessage(chatInput);
   };
 
-  const handleAddActivity = async (dayIndex: number, activity: Activity) => {
-    // Applied immediately via a functional update — safe against whatever
-    // else happens to `trip` while the enhancement call below is in flight.
-    setTrip((prev) =>
-      prev
-        ? normalizeTripForLoad({
-            ...prev,
-            days: prev.days.map((d, idx) =>
-              idx !== dayIndex ? d : { ...d, activities: [...d.activities, activity] },
-            ),
-          })
-        : prev,
-    );
-    if (!trip) return;
-    // No Step 2 of its own — always fetch every extra (see handleSendMessage above).
-    const enhancedById = await enhanceActivities([activity], trip, ALL_ENHANCE_OPTIONS);
-    if (enhancedById.size === 0) return;
-    setTrip((prev) =>
-      prev ? normalizeTripForLoad(mergeEnhancedActivities(prev, enhancedById)) : prev,
-    );
+  const handleRetryChat = async () => {
+    if (!failedChatText) return;
+    await sendChatMessage(failedChatText);
   };
 
-  const handleDeleteActivity = (dayIndex: number, activityId: string) => {
-    setTrip((prev) =>
-      prev
-        ? {
-            ...prev,
-            days: prev.days.map((d, idx) =>
-              idx !== dayIndex
-                ? d
-                : { ...d, activities: d.activities.filter((a) => a.id !== activityId) },
-            ),
-          }
-        : prev,
-    );
+  const setLoadedTrip: Dispatch<SetStateAction<TripData>> = (action) => {
+    setTrip((prev) => {
+      if (!prev) return prev;
+      return typeof action === "function" ? action(prev) : action;
+    });
   };
+  const {
+    handleUpdateActivity,
+    handleAddActivity,
+    handleDeleteActivity,
+    handleUpdateTrip,
+    handleAddDay,
+    handleDeleteDay,
+    handleMoveDay,
+    handleAddChecklistItem,
+    handleUpdateChecklistItem,
+    handleDeleteChecklistItem,
+  } = useTripEditing(setLoadedTrip, ALL_ENHANCE_OPTIONS);
 
-  const handleUpdateTrip = (
-    patch: Partial<Pick<TripData, "title" | "dates" | "photo_album_url">>,
-  ) => {
-    setTrip((prev) => (prev ? { ...prev, ...patch } : prev));
-  };
+  const {
+    suggest: handleSuggestChecklist,
+    isSuggesting: isSuggestingChecklist,
+    error: checklistSuggestError,
+  } = useChecklistSuggest(trip ?? EMPTY_TRIP, setLoadedTrip);
 
   if (error) {
     return (
@@ -941,10 +942,21 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
         chatEndRef={chatEndRef}
         isSendingMessage={isSendingMessage}
         chatNotice={chatNotice}
+        onRetryChat={failedChatText ? handleRetryChat : undefined}
+        failedChatText={failedChatText}
         onUpdateActivity={handleUpdateActivity}
         onAddActivity={handleAddActivity}
         onDeleteActivity={handleDeleteActivity}
         onUpdateTrip={handleUpdateTrip}
+        onAddDay={handleAddDay}
+        onDeleteDay={handleDeleteDay}
+        onMoveDay={handleMoveDay}
+        onAddChecklistItem={handleAddChecklistItem}
+        onUpdateChecklistItem={handleUpdateChecklistItem}
+        onDeleteChecklistItem={handleDeleteChecklistItem}
+        onSuggestChecklist={handleSuggestChecklist}
+        isSuggestingChecklist={isSuggestingChecklist}
+        checklistSuggestError={checklistSuggestError}
         onImportTrip={(importedTrip, importedAppDesign) => {
           setTrip(importedTrip);
           setAppDesign(importedAppDesign);

@@ -1,16 +1,32 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { Download, Home, Save, Settings, Share2, Upload, UserCog, UserPlus } from "lucide-react";
+import {
+  Download,
+  Home,
+  Printer,
+  Save,
+  Settings,
+  Share2,
+  Upload,
+  UserCog,
+  UserPlus,
+  Calendar,
+} from "lucide-react";
 import type { Activity, TripData } from "../api";
+import { useDismissable } from "../hooks/useDismissable";
 import { useI18n } from "../i18n/useI18n";
 import type { AppDesign } from "../services/appDesign";
+import { exportTripToIcs } from "../services/icsExport";
 import { exportTripToFile, importTripFromFile } from "../services/tripFile";
 import { getCurrentSession, saveTrip, shareTrip, signInWithGoogle } from "../services/tripsStore";
 import { useTripBranding } from "../hooks/useTripBranding";
 import ApiKeyMenu from "./ApiKeyMenu";
 import AppFrame from "./AppFrame";
+import type { ChecklistTarget } from "./ChecklistPanel";
 import InstallAppButton from "./InstallAppButton";
+import LanguageSwitcher from "./LanguageSwitcher";
 import LinkDisplay from "./LinkDisplay";
+import { shareMessage } from "../services/shareLink";
 import type { AgentMessage } from "./ChatPanel";
 
 /**
@@ -35,10 +51,21 @@ export default function SharedAppPage({
   chatEndRef,
   isSendingMessage,
   chatNotice,
+  onRetryChat,
+  failedChatText,
   onUpdateActivity,
   onAddActivity,
   onDeleteActivity,
   onUpdateTrip,
+  onAddDay,
+  onDeleteDay,
+  onMoveDay,
+  onAddChecklistItem,
+  onUpdateChecklistItem,
+  onDeleteChecklistItem,
+  onSuggestChecklist,
+  isSuggestingChecklist,
+  checklistSuggestError,
   onImportTrip,
   isAdmin,
   onSaveChanges,
@@ -55,10 +82,21 @@ export default function SharedAppPage({
   chatEndRef: RefObject<HTMLDivElement>;
   isSendingMessage?: boolean;
   chatNotice?: string | null;
+  onRetryChat?: () => void;
+  failedChatText?: string | null;
   onUpdateActivity: (dayIndex: number, activityId: string, patch: Partial<Activity>) => void;
   onAddActivity: (dayIndex: number, activity: Activity) => void;
   onDeleteActivity?: (dayIndex: number, activityId: string) => void;
   onUpdateTrip: (patch: Partial<Pick<TripData, "title" | "dates" | "photo_album_url">>) => void;
+  onAddDay?: () => void;
+  onDeleteDay?: (dayIndex: number) => void;
+  onMoveDay?: (fromIndex: number, toIndex: number) => void;
+  onAddChecklistItem?: (target: ChecklistTarget, text: string) => void;
+  onUpdateChecklistItem?: (target: ChecklistTarget, itemId: string, text: string) => void;
+  onDeleteChecklistItem?: (target: ChecklistTarget, itemId: string) => void;
+  onSuggestChecklist?: () => void;
+  isSuggestingChecklist?: boolean;
+  checklistSuggestError?: string | null;
   onImportTrip: (tripData: TripData, appDesign: AppDesign) => void;
   /** Whether the signed-in visitor may save changes back to this link and add other admins. */
   isAdmin: boolean;
@@ -69,6 +107,8 @@ export default function SharedAppPage({
   const { t, dir } = useI18n();
   useTripBranding(appDesign, tripData.title);
   const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  const menuRef = useDismissable(menuOpen, closeMenu);
   const [saveStatus, setSaveStatus] = useState<"idle" | "working" | "done" | "error">("idle");
   const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -178,12 +218,15 @@ export default function SharedAppPage({
   };
 
   return (
-    <div className="h-dvh overflow-hidden bg-surface-container flex justify-center" dir={dir}>
+    <div
+      className="h-dvh overflow-hidden bg-surface-container flex justify-center print:h-auto print:overflow-visible print:bg-white"
+      dir={dir}
+    >
       {/* max-w-md only kicks in from the "sm" breakpoint up — on an actual
           phone (which is what this view is really for) it should fill the
           whole screen; the phone-frame look is purely a desktop preview. */}
-      <div className="w-full sm:max-w-md h-dvh bg-surface shadow-2xl flex flex-col overflow-hidden">
-        <div className="shrink-0 flex items-center justify-end gap-2 p-2 bg-white border-b border-outline/20">
+      <div className="w-full sm:max-w-md h-dvh bg-surface shadow-2xl flex flex-col overflow-hidden print:max-w-none print:h-auto print:shadow-none print:overflow-visible">
+        <div className="no-print shrink-0 flex flex-wrap items-center justify-end gap-2 p-2 bg-white border-b border-outline/20">
           <a
             href={homeHref}
             aria-label={t("sharedPage.myTripsAria")}
@@ -192,12 +235,15 @@ export default function SharedAppPage({
             <Home size={14} />
             {t("cloud.myTrips")}
           </a>
+          <LanguageSwitcher />
           <ApiKeyMenu />
           <InstallAppButton />
-          <div className="relative">
+          <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen((v) => !v)}
               aria-label={t("sharedPage.settingsAria")}
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
               className="flex items-center gap-1 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg text-xs"
             >
               <Settings size={14} />
@@ -205,13 +251,33 @@ export default function SharedAppPage({
             </button>
 
             {menuOpen && (
-              <div className="absolute end-0 mt-2 w-80 max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-y-auto bg-white rounded-xl shadow-lg border border-outline/20 p-3 z-40 text-start text-xs flex flex-col gap-1.5">
+              <div
+                role="menu"
+                className="fixed inset-x-4 top-4 max-h-[calc(100vh-2rem)] w-auto overflow-y-auto
+                  sm:absolute sm:inset-x-auto sm:top-auto sm:end-0 sm:mt-2 sm:w-80
+                  sm:max-w-[calc(100vw-2rem)] sm:max-h-[70vh] bg-white rounded-xl shadow-lg
+                  border border-outline/20 p-3 z-40 text-start text-xs flex flex-col gap-1.5"
+              >
                 <button
                   onClick={() => exportTripToFile(tripData, appDesign)}
                   className="flex items-center gap-1.5 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg"
                 >
                   <Download size={14} />
                   {t("sharedPage.export")}
+                </button>
+                <button
+                  onClick={() => exportTripToIcs(tripData)}
+                  className="flex items-center gap-1.5 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg"
+                >
+                  <Calendar size={14} />
+                  {t("sharedPage.exportIcs")}
+                </button>
+                <button
+                  onClick={() => window.print()}
+                  className="flex items-center gap-1.5 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg"
+                >
+                  <Printer size={14} />
+                  {t("sharedPage.print")}
                 </button>
                 <button
                   onClick={() => fileInputRef.current?.click()}
@@ -255,7 +321,11 @@ export default function SharedAppPage({
                         {t("cloud.myTrips")}
                       </a>
                     </p>
-                    <LinkDisplay url={saveUrl} />
+                    <LinkDisplay
+                      url={saveUrl}
+                      shareTitle={tripData.title}
+                      shareText={shareMessage(tripData, saveUrl)}
+                    />
                   </div>
                 )}
                 {saveStatus === "error" && (
@@ -283,7 +353,11 @@ export default function SharedAppPage({
                         ? t("sharedPage.newLinkCopied")
                         : t("sharedPage.newLinkCopyFailed")}
                     </p>
-                    <LinkDisplay url={newLinkUrl} />
+                    <LinkDisplay
+                      url={newLinkUrl}
+                      shareTitle={tripData.title}
+                      shareText={shareMessage(tripData, newLinkUrl)}
+                    />
                   </div>
                 )}
                 {newLinkStatus === "error" && (
@@ -351,10 +425,21 @@ export default function SharedAppPage({
             chatEndRef={chatEndRef}
             isSendingMessage={isSendingMessage}
             chatNotice={chatNotice}
+            onRetryChat={onRetryChat}
+            failedChatText={failedChatText}
             onUpdateActivity={onUpdateActivity}
             onAddActivity={onAddActivity}
             onDeleteActivity={onDeleteActivity}
             onUpdateTrip={onUpdateTrip}
+            onAddDay={onAddDay}
+            onDeleteDay={onDeleteDay}
+            onMoveDay={onMoveDay}
+            onAddChecklistItem={onAddChecklistItem}
+            onUpdateChecklistItem={onUpdateChecklistItem}
+            onDeleteChecklistItem={onDeleteChecklistItem}
+            onSuggestChecklist={onSuggestChecklist}
+            isSuggestingChecklist={isSuggestingChecklist}
+            checklistSuggestError={checklistSuggestError}
             isLocalOnly
             localOnlyNoticeText={t(isAdmin ? "sharedPage.adminHint" : "sharedPage.localOnlyNotice")}
             welcomeStorageKey={tripId}

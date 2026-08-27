@@ -22,7 +22,7 @@ import logging
 import os
 import re
 import time
-from typing import Protocol
+from typing import NamedTuple, Protocol
 
 import httpx
 from fastapi import HTTPException
@@ -371,6 +371,22 @@ _PROVIDERS: dict[str, type] = {
 }
 
 
+class _EnhanceSpec(NamedTuple):
+    """One opt-in Stage-2 extra: the flag that turns it on, the instruction for
+    its own focused LLM call, and the fields that call's result may write back.
+
+    The field tuples are an allowlist, scoped by where the field lives, so a
+    packing-list call can populate day/trip checklists while still being unable
+    to touch an activity's price — and vice versa.
+    """
+
+    flag: str
+    instruction: str
+    activity_fields: tuple[str, ...] = ()
+    day_fields: tuple[str, ...] = ()
+    trip_fields: tuple[str, ...] = ()
+
+
 class LLMService:
     """Handles all communication with the configured LLM provider; retries with backoff."""
 
@@ -578,6 +594,7 @@ class LLMService:
         api_key: str | None = None,
         api_keys: list[str] | None = None,
         provider: str | None = None,
+        backend: str | None = None,
         max_retries: int = 3,
         max_tokens: int = 16384,
     ) -> dict:
@@ -592,7 +609,31 @@ class LLMService:
         The whole call — every provider group, every key, every retry — is bounded
         by REQUEST_DEADLINE_SECONDS from the moment it starts, so a serverless host
         can't be killed mid-request by its own execution-time limit; we give up on
-        our own terms first, with an explanation, instead."""
+        our own terms first, with an explanation, instead.
+
+        Selectable backend: when `backend` (or, if unset, the LLM_BACKEND env var —
+        default "legacy") is "model_dispatcher", this delegates to
+        services.llm_model_dispatcher instead of the logic below — same inputs, same
+        dict return, same HTTPException status-code contract, backed by the
+        model-dispatcher package instead of this module's hand-rolled httpx retry/
+        rotation. `backend` lets one request override the server's default without
+        changing it for anyone else; every caller of _execute (parse_trip_text,
+        agent_interaction, enhance_trip, and their internal helpers) is unaffected
+        by which backend actually ends up active."""
+        resolved_backend = (backend or os.environ.get("LLM_BACKEND", "legacy")).strip().lower()
+        if resolved_backend == "model_dispatcher":
+            from services import llm_model_dispatcher
+
+            return await llm_model_dispatcher.execute(
+                system_prompt,
+                user_content,
+                credentials,
+                api_key,
+                api_keys,
+                provider,
+                max_tokens,
+            )
+
         groups = cls._resolve_credential_groups(credentials, api_key, api_keys, provider)
         logger.info(
             "llm request: trying %d provider group(s): %s",
@@ -659,6 +700,7 @@ class LLMService:
         provider: str | None = None,
         api_keys: list[str] | None = None,
         credentials: list[ProviderCredentials] | None = None,
+        backend: str | None = None,
     ) -> TripData:
         """Calls the LLM to parse raw text into a structured TripData object.
 
@@ -696,6 +738,7 @@ class LLMService:
             api_key=api_key,
             api_keys=api_keys,
             provider=provider,
+            backend=backend,
         )
         _coerce_invalid_activity_types(json_data)
 
@@ -716,6 +759,7 @@ class LLMService:
         provider: str | None = None,
         api_keys: list[str] | None = None,
         credentials: list[ProviderCredentials] | None = None,
+        backend: str | None = None,
     ) -> AgentResponse:
         """Calls the LLM to update the trip based on user chat and return a conversational
         reply. Re-sending/regenerating the *entire* trip on every chat turn (the
@@ -727,7 +771,7 @@ class LLMService:
         response can never corrupt the trip, only cost the time it would have taken
         anyway."""
         intent = await cls._resolve_edit_intent(
-            current_trip, user_message, credentials, api_key, api_keys, provider
+            current_trip, user_message, credentials, api_key, api_keys, provider, backend
         )
         try:
             if intent.action == "add_days":
@@ -739,6 +783,7 @@ class LLMService:
                     provider,
                     api_keys,
                     credentials,
+                    backend,
                 )
             if intent.action == "edit_days" and intent.day_numbers:
                 return await cls._agent_edit_days(
@@ -750,11 +795,19 @@ class LLMService:
                     provider,
                     api_keys,
                     credentials,
+                    backend,
                 )
         except (ValueError, ValidationError):
             pass  # the scoped attempt didn't check out — fall through below
         return await cls._agent_interaction_full(
-            current_trip, user_message, preferences, api_key, provider, api_keys, credentials
+            current_trip,
+            user_message,
+            preferences,
+            api_key,
+            provider,
+            api_keys,
+            credentials,
+            backend,
         )
 
     @classmethod
@@ -766,6 +819,7 @@ class LLMService:
         api_key: str | None,
         api_keys: list[str] | None,
         provider: str | None,
+        backend: str | None = None,
     ) -> AgentDayIntent:
         """Cheaply decides how much of the trip a chat turn actually needs to touch.
         Tries two free, local heuristics first — an explicit day number mentioned in
@@ -783,7 +837,7 @@ class LLMService:
         elif _mentions_adding_a_day(user_message):
             return AgentDayIntent(action="add_days")
         return await cls._classify_intent_via_llm(
-            current_trip, user_message, credentials, api_key, api_keys, provider
+            current_trip, user_message, credentials, api_key, api_keys, provider, backend
         )
 
     @classmethod
@@ -795,6 +849,7 @@ class LLMService:
         api_key: str | None,
         api_keys: list[str] | None,
         provider: str | None,
+        backend: str | None = None,
     ) -> AgentDayIntent:
         """Small/fast fallback classification when the day-number heuristic can't tell —
         sends only a one-line summary of each day (never full content), so this stays
@@ -832,6 +887,7 @@ class LLMService:
                 api_key=api_key,
                 api_keys=api_keys,
                 provider=provider,
+                backend=backend,
                 max_retries=2,
                 max_tokens=MAX_TOKENS_CLASSIFY,
             )
@@ -849,6 +905,7 @@ class LLMService:
         provider: str | None,
         api_keys: list[str] | None,
         credentials: list[ProviderCredentials] | None,
+        backend: str | None = None,
     ) -> AgentResponse:
         """Handles a chat turn that only adds new day(s) to the end of the trip — sends
         just the trip's basic info and its last existing day (for continuity), not the
@@ -889,6 +946,7 @@ class LLMService:
             api_key=api_key,
             api_keys=api_keys,
             provider=provider,
+            backend=backend,
             max_tokens=MAX_TOKENS_SCOPED_EDIT,
         )
         if isinstance(json_data, dict):
@@ -911,6 +969,7 @@ class LLMService:
         provider: str | None,
         api_keys: list[str] | None,
         credentials: list[ProviderCredentials] | None,
+        backend: str | None = None,
     ) -> AgentResponse:
         """Handles a chat turn that only touches specific existing day(s) — sends just
         those day(s), not the whole itinerary. Every other day is guaranteed unaffected,
@@ -928,7 +987,8 @@ class LLMService:
             "fields like 'map_coordinates' or 'hasPodcast' — copy each one through to the "
             "output UNCHANGED unless the user's request specifically asks you to add, "
             "remove, or modify it. Never drop an activity just because it looks "
-            "incomplete; preserve its id and other fields as-is. "
+            "incomplete; preserve its id and other fields as-is, including 'map_url', "
+            "'travel_mode' and each day's 'checklist'. "
             f"The itinerary's language (ISO 639-1, currently '{current_trip.language}') "
             "indicates which language to write 'agent_reply' in. "
             f"{preferences_fragment}"
@@ -950,6 +1010,7 @@ class LLMService:
             api_key=api_key,
             api_keys=api_keys,
             provider=provider,
+            backend=backend,
             max_tokens=MAX_TOKENS_SCOPED_EDIT,
         )
         if isinstance(json_data, dict):
@@ -973,6 +1034,7 @@ class LLMService:
         provider: str | None = None,
         api_keys: list[str] | None = None,
         credentials: list[ProviderCredentials] | None = None,
+        backend: str | None = None,
     ) -> AgentResponse:
         """The original whole-trip agent turn: sends the entire itinerary and expects
         the entire itinerary back. Used directly for edits that genuinely need full
@@ -989,7 +1051,9 @@ class LLMService:
             "every day and activity through to 'updated_trip' UNCHANGED unless the user's request "
             "specifically asks you to add, remove, or modify it. Never drop an activity just because it "
             "looks incomplete; preserve its id and other fields as-is, including 'price', 'url', "
-            "'directions_car', 'directions_transit', and 'podcast_brief'. "
+            "'directions_car', 'directions_transit', 'podcast_brief', 'map_url' and 'travel_mode'. "
+            "Copy each day's 'checklist' and the trip-level 'checklist' through unchanged too, "
+            "unless the user asks about what to bring. "
             f"The itinerary's 'language' field (ISO 639-1 code, currently '{current_trip.language}') "
             "indicates which language to reply in — write 'agent_reply' in that same language. If the "
             "user's message is clearly written in a different dominant language (most of its words/verbs "
@@ -1021,6 +1085,7 @@ class LLMService:
             api_key=api_key,
             api_keys=api_keys,
             provider=provider,
+            backend=backend,
         )
         if isinstance(json_data, dict):
             _coerce_invalid_activity_types(json_data.get("updated_trip"))
@@ -1050,45 +1115,75 @@ class LLMService:
             ) from e
 
     # Maps each opt-in flag to the instruction for its own focused LLM call,
-    # plus the Activity field(s) that call is allowed to change. Firing one
-    # small call per checked option (run concurrently) instead of one combined
-    # call keeps each request fast even when every box is checked, and lets a
-    # truncated/malformed result from one option be merged in without
-    # corrupting the others.
-    _ENHANCE_OPTION_SPECS: list[tuple[str, str, tuple[str, ...]]] = [
-        (
+    # plus the field(s) that call is allowed to change. Firing one small call per
+    # checked option (run concurrently) instead of one combined call keeps each
+    # request fast even when every box is checked, and lets a truncated/malformed
+    # result from one option be merged in without corrupting the others.
+    #
+    # Fields are scoped: most extras write per-activity, but the packing list
+    # writes per-day and trip-wide. The merge only copies the fields a spec
+    # declares, so an option can never quietly overwrite anything else.
+    _ENHANCE_OPTION_SPECS: list[_EnhanceSpec] = [
+        _EnhanceSpec(
             "directions_car",
             "For each activity (except the first of its day), fill 'directions_car' with "
             "short driving directions/notes from the previous activity. Leave every other "
             "field exactly as given.",
-            ("directions_car",),
+            activity_fields=("directions_car",),
         ),
-        (
+        _EnhanceSpec(
             "directions_transit",
             "For each activity (except the first of its day), fill 'directions_transit' with "
             "short public-transit directions/notes from the previous activity. Leave every "
             "other field exactly as given.",
-            ("directions_transit",),
+            activity_fields=("directions_transit",),
         ),
-        (
+        _EnhanceSpec(
             "prices",
             "Fill 'price' with the typical cost of each activity (entry ticket, average meal "
             "cost, nightly rate, etc.) in the trip's local currency, when you can reasonably "
             "estimate it. Leave every other field exactly as given.",
-            ("price",),
+            activity_fields=("price",),
         ),
-        (
+        _EnhanceSpec(
             "podcast",
             "For historical/cultural sites, set 'hasPodcast' to true and write a short "
             "'podcast_brief' (2-4 sentences of real historical/cultural context about the "
             "site, beyond what 'desc' already says). Leave every other field exactly as given.",
-            ("hasPodcast", "podcast_brief"),
+            activity_fields=("hasPodcast", "podcast_brief"),
         ),
-        (
+        _EnhanceSpec(
             "links",
             "Fill 'url' with each activity's real official website or listing page, if you "
             "know one. Leave every other field exactly as given.",
-            ("url",),
+            activity_fields=("url",),
+        ),
+        _EnhanceSpec(
+            "travel_mode",
+            "For each activity EXCEPT the first of its day, set 'travel_mode' to how a "
+            "traveller realistically gets there from the previous activity. A single day is "
+            "normally mixed — drive to a trailhead, hike, take a bus back, walk to dinner — "
+            "so decide each leg on its own rather than giving a whole day one mode. Use "
+            "'hiking' when the activity is itself a trail/trek/nature walk, 'walking' for a "
+            "short walk between city stops, 'transit' where a bus/train/metro/ferry is the "
+            "normal way, 'bicycling' only when cycling is genuinely the intended way, and "
+            "'driving' otherwise. Leave 'travel_mode' null on the first activity of each day "
+            "— there is no previous stop to travel from. Leave every other field exactly as "
+            "given.",
+            activity_fields=("travel_mode",),
+        ),
+        _EnhanceSpec(
+            "packing",
+            "Fill in the packing checklists. For each day, set that day's 'checklist' to what "
+            "a traveller needs for THAT day specifically, based on its activities — walking "
+            "shoes for a trail day, a swimsuit for a beach day, modest dress for a religious "
+            "site, cash where cards aren't taken. Set the trip-level 'checklist' to essentials "
+            "for the whole trip (documents, chargers, adapters, medication). Keep every item "
+            "under six words, give each a short unique 'id', and keep any items already there. "
+            "Do not put day-specific items in the trip-level list. Leave every other field "
+            "exactly as given.",
+            day_fields=("checklist",),
+            trip_fields=("checklist",),
         ),
     ]
 
@@ -1101,16 +1196,18 @@ class LLMService:
         api_key: str | None,
         api_keys: list[str] | None,
         provider: str | None,
+        backend: str | None = None,
     ) -> TripData:
         system_prompt = (
             "You are an expert travel planner AI enriching an existing trip itinerary with one "
             "extra detail the user explicitly opted into. The 'Current Itinerary' is the full "
             "source of truth — copy every day and activity through to 'updated_trip' UNCHANGED, "
-            "including id, time, title, desc, type and any already-set fields; only fill in the "
-            "specific new field(s) requested below. "
+            "including each day's 'dayNum' and every activity's id, time, title, desc, type and "
+            "any already-set fields; only fill in the specific new field(s) requested below. "
             f"The itinerary's language (ISO 639-1, currently '{current_trip.language}') "
-            "indicates which language to write any new text in (e.g. 'podcast_brief' or the "
-            "directions notes) — do not switch to English or any other language. " + instruction
+            "indicates which language to write any new text in (e.g. 'podcast_brief', the "
+            "directions notes, or checklist items) — do not switch to English or any other "
+            "language. " + instruction
         )
         schema = TripData.model_json_schema()
         user_content = (
@@ -1124,6 +1221,7 @@ class LLMService:
             api_key=api_key,
             api_keys=api_keys,
             provider=provider,
+            backend=backend,
         )
         _coerce_invalid_activity_types(json_data)
         try:
@@ -1150,6 +1248,7 @@ class LLMService:
         provider: str | None = None,
         api_keys: list[str] | None = None,
         credentials: list[ProviderCredentials] | None = None,
+        backend: str | None = None,
     ) -> TripData:
         """Fills in the optional extras the user opted into in Step 2 (directions, prices,
         podcast briefs, links), plus — always, regardless of `options` — real map
@@ -1157,16 +1256,19 @@ class LLMService:
         live preview's "+" button, which has no way to look up a real location itself).
         Each piece fires its own small, focused LLM call (run concurrently) instead of one
         combined call, so picking every option stays about as fast as picking one."""
-        selected = [
-            (fields, instruction)
-            for flag_name, instruction, fields in cls._ENHANCE_OPTION_SPECS
-            if getattr(options, flag_name)
-        ]
+        selected = [spec for spec in cls._ENHANCE_OPTION_SPECS if getattr(options, spec.flag)]
         needs_coordinates = any(
             act.map_coordinates is None for day in current_trip.days for act in day.activities
         )
         if needs_coordinates:
-            selected = [*selected, (("map_coordinates",), cls._MISSING_COORDINATES_INSTRUCTION)]
+            selected = [
+                *selected,
+                _EnhanceSpec(
+                    "map_coordinates",
+                    cls._MISSING_COORDINATES_INSTRUCTION,
+                    activity_fields=("map_coordinates",),
+                ),
+            ]
         if not selected:
             return current_trip
 
@@ -1177,29 +1279,44 @@ class LLMService:
         results = await asyncio.gather(
             *(
                 cls._enhance_one(
-                    current_trip, instruction, credentials, api_key, api_keys, provider
+                    current_trip,
+                    spec.instruction,
+                    credentials,
+                    api_key,
+                    api_keys,
+                    provider,
+                    backend,
                 )
-                for _fields, instruction in selected
+                for spec in selected
             ),
             return_exceptions=True,
         )
 
         merged = current_trip.model_copy(deep=True)
         activities_by_id = {act.id: act for day in merged.days for act in day.activities}
+        # Days are matched by dayNum rather than position: a result that dropped
+        # or reordered a day must not write one day's checklist onto another.
+        days_by_num = {day.dayNum: day for day in merged.days}
         first_error: BaseException | None = None
         any_succeeded = False
-        for (fields, _instruction), result in zip(selected, results, strict=True):
+        for spec, result in zip(selected, results, strict=True):
             if isinstance(result, BaseException):
                 if first_error is None:
                     first_error = result
                 continue
             any_succeeded = True
+            for field in spec.trip_fields:
+                setattr(merged, field, getattr(result, field))
             for day in result.days:
+                target_day = days_by_num.get(day.dayNum)
+                if target_day is not None:
+                    for field in spec.day_fields:
+                        setattr(target_day, field, getattr(day, field))
                 for act in day.activities:
                     target = activities_by_id.get(act.id)
                     if target is None:
                         continue
-                    for field in fields:
+                    for field in spec.activity_fields:
                         setattr(target, field, getattr(act, field))
 
         if not any_succeeded and first_error is not None:

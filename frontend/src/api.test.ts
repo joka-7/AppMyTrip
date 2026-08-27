@@ -36,6 +36,7 @@ describe("api client", () => {
           credentials: null,
           api_keys: null,
           provider: null,
+          backend: null,
         }),
       }),
     );
@@ -59,6 +60,7 @@ describe("api client", () => {
           credentials: null,
           api_keys: null,
           provider: null,
+          backend: null,
         }),
       }),
     );
@@ -81,6 +83,30 @@ describe("api client", () => {
           credentials: null,
           api_keys: ["claude-key-a", "claude-key-b"],
           provider: "anthropic",
+          backend: null,
+        }),
+      }),
+    );
+  });
+
+  it("parseTrip threads an explicit backend choice through to the request body", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ trip_data: sampleTrip, initial_agent_message: null }),
+    } as Response);
+
+    await parseTrip("some trip text", null, null, null, null, "model_dispatcher");
+
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_BASE_URL}/api/trip/parse`,
+      expect.objectContaining({
+        body: JSON.stringify({
+          raw_text: "some trip text",
+          preferences: null,
+          credentials: null,
+          api_keys: null,
+          provider: null,
+          backend: "model_dispatcher",
         }),
       }),
     );
@@ -109,6 +135,7 @@ describe("api client", () => {
           ],
           api_keys: ["key-a"],
           provider: "gemini",
+          backend: null,
         }),
       }),
     );
@@ -134,10 +161,35 @@ describe("api client", () => {
           credentials: null,
           api_keys: null,
           provider: null,
+          backend: null,
         }),
       }),
     );
     expect(result).toEqual(responseBody);
+  });
+
+  it("agentInteract threads an explicit backend choice through to the request body", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ trip_data: sampleTrip, agent_reply: "ok" }),
+    } as Response);
+
+    await agentInteract(sampleTrip, "add food", null, null, null, null, "model_dispatcher");
+
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_BASE_URL}/api/trip/agent`,
+      expect.objectContaining({
+        body: JSON.stringify({
+          trip_data: sampleTrip,
+          user_message: "add food",
+          preferences: null,
+          credentials: null,
+          api_keys: null,
+          provider: null,
+          backend: "model_dispatcher",
+        }),
+      }),
+    );
   });
 
   it("generateMedia posts trip data to /api/trip/generate-media", async () => {
@@ -153,7 +205,7 @@ describe("api client", () => {
       `${API_BASE_URL}/api/trip/generate-media`,
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ trip_data: sampleTrip, user_message: "" }),
+        body: JSON.stringify({ trip_data: sampleTrip }),
       }),
     );
     expect(result).toEqual(responseBody);

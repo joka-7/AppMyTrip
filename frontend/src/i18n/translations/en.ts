@@ -32,6 +32,9 @@ export const en: Record<TranslationKey, string> = {
   "step1.preferencesPlaceholder": "For example: we want dairy food",
   "step1.continueWithoutReprocessing": "Continue editing (without re-analyzing)",
   "step1.processing": "The AI is analyzing the text...",
+  "step1.hint.reading": "Reading the text you entered...",
+  "step1.hint.structuring": "Breaking the trip into days...",
+  "step1.hint.activities": "Identifying activities and times...",
   "step1.reprocess": "Re-analyze (replaces the existing trip)",
   "step1.submit": "Create initial app structure",
   "step1.exampleRawText":
@@ -44,12 +47,17 @@ export const en: Record<TranslationKey, string> = {
   "step2.selectAll": "Select all options",
   "step2.skip": "Skip, continue to agent",
   "step2.submitting": "Adding the details...",
+  "step2.hint.fetching": "Gathering details from sources...",
+  "step2.hint.enriching": "Merging enhancements into the itinerary...",
+  "step2.hint.almost": "Almost ready...",
   "step2.submit": "Add the selected details",
   "step2.opt.directions_car": "Add driving directions",
   "step2.opt.directions_transit": "Add public-transit directions",
   "step2.opt.prices": "Add estimated prices",
   "step2.opt.podcast": "Add a historical podcast",
   "step2.opt.links": "Add links to attraction/transport sites",
+  "step2.opt.packing": "Add a what-to-bring list for each day",
+  "step2.opt.travel_mode": "Work out how you travel between stops",
 
   // Step 3 — completion agent
   "step3.heading": "AI Completion Agent",
@@ -62,6 +70,9 @@ export const en: Record<TranslationKey, string> = {
   // Chat panel
   "chat.inputPlaceholder": "Reply to the agent (e.g. 'yes, add it')",
   "chat.send": "Send",
+  "chat.askElsewhere": "Or ask directly:",
+  "chat.askExternallyToggle": "Ask an external AI directly",
+  "chat.askExternallyNeedsText": "Type a message first to send it to an external AI.",
 
   // Step 4 — design & deploy
   "step4.heading": "Final step: design your app",
@@ -78,6 +89,7 @@ export const en: Record<TranslationKey, string> = {
   "step4.copied": "Copied!",
   "step4.copyFailed": "Copy to clipboard failed",
   "step4.copyLink": "Copy link",
+  "step4.share": "Share",
   "step4.openLink": "Open link",
   "step4.deployError": "Something went wrong while saving and sharing. Try again in a moment.",
   "step4.deployHint":
@@ -109,6 +121,7 @@ export const en: Record<TranslationKey, string> = {
   "step4.welcomePlaceholder": "For example: Welcome to the trip! Changes are saved locally.",
   "step4.welcomeDismiss": "Got it",
   "step4.accentColorLabel": "Custom accent color",
+  "step4.accentColorReset": "Reset to default color",
   "step4.headerStyleLabel": "Header style",
   "step4.headerStyle.solid": "Solid",
   "step4.headerStyle.gradient": "Gradient",
@@ -165,12 +178,47 @@ export const en: Record<TranslationKey, string> = {
     "Changes you make here are saved only in this browser and are not sent to the server.",
   "appFrame.scrollPrevAria": "Scroll to earlier days",
   "appFrame.scrollNextAria": "Scroll to later days",
+  "appFrame.manageDaysAria": "Manage days",
+  "appFrame.manageDaysHeading": "Reorder, add, or remove days",
+  "appFrame.addDay": "Add day",
+  "appFrame.moveDayToStartAria": "Move to first",
+  "appFrame.moveDayEarlierAria": "Move earlier",
+  "appFrame.moveDayLaterAria": "Move later",
+  "appFrame.moveDayToEndAria": "Move to last",
+  "appFrame.deleteDayAria": "Delete day",
+  "appFrame.madeWith": "Made with AppMyTrip — plan your own trip app",
   "appFrame.day": "Day {num}",
   "appFrame.emptyState": "Enter the trip description to see a live preview of the app here.",
   "appFrame.tab.itinerary": "Itinerary",
   "appFrame.tab.map": "Map",
   "appFrame.tab.price": "Pricing",
   "appFrame.tab.chat": "AI Chat",
+  "appFrame.tab.checklist": "What to bring",
+
+  // "What we need" checklist
+  "checklist.tripWide": "For the whole trip",
+  "checklist.dayHeading": "Day {num}",
+  "checklist.empty": "Nothing here yet. Add what you need to bring, or ask the AI to suggest some.",
+  "checklist.addPlaceholder": "What do you need?",
+  "checklist.add": "Add",
+  "checklist.addAria": "Add an item to the list",
+  "checklist.editAria": "Edit the item {text}",
+  "checklist.deleteAria": "Delete the item {text}",
+  "checklist.showAllDays": "Show every day",
+  "checklist.showThisDay": "Show only the current day",
+  "checklist.suggest": "AI suggestions",
+  "checklist.suggesting": "Preparing suggestions…",
+  "checklist.suggestFailed": "Couldn't fetch suggestions. Please try again.",
+  "checklist.packed": "{done} of {total} packed",
+
+  // Travel modes
+  "travelMode.driving": "Driving",
+  "travelMode.transit": "Public transit",
+  "travelMode.bicycling": "Cycling",
+  "travelMode.walking": "Walking",
+  "travelMode.hiking": "Hiking",
+  "travelMode.auto": "Detect automatically",
+  "travelMode.label": "How you get there",
 
   // Itinerary list
   "itinerary.priceLabel": "Price",
@@ -184,6 +232,14 @@ export const en: Record<TranslationKey, string> = {
   "itinerary.addActivity": "Add an activity to this day",
   "itinerary.urlAria": "Link to the activity's website",
   "itinerary.showOnMapAria": "Show the activity on the map",
+  "itinerary.mapUrlLabel": "Google Maps link",
+  "itinerary.mapUrlHint": "Paste a link if the map pin is wrong",
+  "itinerary.mapUrlPinUpdated": "Map pin updated from the link",
+  "itinerary.mapUrlNoCoords": "The link will be saved, but the map pin can't be updated from it",
+  "itinerary.openInMapsAria": "Open the location in Google Maps",
+  "itinerary.directionsAria": "Directions from the previous stop ({mode})",
+  "itinerary.wazeAria": "Navigate to {title} in Waze",
+  "itinerary.waze": "Waze",
   "itinerary.editAria": "Edit activity",
   "itinerary.deleteAria": "Delete activity",
   "itinerary.editPriceAria": "Edit price",
@@ -204,7 +260,7 @@ export const en: Record<TranslationKey, string> = {
   "map.noCoords": "No coordinates to show on the map for this day.",
   "map.backToFullDay": "Back to the full day map",
   "map.openInGoogleMaps": "Open in Google Maps",
-  "map.openRoute": "Open route and directions in Google Maps",
+  "map.openInWaze": "Navigate in Waze",
   "map.clickToAdd": "Click the map to add a new activity at this location",
 
   // Price summary
@@ -233,6 +289,11 @@ export const en: Record<TranslationKey, string> = {
   "apiKey.inputPlaceholder": "API Key...",
   "apiKey.primaryNote": "This provider is tried first on every request.",
   "apiKey.makePrimary": "Make this the primary provider",
+  "apiKey.backendLabel": "Server engine",
+  "apiKey.backendLegacy": "Standard",
+  "apiKey.backendModelDispatcher": "Model Dispatcher (shared)",
+  "apiKey.backendNote":
+    "Advanced/testing setting — if the server hasn't set up Model Dispatcher, the request just falls back to the standard behavior.",
 
   // Cloud menu (sign-in, save, share, my trips)
   "cloud.importSuccess": "The trip was imported from the file.",
@@ -247,7 +308,12 @@ export const en: Record<TranslationKey, string> = {
   "cloud.shareFailed": "Sharing the trip failed.",
   "cloud.loadFailed": "Loading the trip failed.",
   "cloud.deleteFailed": "Deleting the trip failed.",
+  "cloud.deleteAria": "Delete trip {name}",
+  "cloud.deleteConfirmAria": "Confirm delete trip {name}",
+  "cloud.deleteConfirm": "Delete?",
   "cloud.export": "Export",
+  "cloud.exportIcs": "Export calendar",
+  "cloud.print": "Print",
   "cloud.import": "Import",
   "cloud.signingIn": "Signing in...",
   "cloud.signIn": "Sign in with Google",
@@ -281,6 +347,8 @@ export const en: Record<TranslationKey, string> = {
   "sharedPage.settingsAria": "Trip settings",
   "sharedPage.myTripsAria": "Go to My Trips",
   "sharedPage.export": "Export to file",
+  "sharedPage.exportIcs": "Export calendar (.ics)",
+  "sharedPage.print": "Print itinerary",
   "sharedPage.import": "Import from file",
   "sharedPage.saving": "Saving...",
   "sharedPage.saveToAccount": "Save to my account",
@@ -311,6 +379,10 @@ export const en: Record<TranslationKey, string> = {
   "podcastPlayer.noTTS": "This browser doesn't support text-to-speech.",
   "podcastPlayer.ttsFailed":
     "Reading the podcast aloud failed. This browser may not have a suitable voice.",
+
+  // Builder draft recovery (localStorage)
+  "draft.recoverPrompt": "A saved draft from last time was found — restore it?",
+  "draft.restore": "Restore draft",
 
   // Language indicator (agent reply language)
   "languageIndicator.explainer":

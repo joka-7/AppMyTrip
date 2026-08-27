@@ -80,3 +80,34 @@ body {
     sans-serif;
   background-color: #fbf9f8;
 }
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only-block,
+  .print-day {
+    display: block !important;
+  }
+
+  .print-day > h2 {
+    display: block !important;
+  }
+
+  html,
+  body,
+  #root {
+    height: auto !important;
+    background: white !important;
+  }
+
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  a[href]::after {
+    content: none !important;
+  }
+}

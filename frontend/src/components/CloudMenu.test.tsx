@@ -13,6 +13,7 @@ vi.mock("../services/tripsStore", () => ({
   saveTrip: vi.fn(),
   loadTrip: vi.fn(),
   deleteTrip: vi.fn(),
+  deleteSharedTrip: vi.fn(),
   shareTrip: vi.fn(),
   loadSharedTrip: vi.fn(),
 }));
@@ -85,6 +86,39 @@ describe("CloudMenu", () => {
       });
     });
     expect(trips.loadTrip).toHaveBeenCalledWith("uid-123", "trip-1");
+  });
+
+  // Regression guard: the signed-in branch used to lack `flex-wrap`, so the four
+  // file controls plus the email chip formed one unbreakable row that pushed the
+  // whole document into horizontal scroll on a phone. The parent navbar can only
+  // break *between* its children, so this row has to be able to wrap on its own.
+  it("lets its toolbar wrap and truncates a long email when signed in", async () => {
+    vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
+      callback({
+        uid: "uid-123",
+        email: "averylongaddress@example.com",
+        displayName: "User",
+      } as never);
+      return () => {};
+    });
+    vi.mocked(trips.listTrips).mockResolvedValue([]);
+
+    const { container } = render(
+      <CloudMenu
+        tripData={sampleTrip}
+        appDesign={DEFAULT_APP_DESIGN}
+        tripId={null}
+        currentStep={1}
+        onTripIdChange={vi.fn()}
+        onUpdateTrip={vi.fn()}
+        onLoadTrip={vi.fn()}
+        onImportTrip={vi.fn()}
+      />,
+    );
+
+    const email = await screen.findByText("averylongaddress@example.com");
+    expect(email).toHaveClass("truncate");
+    expect(container.firstElementChild).toHaveClass("flex-wrap");
   });
 
   it("saves with the selected stage and shows it as a tag once the list refreshes", async () => {
@@ -369,5 +403,48 @@ describe("CloudMenu", () => {
     await waitFor(() => {
       expect(screen.getByText("My Trip")).toBeInTheDocument();
     });
+  });
+
+  it("requires a second click before deleting a trip", async () => {
+    vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
+      callback({ uid: "uid-123", email: "user@example.com", displayName: "User" } as never);
+      return () => {};
+    });
+    vi.mocked(trips.listTrips).mockResolvedValue([
+      { id: "trip-1", name: "My Trip", modifiedTime: "2024-01-01", stage: null },
+    ]);
+    vi.mocked(trips.deleteTrip).mockResolvedValue(undefined);
+    vi.mocked(trips.deleteSharedTrip).mockResolvedValue(undefined);
+
+    render(
+      <CloudMenu
+        tripData={sampleTrip}
+        appDesign={DEFAULT_APP_DESIGN}
+        tripId={null}
+        currentStep={1}
+        onTripIdChange={vi.fn()}
+        onUpdateTrip={vi.fn()}
+        onLoadTrip={vi.fn()}
+        onImportTrip={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("user@example.com")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("user@example.com"));
+    await waitFor(() => {
+      expect(screen.getByText("My Trip")).toBeInTheDocument();
+    });
+
+    const deleteBtn = screen.getByRole("button", { name: /מחיקת הטיול My Trip/ });
+    fireEvent.click(deleteBtn);
+    expect(trips.deleteTrip).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /אישור מחיקת הטיול My Trip/ }));
+    await waitFor(() => {
+      expect(trips.deleteTrip).toHaveBeenCalledWith("uid-123", "trip-1");
+    });
+    expect(trips.deleteSharedTrip).toHaveBeenCalledWith("trip-1");
   });
 });

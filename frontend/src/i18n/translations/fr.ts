@@ -31,6 +31,9 @@ export const fr: Record<TranslationKey, string> = {
   "step1.preferencesPlaceholder": "Par exemple : nous voulons de la nourriture lactée",
   "step1.continueWithoutReprocessing": "Continuer l'édition (sans réanalyser)",
   "step1.processing": "L'IA analyse le texte...",
+  "step1.hint.reading": "Lecture du texte saisi...",
+  "step1.hint.structuring": "Découpage du voyage en jours...",
+  "step1.hint.activities": "Identification des activités et horaires...",
   "step1.reprocess": "Réanalyser (remplace le voyage existant)",
   "step1.submit": "Créer la structure initiale de l'app",
   "step1.exampleRawText":
@@ -43,12 +46,17 @@ export const fr: Record<TranslationKey, string> = {
   "step2.selectAll": "Tout sélectionner",
   "step2.skip": "Passer, continuer vers l'agent",
   "step2.submitting": "Ajout des détails...",
+  "step2.hint.fetching": "Collecte des détails depuis les sources...",
+  "step2.hint.enriching": "Intégration des améliorations dans l'itinéraire...",
+  "step2.hint.almost": "Presque prêt...",
   "step2.submit": "Ajouter les détails sélectionnés",
   "step2.opt.directions_car": "Ajouter l'itinéraire en voiture",
   "step2.opt.directions_transit": "Ajouter l'itinéraire en transports en commun",
   "step2.opt.prices": "Ajouter des prix estimés",
   "step2.opt.podcast": "Ajouter un podcast historique",
   "step2.opt.links": "Ajouter des liens vers les sites des attractions/transports",
+  "step2.opt.packing": "Ajouter une liste d'affaires à emporter pour chaque jour",
+  "step2.opt.travel_mode": "Déterminer le mode de déplacement entre les arrêts",
 
   // Step 3 — completion agent
   "step3.heading": "Agent de complétion IA",
@@ -61,6 +69,9 @@ export const fr: Record<TranslationKey, string> = {
   // Chat panel
   "chat.inputPlaceholder": "Répondez à l'agent (ex. « oui, ajoute-le »)",
   "chat.send": "Envoyer",
+  "chat.askElsewhere": "Ou demandez directement :",
+  "chat.askExternallyToggle": "Demander directement à une IA externe",
+  "chat.askExternallyNeedsText": "Écrivez d'abord un message pour l'envoyer à une IA externe.",
 
   // Step 4 — design & deploy
   "step4.heading": "Dernière étape : concevez votre app",
@@ -78,6 +89,7 @@ export const fr: Record<TranslationKey, string> = {
   "step4.copied": "Copié !",
   "step4.copyFailed": "La copie dans le presse-papiers a échoué",
   "step4.copyLink": "Copier le lien",
+  "step4.share": "Partager",
   "step4.openLink": "Ouvrir le lien",
   "step4.deployError":
     "Un problème est survenu lors de l'enregistrement et du partage. Réessayez dans un instant.",
@@ -111,6 +123,7 @@ export const fr: Record<TranslationKey, string> = {
     "Par exemple : Bienvenue dans le voyage ! Les modifications sont enregistrées localement.",
   "step4.welcomeDismiss": "Compris",
   "step4.accentColorLabel": "Couleur d'accent personnalisée",
+  "step4.accentColorReset": "Réinitialiser la couleur par défaut",
   "step4.headerStyleLabel": "Style d'en-tête",
   "step4.headerStyle.solid": "Uni",
   "step4.headerStyle.gradient": "Dégradé",
@@ -167,6 +180,15 @@ export const fr: Record<TranslationKey, string> = {
     "Les modifications faites ici sont enregistrées uniquement dans ce navigateur et ne sont pas envoyées au serveur.",
   "appFrame.scrollPrevAria": "Faire défiler vers les jours précédents",
   "appFrame.scrollNextAria": "Faire défiler vers les jours suivants",
+  "appFrame.manageDaysAria": "Gérer les jours",
+  "appFrame.manageDaysHeading": "Réorganiser, ajouter ou supprimer des jours",
+  "appFrame.addDay": "Ajouter un jour",
+  "appFrame.moveDayToStartAria": "Déplacer au début",
+  "appFrame.moveDayEarlierAria": "Déplacer plus tôt",
+  "appFrame.moveDayLaterAria": "Déplacer plus tard",
+  "appFrame.moveDayToEndAria": "Déplacer à la fin",
+  "appFrame.deleteDayAria": "Supprimer le jour",
+  "appFrame.madeWith": "Créé avec AppMyTrip — planifiez aussi votre propre voyage",
   "appFrame.day": "Jour {num}",
   "appFrame.emptyState":
     "Saisissez la description du voyage pour voir ici un aperçu en direct de l'app.",
@@ -174,6 +196,33 @@ export const fr: Record<TranslationKey, string> = {
   "appFrame.tab.map": "Carte",
   "appFrame.tab.price": "Tarifs",
   "appFrame.tab.chat": "Chat IA",
+  "appFrame.tab.checklist": "À emporter",
+
+  // "What we need" checklist
+  "checklist.tripWide": "Pour tout le voyage",
+  "checklist.dayHeading": "Jour {num}",
+  "checklist.empty":
+    "Rien pour l'instant. Ajoutez ce qu'il faut emporter, ou demandez des suggestions à l'IA.",
+  "checklist.addPlaceholder": "Qu'est-ce qu'il vous faut ?",
+  "checklist.add": "Ajouter",
+  "checklist.addAria": "Ajouter un élément à la liste",
+  "checklist.editAria": "Modifier l'élément {text}",
+  "checklist.deleteAria": "Supprimer l'élément {text}",
+  "checklist.showAllDays": "Afficher tous les jours",
+  "checklist.showThisDay": "Afficher uniquement le jour actuel",
+  "checklist.suggest": "Suggestions IA",
+  "checklist.suggesting": "Préparation des suggestions…",
+  "checklist.suggestFailed": "Impossible d'obtenir des suggestions. Réessayez.",
+  "checklist.packed": "{done} sur {total} préparés",
+
+  // Travel modes
+  "travelMode.driving": "En voiture",
+  "travelMode.transit": "Transports en commun",
+  "travelMode.bicycling": "À vélo",
+  "travelMode.walking": "À pied",
+  "travelMode.hiking": "Randonnée",
+  "travelMode.auto": "Détection automatique",
+  "travelMode.label": "Comment s'y rendre",
 
   // Itinerary list
   "itinerary.priceLabel": "Prix",
@@ -187,6 +236,15 @@ export const fr: Record<TranslationKey, string> = {
   "itinerary.addActivity": "Ajouter une activité à ce jour",
   "itinerary.urlAria": "Lien vers le site de l'activité",
   "itinerary.showOnMapAria": "Afficher l'activité sur la carte",
+  "itinerary.mapUrlLabel": "Lien Google Maps",
+  "itinerary.mapUrlHint": "Collez un lien si le point sur la carte est erroné",
+  "itinerary.mapUrlPinUpdated": "Point sur la carte mis à jour depuis le lien",
+  "itinerary.mapUrlNoCoords":
+    "Le lien sera enregistré, mais le point sur la carte ne peut pas en être déduit",
+  "itinerary.openInMapsAria": "Ouvrir le lieu dans Google Maps",
+  "itinerary.directionsAria": "Itinéraire depuis l'arrêt précédent ({mode})",
+  "itinerary.wazeAria": "Naviguer vers {title} dans Waze",
+  "itinerary.waze": "Waze",
   "itinerary.editAria": "Modifier l'activité",
   "itinerary.deleteAria": "Supprimer l'activité",
   "itinerary.editPriceAria": "Modifier le prix",
@@ -208,7 +266,7 @@ export const fr: Record<TranslationKey, string> = {
   "map.noCoords": "Aucune coordonnée à afficher sur la carte pour ce jour.",
   "map.backToFullDay": "Retour à la carte complète du jour",
   "map.openInGoogleMaps": "Ouvrir dans Google Maps",
-  "map.openRoute": "Ouvrir l'itinéraire et le trajet dans Google Maps",
+  "map.openInWaze": "Naviguer dans Waze",
   "map.clickToAdd": "Cliquez sur la carte pour ajouter une nouvelle activité à cet emplacement",
 
   // Price summary
@@ -239,6 +297,11 @@ export const fr: Record<TranslationKey, string> = {
   "apiKey.inputPlaceholder": "Clé API...",
   "apiKey.primaryNote": "Ce fournisseur est essayé en premier à chaque requête.",
   "apiKey.makePrimary": "Définir comme fournisseur principal",
+  "apiKey.backendLabel": "Moteur du serveur",
+  "apiKey.backendLegacy": "Standard",
+  "apiKey.backendModelDispatcher": "Model Dispatcher (partagé)",
+  "apiKey.backendNote":
+    "Réglage avancé/de test — si le serveur n'a pas configuré Model Dispatcher, la requête revient simplement au comportement standard.",
 
   // Cloud menu (sign-in, save, share, my trips)
   "cloud.importSuccess": "Le voyage a été importé depuis le fichier.",
@@ -253,7 +316,12 @@ export const fr: Record<TranslationKey, string> = {
   "cloud.shareFailed": "Le partage du voyage a échoué.",
   "cloud.loadFailed": "Le chargement du voyage a échoué.",
   "cloud.deleteFailed": "La suppression du voyage a échoué.",
+  "cloud.deleteAria": "Supprimer le voyage {name}",
+  "cloud.deleteConfirmAria": "Confirmer la suppression du voyage {name}",
+  "cloud.deleteConfirm": "Supprimer ?",
   "cloud.export": "Exporter",
+  "cloud.exportIcs": "Exporter le calendrier",
+  "cloud.print": "Imprimer",
   "cloud.import": "Importer",
   "cloud.signingIn": "Connexion...",
   "cloud.signIn": "Se connecter avec Google",
@@ -287,6 +355,8 @@ export const fr: Record<TranslationKey, string> = {
   "sharedPage.settingsAria": "Paramètres du voyage",
   "sharedPage.myTripsAria": "Aller à Mes voyages",
   "sharedPage.export": "Exporter vers un fichier",
+  "sharedPage.exportIcs": "Exporter le calendrier (.ics)",
+  "sharedPage.print": "Imprimer l'itinéraire",
   "sharedPage.import": "Importer depuis un fichier",
   "sharedPage.saving": "Enregistrement...",
   "sharedPage.saveToAccount": "Enregistrer sur mon compte",
@@ -319,6 +389,11 @@ export const fr: Record<TranslationKey, string> = {
   "podcastPlayer.noTTS": "Ce navigateur ne prend pas en charge la synthèse vocale.",
   "podcastPlayer.ttsFailed":
     "La lecture vocale du podcast a échoué. Ce navigateur n'a peut-être pas de voix adaptée.",
+
+  // Builder draft recovery (localStorage)
+  "draft.recoverPrompt":
+    "Un brouillon enregistré de la dernière fois a été trouvé — le restaurer ?",
+  "draft.restore": "Restaurer le brouillon",
 
   // Language indicator (agent reply language)
   "languageIndicator.explainer":

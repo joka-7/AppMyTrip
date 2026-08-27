@@ -1,14 +1,17 @@
 import { useState } from "react";
 import {
+  Backpack,
   Car,
   ChevronLeft,
   ChevronRight,
   Link as LinkIcon,
+  Route,
   Train,
   Volume2,
   Wallet,
 } from "lucide-react";
 import type { EnhanceOptions } from "../api";
+import { useRotatingHint } from "../hooks/useRotatingHint";
 import { useI18n, type TranslationKey } from "../i18n/useI18n";
 
 const OPTIONS: {
@@ -21,6 +24,14 @@ const OPTIONS: {
   { key: "prices", labelKey: "step2.opt.prices", Icon: Wallet },
   { key: "podcast", labelKey: "step2.opt.podcast", Icon: Volume2 },
   { key: "links", labelKey: "step2.opt.links", Icon: LinkIcon },
+  { key: "travel_mode", labelKey: "step2.opt.travel_mode", Icon: Route },
+  { key: "packing", labelKey: "step2.opt.packing", Icon: Backpack },
+];
+
+const ENHANCE_HINTS: readonly TranslationKey[] = [
+  "step2.hint.fetching",
+  "step2.hint.enriching",
+  "step2.hint.almost",
 ];
 
 export default function BuilderStep2({
@@ -36,6 +47,7 @@ export default function BuilderStep2({
 }) {
   const { t } = useI18n();
   const [options, setOptions] = useState<EnhanceOptions>({});
+  const waitHint = useRotatingHint(isEnhancing, ENHANCE_HINTS);
 
   const toggle = (key: keyof EnhanceOptions) =>
     setOptions((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -106,6 +118,7 @@ export default function BuilderStep2({
           <button
             onClick={() => onSubmit(options)}
             disabled={isEnhancing}
+            aria-busy={isEnhancing}
             className="bg-primary hover:bg-primary-dark disabled:opacity-60 text-white px-8 py-3 rounded-xl font-medium flex items-center gap-2 flex-1 justify-center transition-colors shadow-md"
           >
             {isEnhancing ? t("step2.submitting") : t("step2.submit")}
@@ -113,6 +126,11 @@ export default function BuilderStep2({
           </button>
         )}
       </div>
+      {waitHint && (
+        <p className="mt-3 text-sm text-ink-muted text-center animate-fade-in" aria-live="polite">
+          {t(waitHint)}
+        </p>
+      )}
     </div>
   );
 }

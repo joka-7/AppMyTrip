@@ -1,8 +1,10 @@
 # AppMyTrip
 
 An app that turns a free-text trip summary (e.g. pasted WhatsApp messages) into a
-structured, per-day trip app — with day tabs, a map of points of interest, an AI
-completion agent, and rich media (historical podcasts). Web first, Android later.
+structured, per-day trip app — with day tabs, a map of points of interest, a
+"what to bring" checklist per day, turn-by-turn navigation links (Google Maps and
+Waze), an AI completion agent, and rich media (historical podcasts). Web first,
+Android later.
 
 This repository currently contains an early **TripWeaver AI** prototype: a FastAPI
 backend that uses an LLM to parse trip text and a React web UI that walks the user
@@ -56,16 +58,18 @@ AppMyTrip/
 │   ├── requirements.txt
 │   └── requirements-dev.txt
 ├── frontend/         Vite + React + TypeScript + Tailwind prototype
-│   ├── src/App.tsx             4-step builder UI + live preview
+│   ├── src/App.tsx             4-step builder UI + live preview / shared-trip viewer
 │   ├── src/firebase.ts         Firebase init (Google sign-in + Firestore)
-│   ├── src/services/tripsStore.ts   save/load/share trips in Firestore
+│   ├── src/i18n/               UI language store + he/en/fr dictionaries
+│   ├── src/hooks/              podcast player, install prompt, trip branding, …
+│   ├── src/services/           tripsStore, appDesign, tripFile, apiKey, …
+│   ├── src/components/         builder steps, AppFrame, MapView, CloudMenu, …
 │   ├── firestore.rules         Firestore security rules (per-user + public shares)
 │   └── e2e/                    Playwright end-to-end tests (real browser, backend mocked)
 ├── docs/             design documentation
 │   ├── hld/hld.md              High-Level Design (architecture + flows)
 │   └── lld/lld.md              Low-Level Design (modules, classes, contracts)
-├── .run/             shared PyCharm/WebStorm run configurations
-└── main.py           (legacy scaffold placeholder)
+└── .run/             shared PyCharm/WebStorm run configurations
 ```
 
 ## Backend
@@ -150,6 +154,29 @@ Each provider's default model can be overridden with `GEMINI_MODEL`/`OPENAI_MODE
 
 `/generate-media` doesn't call the LLM at all, so it works without any key set.
 
+**Backend implementation toggle:** `LLM_BACKEND` (default `legacy`) selects which
+code actually talks to the provider. `legacy` is `services/llm.py`'s own httpx
+retry/rotation logic; `model_dispatcher` delegates to the same request/response
+contract via [`model-dispatcher`](https://github.com/joka-7/ModelDispatcher)
+instead (`services/llm_model_dispatcher.py`) — same providers, same
+bring-your-own-key/multi-key-rotation behavior, same API surface. Doesn't affect
+`parse_trip_text`/`agent_interaction`/`enhance_trip` or anything that calls them.
+Every `/api/trip/{parse,agent,enhance}` request also accepts its own optional
+`backend: "legacy" | "model_dispatcher"` field, overriding this server default
+for just that one call — the frontend's settings menu (`ApiKeyMenu`) exposes
+this as "Server engine", stored in `localStorage` (`tripweaver_backend`) and
+sent with every request via `getBackend()` (`services/apiKey.ts`).
+
+`model-dispatcher` is vendored as a **git submodule** at `backend/vendor/model-dispatcher`
+(see `.gitmodules`), not an installed package — clone with
+`git clone --recurse-submodules`, or run `git submodule update --init` after a
+plain clone. It's also kept **out of** `requirements.txt`/`requirements-dev.txt`
+on purpose: install it separately via `pip install -r requirements-model-dispatcher.txt`
+(after the submodule is fetched) to actually use `LLM_BACKEND=model_dispatcher`.
+This backend deploys as a Vercel Python Function (see `backend/vercel.json`), and
+**Vercel does not fetch git submodules by default** — see
+`requirements-model-dispatcher.txt` for what enabling this in production requires.
+
 ### Text-to-speech provider
 
 `backend/services/tts.py` selects a provider via the `TTS_PROVIDER` env var:
@@ -194,9 +221,17 @@ Each user signs in with their own Google account and saves trips as documents in
 Firestore, under `users/{uid}/trips/{tripId}` — readable/writable only by that user
 (see `frontend/firestore.rules`). Sharing a trip copies it into a top-level
 `sharedTrips/{tripId}` doc that anyone can read (no sign-in required) but only the
-owner can write, and produces a `?shared=<tripId>` link; opening that link loads the
-trip read-only-by-link into the builder. Firestore on the free **Spark** plan covers
-this with normal usage — no billing account required.
+owner can write, and produces a `?trip=<name-slug>&shared=<tripId>` link; opening
+that link loads the trip read-only-by-link into the builder. Firestore on the free
+**Spark** plan covers this with normal usage — no billing account required.
+
+The `trip=` slug is cosmetic — only `shared=` identifies the trip — but it is what
+makes the trip's name visible in the link itself. A static SPA serves the same
+Open Graph tags for every URL, so chat apps can't render a per-trip preview card
+without server-side rendering; the slug puts the name in the text they *do* show.
+Sharing also goes through the native share sheet where available
+(`navigator.share`), sending "trip name — dates" alongside the link, and falls
+back to copying that whole message to the clipboard elsewhere.
 
 When sharing, the user picks a link lifetime (7 / 30 / 90 days, or "forever" — the
 default). A chosen duration is stored as an `expiresAt` timestamp on the
@@ -299,7 +334,57 @@ by `VITE_API_URL` (see `frontend/.env.example`, default `http://localhost:8000`)
 Activities added later in Step 3 (via the chat agent or the live preview's "+"
 button) automatically re-run the Step 2 enhancements the user checked, so new
 stops get the same directions/prices/podcast-briefs/links without revisiting
-Step 2.
+Step 2. The two whole-trip options (`packing`, `travel_mode`) are excluded from
+that per-activity top-up: `packing` writes day- and trip-level lists that the
+per-activity merge would discard, and `travel_mode` is inferred locally for free.
+
+### Navigation links (Google Maps + Waze)
+
+A day is not one mode of travel. A realistic day drives to a trailhead, hikes,
+takes a bus back and walks to dinner — so the mode belongs to the **leg** between
+two stops, and each stop's card carries its own directions link in its own mode.
+There is deliberately **no whole-day route link**: Google Maps applies a single
+`travelmode` to an entire route, so one day-long link is wrong for most of its
+legs whichever mode it picks.
+
+`frontend/src/services/travelMode.ts` works the mode out from the activity itself
+first — a bus/train/ferry is transit, a trail/trek is hiking, an explicit ride is
+cycling — and only falls back to distance when the activity says nothing: under
+1.5km straight-line is walking, anything further is driving. It never guesses
+cycling from distance, and the first stop of a day gets no mode at all, since
+there is no leg into it. An explicit `travel_mode` on the activity (set by hand in
+the edit form, or by the opt-in Step 2 enhancement) always wins. Hiking is an
+app-level distinction: Google has no hiking mode, so its links travel as walking.
+
+Waze appears only on a genuine driving leg — it has no walking, cycling or
+transit mode, so offering it anywhere else would send people the wrong way.
+
+Map links are built from coordinates, never from a place name — Google's text
+search will happily resolve a common name to a different, same-named place. When
+the AI's coordinates are wrong anyway, pasting a Google Maps link into an
+activity's "Google Maps link" field overrides the generated link, and if the
+pasted link carries coordinates it repairs the map pin too (so the in-app map and
+the directions links get fixed as well). A shortened `maps.app.goo.gl` link has no
+coordinates to extract and can't be resolved from the browser, so it overrides the
+link only — and because that means the pin is still wrong, the coordinate-derived
+links (Waze, directions) are hidden for that stop rather than sending you
+somewhere you've already said is wrong. Drag the pin on the edit form's mini-map
+to fix those too.
+
+### "What we need" checklist
+
+A bottom tab listing what to bring, split into a trip-wide section (documents,
+chargers) and one per day (boots for a trail day, a swimsuit for a beach day).
+Items are edited by hand and can be pre-filled by the AI — either via Step 2's
+"packing" option or the tab's own "AI suggestions" button, which merges
+suggestions in by text so it never overwrites what you already wrote. Ticking an
+item is stored per viewer in `localStorage`, not in the trip: everyone sharing a
+link sees the same list but packs their own bag, and a read-only viewer can still
+use it. Like the itinerary, the checklist is included when the trip is printed.
+
+Whole days can also be added, deleted, and reordered (move earlier/later, or
+jump to the start/end) from the "manage days" panel next to the day tabs in
+the live preview — entirely client-side, no backend call involved.
 
 If the backend is unreachable (or the `parse`/`agent` calls fail because no API key
 is configured — either via the frontend's API key menu or a server-side env var),

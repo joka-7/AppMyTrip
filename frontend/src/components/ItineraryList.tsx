@@ -4,6 +4,7 @@ import {
   Landmark,
   Link as LinkIcon,
   MapPin,
+  Navigation,
   Pause,
   Pencil,
   Plane,
@@ -13,12 +14,27 @@ import {
   Utensils,
   Volume2,
 } from "lucide-react";
-import type { Activity } from "../api";
+import type { Activity, TravelMode } from "../api";
 import { useI18n } from "../i18n/useI18n";
 import { type CardLayout, type CornerStyle, CORNER_CARD_CLASSES } from "../services/appDesign";
 import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABEL_KEYS } from "../services/activityTypes";
 import { newActivityId } from "../services/id";
+import {
+  googleMapsLegUrl,
+  googleMapsPlaceUrl,
+  hasMapLink,
+  hasUnverifiedPin,
+  parseMapUrlCoords,
+  wazeUrl,
+} from "../services/mapLinks";
 import { safeUrl } from "../services/safeUrl";
+import {
+  isDrivingMode,
+  legTravelMode,
+  TRAVEL_MODES,
+  TRAVEL_MODE_ICONS,
+  TRAVEL_MODE_LABEL_KEYS,
+} from "../services/travelMode";
 import LocationPicker from "./LocationPicker";
 
 const ACTIVITY_ICONS: Record<Activity["type"], typeof Utensils> = {
@@ -74,6 +90,8 @@ export default function ItineraryList({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<Activity>>({});
   const [isAdding, setIsAdding] = useState(false);
+  // Feedback for a pasted Google Maps link: whether the pin moved with it.
+  const [mapUrlNotice, setMapUrlNotice] = useState<"updated" | "noCoords" | null>(null);
 
   // Centers the location picker's mini map near the day's other stops instead of
   // defaulting to a fixed spot halfway across the world.
@@ -81,6 +99,7 @@ export default function ItineraryList({
 
   const startEdit = (act: Activity) => {
     setEditingId(act.id);
+    setMapUrlNotice(null);
     setDraft({
       time: act.time,
       title: act.title,
@@ -89,17 +108,39 @@ export default function ItineraryList({
       price: act.price,
       url: act.url,
       map_coordinates: act.map_coordinates,
+      map_url: act.map_url,
+      travel_mode: act.travel_mode,
     });
+  };
+
+  /**
+   * Pasting a Maps link is how a user corrects a pin the AI put in the wrong
+   * place, so pull the coordinates out of it as well as storing the link — that
+   * repairs the in-app map and the day-route link too, neither of which can be
+   * built from an arbitrary URL. Short links (maps.app.goo.gl) carry no
+   * coordinates and can't be followed cross-origin, so those say so instead of
+   * silently doing nothing.
+   */
+  const changeMapUrl = (value: string) => {
+    const coords = parseMapUrlCoords(value);
+    setDraft((d) => ({ ...d, map_url: value, ...(coords ? { map_coordinates: coords } : {}) }));
+    if (!value.trim()) {
+      setMapUrlNotice(null);
+      return;
+    }
+    setMapUrlNotice(coords ? "updated" : "noCoords");
   };
 
   const saveEdit = (activityId: string) => {
     onUpdateActivity(activityId, draft);
     setEditingId(null);
     setDraft({});
+    setMapUrlNotice(null);
   };
 
   const startAdd = () => {
     setIsAdding(true);
+    setMapUrlNotice(null);
     setDraft({ time: "", title: "", desc: "", type: "attraction" });
   };
 
@@ -118,6 +159,8 @@ export default function ItineraryList({
       price: draft.price ?? null,
       url: draft.url ?? null,
       map_coordinates: draft.map_coordinates ?? null,
+      map_url: draft.map_url?.trim() || null,
+      travel_mode: draft.travel_mode ?? null,
     });
     setIsAdding(false);
     setDraft({});
@@ -127,13 +170,73 @@ export default function ItineraryList({
   const listClass =
     cardLayout === "timeline" ? "relative border-s-2 border-outline/30 ps-4 ms-2" : "";
 
+  // Shared by the edit and add forms — both drive the same `draft`, and these
+  // two fields belong together: the Maps link is the escape hatch for a wrong
+  // pin, and the travel mode decides which navigation links the card offers.
+  const mapLinkAndModeFields = (
+    <>
+      <label className="flex flex-col gap-1 text-[11px] text-ink-muted min-w-0">
+        {t("itinerary.mapUrlLabel")}
+        <input
+          type="url"
+          dir="ltr"
+          inputMode="url"
+          placeholder={t("itinerary.mapUrlHint")}
+          value={draft.map_url ?? ""}
+          onChange={(e) => changeMapUrl(e.target.value)}
+          className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
+        />
+        {mapUrlNotice && (
+          <span className={mapUrlNotice === "updated" ? "text-emerald-600" : "text-amber-600"}>
+            {mapUrlNotice === "updated"
+              ? t("itinerary.mapUrlPinUpdated")
+              : t("itinerary.mapUrlNoCoords")}
+          </span>
+        )}
+      </label>
+      <label className="flex flex-col gap-1 text-[11px] text-ink-muted min-w-0">
+        {t("travelMode.label")}
+        <select
+          value={draft.travel_mode ?? ""}
+          onChange={(e) =>
+            setDraft((d) => ({
+              ...d,
+              travel_mode: e.target.value ? (e.target.value as TravelMode) : null,
+            }))
+          }
+          className="w-full min-w-0 border border-outline/40 rounded-lg p-1.5 text-sm"
+        >
+          {/* Empty value = leave it to the distance/keyword heuristic. */}
+          <option value="">{t("travelMode.auto")}</option>
+          {TRAVEL_MODES.map((mode) => (
+            <option key={mode} value={mode}>
+              {t(TRAVEL_MODE_LABEL_KEYS[mode])}
+            </option>
+          ))}
+        </select>
+      </label>
+    </>
+  );
+
   return (
     <div className={`space-y-4 ${listClass}`}>
-      {activities.map((act) => {
+      {activities.map((act, idx) => {
         const Icon = ACTIVITY_ICONS[act.type] ?? Landmark;
         const accent = ACTIVITY_ACCENT[act.type] ?? ACTIVITY_ACCENT.attraction;
         const isEditing = editingId === act.id;
         const playingThis = playingPodcast?.id === act.id;
+        // How you reach this stop from the one before it. Null for the first
+        // stop of a day — there's no leg into it, so it gets no mode chip and no
+        // Waze rather than a guess about a journey the itinerary never describes.
+        const prevAct = activities[idx - 1];
+        const travelMode = legTravelMode(prevAct, act);
+        const ModeIcon = travelMode ? TRAVEL_MODE_ICONS[travelMode] : null;
+        // A pin the user has told us is wrong (see hasUnverifiedPin) can't be
+        // used for directions or Waze — only the link they pasted is trustworthy.
+        const pinUnverified = hasUnverifiedPin(act);
+        const canRouteFromPrev = Boolean(
+          travelMode && prevAct?.map_coordinates && act.map_coordinates && !pinUnverified,
+        );
         return (
           <div key={act.id} className={cardLayout === "timeline" ? "relative" : undefined}>
             {cardLayout === "timeline" && (
@@ -207,6 +310,7 @@ export default function ItineraryList({
                       onChange={(coords) => setDraft((d) => ({ ...d, map_coordinates: coords }))}
                       defaultCenter={anchorCenter}
                     />
+                    {mapLinkAndModeFields}
                     <div className="flex gap-2 items-center">
                       <button
                         onClick={() => saveEdit(act.id)}
@@ -327,6 +431,55 @@ export default function ItineraryList({
                         </button>
                       )}
                     </div>
+
+                    {/* Navigation lives on the activity itself, not just the map
+                        tab: this is where you actually are when you need to set
+                        off, and a stop whose pin was corrected by a pasted link
+                        alone never appears on the map at all. */}
+                    {hasMapLink(act) && (
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        <a
+                          href={googleMapsPlaceUrl(act)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={t("itinerary.openInMapsAria")}
+                          className="flex items-center gap-1 rounded-full bg-surface-container hover:bg-surface-container-high text-primary px-2.5 py-1 text-xs font-semibold transition-colors"
+                        >
+                          <MapPin size={13} />
+                          Google Maps
+                        </a>
+                        {canRouteFromPrev && travelMode && ModeIcon && (
+                          <a
+                            href={googleMapsLegUrl(prevAct, act, travelMode)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={t("itinerary.directionsAria", {
+                              mode: t(TRAVEL_MODE_LABEL_KEYS[travelMode]),
+                            })}
+                            className="flex items-center gap-1 rounded-full bg-surface-container hover:bg-surface-container-high text-ink-muted px-2.5 py-1 text-xs font-semibold transition-colors"
+                          >
+                            <ModeIcon size={13} />
+                            {t(TRAVEL_MODE_LABEL_KEYS[travelMode])}
+                          </a>
+                        )}
+                        {/* Waze only navigates by car, so it's offered only for
+                            a genuine driving leg — never on a walk, hike or bus
+                            leg, and never on a day's first stop, which has no
+                            leg into it at all. */}
+                        {isDrivingMode(travelMode) && act.map_coordinates && !pinUnverified && (
+                          <a
+                            href={wazeUrl(act)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={t("itinerary.wazeAria", { title: act.title })}
+                            className="flex items-center gap-1 rounded-full bg-[#05c8f7]/10 hover:bg-[#05c8f7]/20 text-[#0499bd] px-2.5 py-1 text-xs font-semibold transition-colors"
+                          >
+                            <Navigation size={13} />
+                            {t("itinerary.waze")}
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -409,6 +562,7 @@ export default function ItineraryList({
                 onChange={(coords) => setDraft((d) => ({ ...d, map_coordinates: coords }))}
                 defaultCenter={anchorCenter}
               />
+              {mapLinkAndModeFields}
               <div className="flex gap-2 items-center">
                 <button
                   onClick={saveAdd}

@@ -5,16 +5,22 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   DollarSign,
   ImageIcon,
+  ListChecks,
+  ListPlus,
   Map,
   MessageCircle,
   Pencil,
+  Plus,
   Smartphone,
+  Trash2,
   X,
 } from "lucide-react";
 import type { Activity, TripData } from "../api";
-import { useI18n, type Lang } from "../i18n/useI18n";
+import { useI18n, type Lang, type TranslationKey } from "../i18n/useI18n";
 import { usePodcastPlayer } from "../hooks/usePodcastPlayer";
 import {
   type AppDesign,
@@ -33,6 +39,7 @@ import { hebrewWeekdayLetter, tripStartWeekdayIndex } from "../services/hebrewDa
 import { safeUrl } from "../services/safeUrl";
 import type { AgentMessage } from "./ChatPanel";
 import ChatPanel from "./ChatPanel";
+import ChecklistPanel, { type ChecklistTarget } from "./ChecklistPanel";
 import ItineraryList from "./ItineraryList";
 import PodcastPlayer from "./PodcastPlayer";
 import PriceSummary from "./PriceSummary";
@@ -43,16 +50,18 @@ const MapView = lazy(() => import("./MapView"));
 
 const SCROLL_ARROW_THRESHOLD = 4;
 
+// Builder and shared-viewer are the same origin (see App.tsx's `?shared=`
+// handling) — linking here just takes a trip participant to the AppMyTrip
+// homepage to build their own trip.
+const APP_HOME_URL = typeof window !== "undefined" ? window.location.origin : "/";
+
 const NAV_TABS: {
   id: AppTab;
   icon: typeof Calendar;
-  labelKey:
-    | "appFrame.tab.itinerary"
-    | "appFrame.tab.map"
-    | "appFrame.tab.price"
-    | "appFrame.tab.chat";
+  labelKey: TranslationKey;
 }[] = [
   { id: "itinerary", icon: Calendar, labelKey: "appFrame.tab.itinerary" },
+  { id: "checklist", icon: ListChecks, labelKey: "appFrame.tab.checklist" },
   { id: "map", icon: Map, labelKey: "appFrame.tab.map" },
   { id: "price", icon: DollarSign, labelKey: "appFrame.tab.price" },
   { id: "chat", icon: MessageCircle, labelKey: "appFrame.tab.chat" },
@@ -86,13 +95,24 @@ export default function AppFrame({
   chatEndRef,
   isSendingMessage,
   chatNotice,
+  onRetryChat,
+  failedChatText,
   onUpdateActivity,
   onAddActivity,
   onDeleteActivity,
   onUpdateTrip,
+  onAddDay,
+  onDeleteDay,
+  onMoveDay,
   isLocalOnly,
   localOnlyNoticeText,
   welcomeStorageKey,
+  onAddChecklistItem,
+  onUpdateChecklistItem,
+  onDeleteChecklistItem,
+  onSuggestChecklist,
+  isSuggestingChecklist,
+  checklistSuggestError,
 }: {
   tripData: TripData;
   appDesign: AppDesign;
@@ -103,14 +123,29 @@ export default function AppFrame({
   chatEndRef: RefObject<HTMLDivElement>;
   isSendingMessage?: boolean;
   chatNotice?: string | null;
+  onRetryChat?: () => void;
+  failedChatText?: string | null;
   onUpdateActivity: (dayIndex: number, activityId: string, patch: Partial<Activity>) => void;
   onAddActivity?: (dayIndex: number, activity: Activity) => void;
   onDeleteActivity?: (dayIndex: number, activityId: string) => void;
   onUpdateTrip: (patch: Partial<Pick<TripData, "title" | "dates" | "photo_album_url">>) => void;
+  /** Appends a new, empty day at the end of the trip. */
+  onAddDay?: () => void;
+  onDeleteDay?: (dayIndex: number) => void;
+  /** Moves the day at `fromIndex` to `toIndex`, shifting the days between them. */
+  onMoveDay?: (fromIndex: number, toIndex: number) => void;
   isLocalOnly?: boolean;
   localOnlyNoticeText?: string;
   /** When set, a non-empty welcomeMessage is shown once until dismissed (shared-link flow). */
   welcomeStorageKey?: string;
+  /** Checklist edits. `null` targets the trip-wide list, a number targets that day. */
+  onAddChecklistItem?: (target: ChecklistTarget, text: string) => void;
+  onUpdateChecklistItem?: (target: ChecklistTarget, itemId: string, text: string) => void;
+  onDeleteChecklistItem?: (target: ChecklistTarget, itemId: string) => void;
+  /** Omit to hide the "AI suggestions" button entirely (e.g. a read-only view). */
+  onSuggestChecklist?: () => void;
+  isSuggestingChecklist?: boolean;
+  checklistSuggestError?: string | null;
 }) {
   const { t, lang } = useI18n();
   const days = tripData.days ?? [];
@@ -121,6 +156,7 @@ export default function AppFrame({
   );
   const [focusActivityId, setFocusActivityId] = useState<string | null>(null);
   const [isEditingHeader, setIsEditingHeader] = useState(false);
+  const [isManagingDays, setIsManagingDays] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [datesDraft, setDatesDraft] = useState("");
   const [albumUrlDraft, setAlbumUrlDraft] = useState("");
@@ -216,6 +252,13 @@ export default function AppFrame({
     setFocusActivityId((prev) => (prev === activityId ? null : prev));
   };
 
+  // Keeps the view on the day being reordered instead of leaving `activeDay`
+  // pointing at whatever day the index now belongs to.
+  const handleMoveDay = (fromIndex: number, toIndex: number) => {
+    onMoveDay?.(fromIndex, toIndex);
+    setActiveDay(toIndex);
+  };
+
   const handleShowOnMap = (activityId: string) => {
     if (!appDesign.visibleTabs.map) return;
     setFocusActivityId(activityId);
@@ -226,7 +269,7 @@ export default function AppFrame({
   const useCustomHeader = Boolean(headerStyle);
 
   return (
-    <div className={`w-full h-full flex flex-col ${fontClass}`}>
+    <div className={`w-full h-full flex flex-col ${fontClass} print:h-auto`}>
       <div
         className={`${useCustomHeader ? "" : themeClass} shrink-0 text-white pt-10 pb-4 px-6 shadow-md transition-colors duration-300 relative`}
         style={headerStyle}
@@ -330,13 +373,13 @@ export default function AppFrame({
       )}
 
       {isLocalOnly && hasTrip && (
-        <p className="shrink-0 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs text-center py-1.5 px-3">
+        <p className="no-print shrink-0 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs text-center py-1.5 px-3">
           {localOnlyNoticeText ?? t("appFrame.localOnlyNotice")}
         </p>
       )}
 
       {hasTrip && (
-        <div className="shrink-0 flex items-center gap-2 bg-white border-b border-outline/40 px-3 py-2.5">
+        <div className="no-print shrink-0 flex items-center gap-2 bg-white border-b border-outline/40 px-3 py-2.5">
           {days.length > SCROLL_ARROW_THRESHOLD && (
             <button
               onClick={() => scrollTabs(-1)}
@@ -346,10 +389,13 @@ export default function AppFrame({
               <ChevronRight size={18} />
             </button>
           )}
-          <div ref={tabsRef} className="flex gap-2 overflow-x-auto hide-scrollbar">
+          <div ref={tabsRef} role="tablist" className="flex gap-2 overflow-x-auto hide-scrollbar">
             {days.map((d, idx) => (
               <button
                 key={idx}
+                role="tab"
+                aria-selected={safeDayIdx === idx}
+                aria-label={t("appFrame.day", { num: d.dayNum })}
                 onClick={() => {
                   setActiveDay(idx);
                   setFocusActivityId(null);
@@ -380,10 +426,98 @@ export default function AppFrame({
               <ChevronLeft size={18} />
             </button>
           )}
+          {(onAddDay || onDeleteDay || onMoveDay) && (
+            <button
+              onClick={() => setIsManagingDays((v) => !v)}
+              aria-label={t("appFrame.manageDaysAria")}
+              aria-pressed={isManagingDays}
+              className={`flex-shrink-0 p-1.5 rounded-full transition-colors ${
+                isManagingDays ? "bg-primary/10 text-primary" : "text-ink-muted hover:text-primary"
+              }`}
+            >
+              <ListPlus size={16} />
+            </button>
+          )}
         </div>
       )}
 
-      <div className={`flex-1 overflow-y-auto ${density.contentPad} ${bgClass} pb-24`}>
+      {hasTrip && isManagingDays && (
+        <div className="no-print shrink-0 bg-surface-container border-b border-outline/40 px-3 py-3 space-y-2 max-h-64 overflow-y-auto">
+          <p className="text-xs font-medium text-ink-muted">{t("appFrame.manageDaysHeading")}</p>
+          {days.map((d, idx) => (
+            <div
+              key={idx}
+              className="flex items-center justify-between gap-2 bg-white rounded-lg px-3 py-2 shadow-sm"
+            >
+              <span className="text-sm font-medium text-ink">
+                {t("appFrame.day", { num: d.dayNum })}
+                {tripStartWeekday !== null && (
+                  <span className="text-[10px] text-ink-muted opacity-70">
+                    {" "}
+                    ({weekdayLabel(tripStartWeekday + d.dayNum - 1, lang)})
+                  </span>
+                )}
+              </span>
+              <div className="flex items-center gap-0.5">
+                <button
+                  onClick={() => handleMoveDay(idx, 0)}
+                  disabled={!onMoveDay || idx === 0}
+                  aria-label={t("appFrame.moveDayToStartAria")}
+                  className="p-1 text-ink-muted hover:text-primary disabled:opacity-30 disabled:hover:text-ink-muted"
+                >
+                  <ChevronsLeft size={14} />
+                </button>
+                <button
+                  onClick={() => handleMoveDay(idx, idx - 1)}
+                  disabled={!onMoveDay || idx === 0}
+                  aria-label={t("appFrame.moveDayEarlierAria")}
+                  className="p-1 text-ink-muted hover:text-primary disabled:opacity-30 disabled:hover:text-ink-muted"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <button
+                  onClick={() => handleMoveDay(idx, idx + 1)}
+                  disabled={!onMoveDay || idx === days.length - 1}
+                  aria-label={t("appFrame.moveDayLaterAria")}
+                  className="p-1 text-ink-muted hover:text-primary disabled:opacity-30 disabled:hover:text-ink-muted"
+                >
+                  <ChevronRight size={14} />
+                </button>
+                <button
+                  onClick={() => handleMoveDay(idx, days.length - 1)}
+                  disabled={!onMoveDay || idx === days.length - 1}
+                  aria-label={t("appFrame.moveDayToEndAria")}
+                  className="p-1 text-ink-muted hover:text-primary disabled:opacity-30 disabled:hover:text-ink-muted"
+                >
+                  <ChevronsRight size={14} />
+                </button>
+                {onDeleteDay && (
+                  <button
+                    onClick={() => onDeleteDay(idx)}
+                    aria-label={t("appFrame.deleteDayAria")}
+                    className="p-1 text-red-500 hover:text-red-700"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+          {onAddDay && (
+            <button
+              onClick={onAddDay}
+              className="w-full flex items-center justify-center gap-2 text-sm font-semibold text-primary hover:text-primary-dark py-2 border-2 border-dashed border-outline rounded-lg"
+            >
+              <Plus size={16} />
+              {t("appFrame.addDay")}
+            </button>
+          )}
+        </div>
+      )}
+
+      <div
+        className={`flex-1 overflow-y-auto ${density.contentPad} ${bgClass} pb-24 print:overflow-visible print:pb-0 print:bg-white`}
+      >
         {!hasTrip && (
           <div className="h-full flex flex-col items-center justify-center text-center text-ink-muted gap-3 px-6">
             <Smartphone size={40} className="opacity-40" />
@@ -391,28 +525,78 @@ export default function AppFrame({
           </div>
         )}
 
-        {hasTrip && activeTab === "itinerary" && appDesign.visibleTabs.itinerary && (
-          <ItineraryList
-            activities={day.activities}
-            themeClass={themeClass}
-            accentColor={accentColor}
-            playingPodcast={playingPodcast}
-            onPlayPodcast={togglePlay}
-            onUpdateActivity={handleUpdateActivity}
-            onAddActivity={onAddActivity ? handleAddActivity : undefined}
-            onDeleteActivity={onDeleteActivity ? handleDeleteActivity : undefined}
-            onShowOnMap={appDesign.visibleTabs.map ? handleShowOnMap : undefined}
-            isLocalOnly={isLocalOnly}
-            currency={currency}
-            cardPad={density.cardPad}
-            cardLayout={appDesign.cardLayout}
-            cornerStyle={appDesign.cornerStyle}
-            showPodcasts={appDesign.showPodcasts}
-          />
+        {/* One list per day: inactive days stay display:none on screen (so
+            Testing Library / a11y tree only see the active day) and are forced
+            visible again by the print stylesheet so the full itinerary prints. */}
+        {hasTrip && appDesign.visibleTabs.itinerary && (
+          <div
+            className={activeTab === "itinerary" ? "space-y-8" : "space-y-8 print-only-block"}
+            style={activeTab === "itinerary" ? undefined : { display: "none" }}
+          >
+            {days.map((d, idx) => (
+              <section
+                key={d.dayNum}
+                className="break-inside-avoid print-day"
+                style={idx === safeDayIdx ? undefined : { display: "none" }}
+              >
+                <h2
+                  className="text-lg font-bold mb-3"
+                  style={idx === safeDayIdx ? { display: "none" } : undefined}
+                >
+                  {t("appFrame.day", { num: d.dayNum })}
+                </h2>
+                <ItineraryList
+                  activities={d.activities}
+                  themeClass={themeClass}
+                  accentColor={accentColor}
+                  playingPodcast={idx === safeDayIdx ? playingPodcast : null}
+                  onPlayPodcast={togglePlay}
+                  onUpdateActivity={idx === safeDayIdx ? handleUpdateActivity : () => {}}
+                  onAddActivity={
+                    idx === safeDayIdx && onAddActivity ? handleAddActivity : undefined
+                  }
+                  onDeleteActivity={
+                    idx === safeDayIdx && onDeleteActivity ? handleDeleteActivity : undefined
+                  }
+                  onShowOnMap={
+                    idx === safeDayIdx && appDesign.visibleTabs.map ? handleShowOnMap : undefined
+                  }
+                  isLocalOnly={isLocalOnly}
+                  currency={currency}
+                  cardPad={density.cardPad}
+                  cardLayout={appDesign.cardLayout}
+                  cornerStyle={appDesign.cornerStyle}
+                  showPodcasts={appDesign.showPodcasts}
+                />
+              </section>
+            ))}
+          </div>
+        )}
+
+        {/* Printed alongside the itinerary rather than hidden like map/price/
+            chat: the point of a packing list is to have it with you, and a
+            printed trip that omits it is missing half the job. */}
+        {hasTrip && appDesign.visibleTabs.checklist && (
+          <div
+            className={activeTab === "checklist" ? undefined : "print-only-block"}
+            style={activeTab === "checklist" ? undefined : { display: "none" }}
+          >
+            <ChecklistPanel
+              tripData={tripData}
+              activeDayIndex={safeDayIdx}
+              ticksScope={welcomeStorageKey}
+              onAddItem={onAddChecklistItem}
+              onUpdateItem={onUpdateChecklistItem}
+              onDeleteItem={onDeleteChecklistItem}
+              onSuggest={onSuggestChecklist}
+              isSuggesting={isSuggestingChecklist}
+              suggestError={checklistSuggestError}
+            />
+          </div>
         )}
 
         {hasTrip && activeTab === "map" && appDesign.visibleTabs.map && (
-          <div className="h-full w-full animate-fade-in">
+          <div className="h-full w-full animate-fade-in print:hidden">
             <Suspense
               fallback={
                 <div className="h-full flex items-center justify-center text-ink-muted text-sm">
@@ -435,13 +619,13 @@ export default function AppFrame({
         )}
 
         {hasTrip && activeTab === "price" && appDesign.visibleTabs.price && (
-          <div className="h-full animate-fade-in">
+          <div className="h-full animate-fade-in print:hidden">
             <PriceSummary tripData={tripData} currency={currency} />
           </div>
         )}
 
         {hasTrip && activeTab === "chat" && appDesign.visibleTabs.chat && (
-          <div className="h-full animate-fade-in">
+          <div className="h-full animate-fade-in print:hidden">
             <ChatPanel
               agentMessages={agentMessages}
               chatEndRef={chatEndRef}
@@ -450,6 +634,8 @@ export default function AppFrame({
               onSendMessage={onSendMessage}
               isSending={isSendingMessage}
               notice={chatNotice}
+              onRetry={onRetryChat}
+              failedText={failedChatText}
               language={tripData.language}
             />
           </div>
@@ -457,27 +643,42 @@ export default function AppFrame({
       </div>
 
       {playingPodcast && (
-        <PodcastPlayer
-          activity={playingPodcast}
-          progress={progress}
-          error={podcastError}
-          onClose={stop}
-        />
+        <div className="no-print">
+          <PodcastPlayer
+            activity={playingPodcast}
+            progress={progress}
+            error={podcastError}
+            onClose={stop}
+          />
+        </div>
       )}
 
       {visibleNavTabs.length > 0 && (
-        <div className="shrink-0 bg-white border-t border-outline/40 flex justify-around p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 relative shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <div className="no-print shrink-0 bg-white border-t border-outline/40 flex justify-around p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 relative shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
           {visibleNavTabs.map(({ id, icon: Icon, labelKey }) => (
             <button
               key={id}
               onClick={() => setActiveTab(id)}
+              aria-current={activeTab === id ? "page" : undefined}
+              aria-label={t(labelKey)}
               className={`flex flex-col items-center gap-1 ${activeTab === id ? "text-secondary-dark" : "text-ink-muted"}`}
             >
-              <Icon size={20} />
+              <Icon size={20} aria-hidden />
               <span className={density.navLabel}>{t(labelKey)}</span>
             </button>
           ))}
         </div>
+      )}
+
+      {hasTrip && (
+        <a
+          href={APP_HOME_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="no-print shrink-0 block text-center bg-surface-container/70 hover:bg-surface-container text-[10px] text-ink-muted hover:text-primary py-1 px-3"
+        >
+          {t("appFrame.madeWith")}
+        </a>
       )}
     </div>
   );

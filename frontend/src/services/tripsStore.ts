@@ -11,9 +11,9 @@ import type { Auth, User as FirebaseUser } from "firebase/auth";
 import type { Firestore, Timestamp as TimestampType } from "firebase/firestore";
 import { getFirebaseApp, isFirebaseConfigured } from "../firebase";
 import type { TripData } from "../api";
-import type { Theme } from "../components/ThemeSelector";
-import { type AppDesign, DEFAULT_APP_DESIGN, normalizeAppDesign } from "./appDesign";
+import { type AppDesign, type Theme, DEFAULT_APP_DESIGN, normalizeAppDesign } from "./appDesign";
 import { ensureStartWeekday, normalizeTripForLoad } from "./normalizeTrip";
+import { buildShareUrl } from "./shareLink";
 
 export type { FirebaseUser };
 
@@ -258,9 +258,7 @@ export async function shareTrip(
     },
     { merge: true },
   );
-  const url = new URL(window.location.href);
-  url.searchParams.set("shared", tripId);
-  return url.toString();
+  return buildShareUrl(tripId, trip.title);
 }
 
 /**

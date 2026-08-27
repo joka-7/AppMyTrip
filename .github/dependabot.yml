@@ -8,10 +8,34 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    # Majors here mean React/Tailwind/Vite migrations, not routine upkeep. They
+    # need a hand-driven upgrade branch, so keep them out of the weekly PR.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
+      # The lint/type toolchain has to move together: typescript-eslint pins a
+      # narrow peer range on typescript, and a lone typescript bump breaks
+      # `npm install` outright. First matching group wins, so this stays above
+      # the catch-all.
+      frontend-toolchain:
+        patterns:
+          - "typescript"
+          - "typescript-eslint"
+          - "@typescript-eslint/*"
+          - "eslint"
+          - "eslint-*"
+          - "@eslint/*"
+          - "prettier"
+        update-types:
+          - minor
+          - patch
       frontend-deps:
         patterns:
           - "*"
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: pip
     directory: /backend

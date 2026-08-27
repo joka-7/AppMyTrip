@@ -62,17 +62,23 @@ can serve the same ASGI app as a function.
 
 | Model | Role | Notable fields |
 |-------|------|----------------|
-| `Activity` | one schedule item | `id`, `time`, `title`, `desc`, `type` (`Literal["attraction","food","lodging","transport"]`), `hasPodcast`, `podcast_url`, `podcast_brief`, `map_coordinates: dict[str,float] \| None`, `price`, `url`, `directions_car`, `directions_transit` |
-| `TripDay` | one day | `dayNum: int`, `activities: list[Activity]` |
-| `TripData` | whole trip | `title`, `dates`, `days`, `language` (ISO 639-1, default `"he"`), `photo_album_url` |
+| `Activity` | one schedule item | `id`, `time`, `title`, `desc`, `type` (`Literal["attraction","food","lodging","transport"]`), `hasPodcast`, `podcast_url`, `podcast_brief`, `map_coordinates: dict[str,float] \| None`, `price`, `url`, `directions_car`, `directions_transit`, `map_url` (user-pasted Maps link overriding the generated one), `travel_mode` (`Literal["driving","walking","bicycling","transit","hiking"] \| None` — the leg *into* this stop; null on a day's first activity) |
+| `ChecklistItem` | one thing to bring | `id`, `text` |
+| `TripDay` | one day | `dayNum: int`, `activities: list[Activity]`, `checklist: list[ChecklistItem]` |
+| `TripData` | whole trip | `title`, `dates`, `days`, `language` (ISO 639-1, default `"he"`), `photo_album_url`, `checklist: list[ChecklistItem]` (trip-wide essentials) |
 | `ParseRequest` | Stage 1 input | `raw_text`, `preferences?`, `api_key?`, `provider?` |
-| `EnhanceOptions` | Stage 2 toggles | `directions_car`, `directions_transit`, `prices`, `podcast`, `links` (all `bool=False`) |
+| `EnhanceOptions` | Stage 2 toggles | `directions_car`, `directions_transit`, `prices`, `podcast`, `links`, `travel_mode`, `packing` (all `bool=False`). The last two are whole-trip options and are excluded from the per-activity top-up in `tripEnhance.ts`. |
 | `EnhanceRequest` | Stage 2 input | `trip_data`, `options`, `api_key?`, `provider?` |
 | `AgentInteractRequest` | Stage 3 input | `trip_data`, `user_message`, `preferences?`, `api_key?`, `provider?` |
 | `AgentResponse` | Stage 3 LLM output | `updated_trip: TripData`, `agent_reply: str` |
 
 The field descriptions double as **LLM prompt instructions** — `TripData.model_json_schema()`
 is embedded in each prompt so the model returns a schema-conformant object.
+
+Anything the frontend stores on a trip **must** appear here too. Pydantic drops
+unknown keys, so a field present only in `frontend/src/api.ts` is deleted on
+every `/parse`, `/agent` and `/enhance` round-trip — the next chat message would
+wipe a user's pasted map link or packing list.
 
 ### 2.3 `routers/builder.py` — endpoints + `TripBuilder`
 
@@ -199,10 +205,20 @@ Handlers: `handleProcessText` (parse, fallback → `DEMO_TRIP`), `handleEnhance`
 (generate-media), `handleUpdateActivity`, `handleAddActivity`, `handleUpdateTrip`,
 and `enhanceNewActivities(before, after)` — diffs by activity `id`, re-runs the
 remembered enhancements only on newly added activities, then merges by `id`.
+`hooks/useTripEditing.ts` — shared by both the builder preview and the
+shared-viewer below, since both mutate a `TripData` via a `setTrip` callback —
+also exposes `handleAddDay` (append an empty day), `handleDeleteDay(index)`,
+and `handleMoveDay(fromIndex, toIndex)` — one primitive covering
+move-earlier/later and jump-to-start/end — all of which renumber `dayNum` back
+to a gapless `1..N`.
 
 **`SharedTripViewer`** is deliberately **local-only**: it loads the trip via
 `loadSharedTrip`, keeps its own `trip`/chat state, and its handlers only call
 `setTrip` — it never imports `saveTrip`/`shareTrip`, so edits stay in the browser.
+On load it also calls `setLangIfUnset(result.trip.language)` (from
+`i18n/store.ts`) — a no-op unless the visitor's browser has no stored
+`appmytrip_lang` yet, in which case the UI defaults to the trip's own language
+instead of the hardcoded Hebrew fallback.
 
 ### 3.2 `api.ts` — typed client
 
@@ -243,9 +259,9 @@ flowchart TB
 
 | Component | Purpose / key props | Notable behavior |
 |-----------|---------------------|------------------|
-| `AppFrame` | The generated-app UI (header, day tabs, 4 content tabs, bottom nav). Props: `tripData`, `theme`, chat props, `onUpdateActivity/onAddActivity/onUpdateTrip`, `isLocalOnly` | Owns `activeDay`, `activeTab`, `focusActivityId`, header edit drafts; uses `usePodcastPlayer`; empty-state safe; theme → header color; scroll arrows when `days>4`; Hebrew weekday letter on day tabs only when `parseTripStartDate` finds a start date in `dates` |
+| `AppFrame` | The generated-app UI (header, day tabs, 4 content tabs, bottom nav). Props: `tripData`, `theme`, chat props, `onUpdateActivity/onAddActivity/onUpdateTrip`, `onAddDay/onDeleteDay/onMoveDay`, `isLocalOnly` | Owns `activeDay`, `activeTab`, `focusActivityId`, header edit drafts, `isManagingDays`; uses `usePodcastPlayer`; empty-state safe; theme → header color; scroll arrows when `days>4`; Hebrew weekday letter on day tabs only when `parseTripStartDate` finds a start date in `dates`; "manage days" panel (toggled by `isManagingDays`) adds/deletes/reorders days, moving `activeDay` to follow a day it just moved; unconditional "Made with AppMyTrip" `no-print` footer link to `window.location.origin`, shown whenever the trip has days |
 | `PhonePreview` | Wraps `AppFrame` in a phone bezel for the builder's live preview | Pure presentational passthrough |
-| `SharedAppPage` | Full-screen `AppFrame` for `?shared` links + import | Adds local-only notice, import via `tripFile` |
+| `SharedAppPage` | Full-screen `AppFrame` for `?shared` links + import | Adds local-only notice, import via `tripFile`, `LanguageSwitcher` in the toolbar so a visitor can pick their own UI language independent of the trip's |
 | `ItineraryList` | Renders/edits a day's activities. Props: `activities`, `onUpdateActivity`, `onAddActivity?`, `onShowOnMap?`, `playingPodcast`, `onPlayPodcast` | Inline edit/add drafts (time/title/desc/type/price/url/lat/lng); new pin defaults near an existing one; `newActivityId()` uses `crypto.randomUUID`; podcast play button when `hasPodcast` |
 | `MapView` | Leaflet/OpenStreetMap map of a day's activities (react-leaflet). Props: `activities`, `focusActivityId`, `onUpdateActivity`, `onClearFocus` | `FitBounds` child auto-fits/zooms; per-type `divIcon` markers, draggable when `onUpdateActivity` set (persist coords on `dragend`); dashed `Polyline` shows stop order (not a real route); focus mode shows one pin; external **Google Maps** place/directions links (no paid tiles/API) |
 | `ChatPanel` | Message list + input; reused by Step 3 and `AppFrame`'s chat tab | Exports `AgentMessage` type; typing indicator when `isSending`; shows `LanguageIndicator` |

@@ -1,9 +1,24 @@
-import { useEffect, useRef, useState } from "react";
-import { Cloud, Download, LogIn, LogOut, Save, Share2, FolderOpen, Upload, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Cloud,
+  Calendar,
+  Download,
+  LogIn,
+  LogOut,
+  Printer,
+  Save,
+  Share2,
+  FolderOpen,
+  Upload,
+  X,
+} from "lucide-react";
 import type { TripData } from "../api";
+import { useDismissable } from "../hooks/useDismissable";
 import { useI18n, type TranslationKey } from "../i18n/useI18n";
+import { exportTripToIcs } from "../services/icsExport";
 import { exportTripToFile, importTripFromFile } from "../services/tripFile";
 import LinkDisplay from "./LinkDisplay";
+import { shareMessage } from "../services/shareLink";
 import {
   type CloudTripSummary,
   type TripStage,
@@ -79,8 +94,14 @@ export default function CloudMenu({
   const [uid, setUid] = useState<string | null>(null);
   const [trips, setTrips] = useState<CloudTripSummary[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const closeMenu = useCallback(() => {
+    setIsOpen(false);
+    setConfirmDeleteId(null);
+  }, []);
+  const menuRef = useDismissable(isOpen, closeMenu);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [shareDays, setShareDays] = useState(0);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [saveStage, setSaveStage] = useState<TripStage>(() => stageForStep(currentStep));
@@ -245,7 +266,15 @@ export default function CloudMenu({
 
   const handleDelete = async (trip: CloudTripSummary) => {
     if (!uid) return;
+    // Two-step confirm: first click arms the button, second click deletes.
+    // Accidental hover-clicks used to wipe both the private trip and its
+    // public share link with no undo.
+    if (confirmDeleteId !== trip.id) {
+      setConfirmDeleteId(trip.id);
+      return;
+    }
     setBusy(true);
+    setConfirmDeleteId(null);
     try {
       await deleteTrip(uid, trip.id);
       // Best-effort: also revoke any public share link so it doesn't outlive the trip.
@@ -277,6 +306,22 @@ export default function CloudMenu({
         {t("cloud.export")}
       </button>
       <button
+        onClick={() => exportTripToIcs(tripData)}
+        disabled={tripData.days.length === 0}
+        className="flex items-center gap-1.5 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high disabled:opacity-50 px-3 py-1.5 rounded-full transition-colors"
+      >
+        <Calendar size={16} />
+        {t("cloud.exportIcs")}
+      </button>
+      <button
+        onClick={() => window.print()}
+        disabled={tripData.days.length === 0}
+        className="flex items-center gap-1.5 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high disabled:opacity-50 px-3 py-1.5 rounded-full transition-colors"
+      >
+        <Printer size={16} />
+        {t("cloud.print")}
+      </button>
+      <button
         onClick={() => fileInputRef.current?.click()}
         className="flex items-center gap-1.5 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-full transition-colors"
       >
@@ -303,23 +348,41 @@ export default function CloudMenu({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    // flex-wrap, same as the signed-out branch above: the parent navbar can only
+    // break *between* its children, so without this the four file controls plus
+    // the email chip become one unbreakable ~500px row and push the whole
+    // document into horizontal scroll on a phone.
+    <div className="flex flex-wrap items-center gap-2">
       {fileImportControls}
-      <div className="relative">
+      <div className="relative min-w-0" ref={menuRef}>
         <button
           onClick={() => setIsOpen((v) => !v)}
-          className="flex items-center gap-2 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-full transition-colors"
+          aria-expanded={isOpen}
+          aria-haspopup="menu"
+          className="flex items-center gap-2 max-w-[12rem] sm:max-w-none min-w-0 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-full transition-colors"
         >
-          <Cloud size={16} />
-          {email}
+          <Cloud size={16} className="shrink-0" />
+          {/* A long address is one unbreakable token; as a flex item it has
+              min-width:auto and would otherwise refuse to shrink. */}
+          <span className="truncate">{email}</span>
         </button>
 
         {isOpen && (
-          <div className="absolute end-0 mt-2 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-lg border border-outline/20 p-4 z-40 text-start">
+          <div
+            role="menu"
+            className="fixed inset-x-4 top-4 max-h-[calc(100vh-2rem)] w-auto overflow-y-auto
+              sm:absolute sm:inset-x-auto sm:top-auto sm:end-0 sm:mt-2 sm:max-h-none sm:w-96
+              sm:max-w-[calc(100vw-2rem)] sm:overflow-visible bg-white rounded-xl shadow-lg
+              border border-outline/20 p-4 z-40 text-start"
+          >
             {notice && <p className="text-xs text-amber-700 mb-2">{notice}</p>}
             {shareUrl && (
               <div className="mb-3">
-                <LinkDisplay url={shareUrl} />
+                <LinkDisplay
+                  url={shareUrl}
+                  shareTitle={tripData.title}
+                  shareText={shareMessage(tripData, shareUrl)}
+                />
               </div>
             )}
 
@@ -404,9 +467,18 @@ export default function CloudMenu({
                   <button
                     onClick={() => handleDelete(trip)}
                     disabled={busy}
-                    className="opacity-0 group-hover:opacity-100 text-ink-muted hover:text-red-500 p-1"
+                    aria-label={
+                      confirmDeleteId === trip.id
+                        ? t("cloud.deleteConfirmAria", { name: trip.name })
+                        : t("cloud.deleteAria", { name: trip.name })
+                    }
+                    className={`p-1 ${
+                      confirmDeleteId === trip.id
+                        ? "opacity-100 text-red-600 font-semibold text-[10px] px-1.5"
+                        : "opacity-0 group-hover:opacity-100 focus:opacity-100 text-ink-muted hover:text-red-500"
+                    }`}
                   >
-                    <X size={14} />
+                    {confirmDeleteId === trip.id ? t("cloud.deleteConfirm") : <X size={14} />}
                   </button>
                 </li>
               ))}

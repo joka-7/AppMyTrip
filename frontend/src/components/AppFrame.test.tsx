@@ -52,6 +52,74 @@ describe("AppFrame", () => {
     expect(screen.getByText(/סה"כ לטיול|Total/i)).toBeInTheDocument();
   });
 
+  it("links back to the AppMyTrip homepage when the trip has days", () => {
+    render(
+      <AppFrame
+        tripData={trip}
+        appDesign={DEFAULT_APP_DESIGN}
+        agentMessages={[]}
+        chatInput=""
+        onChangeChatInput={vi.fn()}
+        onSendMessage={vi.fn()}
+        chatEndRef={createRef()}
+        onUpdateActivity={vi.fn()}
+        onUpdateTrip={vi.fn()}
+      />,
+    );
+
+    const madeWithLink = screen.getByRole("link", { name: /AppMyTrip/ });
+    expect(madeWithLink).toHaveAttribute("href", window.location.origin);
+    expect(madeWithLink).toHaveAttribute("target", "_blank");
+  });
+
+  it("lets the user add, reorder, and delete days from the manage-days panel", () => {
+    const twoDayTrip: TripData = {
+      title: "Frame Trip",
+      dates: "Mon - Wed",
+      days: [
+        { dayNum: 1, activities: [] },
+        { dayNum: 2, activities: [] },
+      ],
+    };
+    const onAddDay = vi.fn();
+    const onDeleteDay = vi.fn();
+    const onMoveDay = vi.fn();
+
+    render(
+      <AppFrame
+        tripData={twoDayTrip}
+        appDesign={DEFAULT_APP_DESIGN}
+        agentMessages={[]}
+        chatInput=""
+        onChangeChatInput={vi.fn()}
+        onSendMessage={vi.fn()}
+        chatEndRef={createRef()}
+        onUpdateActivity={vi.fn()}
+        onUpdateTrip={vi.fn()}
+        onAddDay={onAddDay}
+        onDeleteDay={onDeleteDay}
+        onMoveDay={onMoveDay}
+      />,
+    );
+
+    // Panel starts collapsed.
+    expect(screen.queryByText("הוספת יום")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "ניהול ימים" }));
+    expect(screen.getByText("הוספת יום")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("הוספת יום"));
+    expect(onAddDay).toHaveBeenCalledTimes(1);
+
+    const moveLaterButtons = screen.getAllByRole("button", { name: "העברה מאוחר יותר" });
+    fireEvent.click(moveLaterButtons[0]);
+    expect(onMoveDay).toHaveBeenCalledWith(0, 1);
+
+    const deleteButtons = screen.getAllByRole("button", { name: "מחיקת יום" });
+    fireEvent.click(deleteButtons[1]);
+    expect(onDeleteDay).toHaveBeenCalledWith(1);
+  });
+
   it("shows the empty-state copy when the trip has no days", () => {
     render(
       <AppFrame

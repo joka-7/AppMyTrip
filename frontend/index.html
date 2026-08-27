@@ -8,11 +8,29 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="AppMyTrip" />
-    <link rel="icon" type="image/png" href="/logo.png" />
+    <!-- A tab favicon is ~16px, so it uses the tightly-cropped, full-bleed icon
+         rather than logo.png, whose wide margins shrink the artwork to nothing
+         at that size. -->
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <!-- Fonts are self-hosted via @fontsource (see src/index.css) so the PWA
          precache covers them offline and the document isn't blocked on a
          Google Fonts round-trip. -->
+    <!-- Chat apps and social previews read these from the served HTML, before any
+         JS runs. A static SPA serves one document for every route, so these
+         describe the app itself — a shared trip carries its own name in the
+         link's `?trip=` slug instead (see services/shareLink.ts). Per-trip
+         preview cards would need server-rendered tags. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="AppMyTrip" />
+    <meta property="og:title" content="תכנון טיול באמצעות AI — AppMyTrip" />
+    <meta property="og:description" content="תכנון טיולים והפיכתם לאפליקציית מובייל באמצעות AI" />
+    <meta property="og:image" content="/icon-512.png" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="תכנון טיול באמצעות AI — AppMyTrip" />
+    <meta name="twitter:description" content="תכנון טיולים והפיכתם לאפליקציית מובייל באמצעות AI" />
+    <meta name="twitter:image" content="/icon-512.png" />
     <title>תכנון טיול באמצעות AI — AppMyTrip</title>
   </head>
   <body>
