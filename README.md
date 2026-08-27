@@ -45,31 +45,25 @@ SCREENSHOT_BASE_URL=http://localhost:5174 npx playwright test e2e/screenshots.sp
 
 ## Structure
 
+<!-- BEGIN GENERATED TREE (depth=1 entries=all) -->
+```text
+appmytrip/
+├── .github/
+├── .run/      # Shared PyCharm/WebStorm run configurations
+├── backend/   # FastAPI service (LLM parse, AI agent, TTS podcasts) — stateless
+├── docs/      # Design documentation
+├── frontend/  # Vite + React + TypeScript + Tailwind prototype
+├── .gitignore
+├── .gitmodules
+└── README.md  # AppMyTrip
 ```
-AppMyTrip/
-├── backend/          FastAPI service (LLM parse, AI agent, TTS podcasts) — stateless
-│   ├── trip_api_backend.py     entrypoint: app creation, CORS, static mount, routers
-│   ├── api/index.py            Vercel serverless entrypoint (re-exports the ASGI app)
-│   ├── vercel.json             Vercel Python runtime config
-│   ├── models.py                Pydantic request/response models (Activity, TripData, ...)
-│   ├── services/                llm.py (multi-provider), tts.py (Piper/mock TTS)
-│   ├── routers/                builder.py (/api/trip/*)
-│   ├── test_trip_api.py        offline tests (LLM mocked)
-│   ├── requirements.txt
-│   └── requirements-dev.txt
-├── frontend/         Vite + React + TypeScript + Tailwind prototype
-│   ├── src/App.tsx             4-step builder UI + live preview / shared-trip viewer
-│   ├── src/firebase.ts         Firebase init (Google sign-in + Firestore)
-│   ├── src/i18n/               UI language store + he/en/fr dictionaries
-│   ├── src/hooks/              podcast player, install prompt, trip branding, …
-│   ├── src/services/           tripsStore, appDesign, tripFile, apiKey, …
-│   ├── src/components/         builder steps, AppFrame, MapView, CloudMenu, …
-│   ├── firestore.rules         Firestore security rules (per-user + public shares)
-│   └── e2e/                    Playwright end-to-end tests (real browser, backend mocked)
-├── docs/             design documentation
-│   ├── hld/hld.md              High-Level Design (architecture + flows)
-│   └── lld/lld.md              Low-Level Design (modules, classes, contracts)
-└── .run/             shared PyCharm/WebStorm run configurations
+<!-- END GENERATED TREE -->
+
+Full annotated tree, every file: [`docs/STRUCTURE.md`](docs/STRUCTURE.md). Generated —
+regenerate after adding/renaming a file with:
+```bash
+python <ogen-ai>/skills/repo_tree/gen_tree.py --project . --output docs/STRUCTURE.md
+python <ogen-ai>/skills/repo_tree/gen_tree.py --project . --output README.md --max-depth 1
 ```
 
 ## Backend
