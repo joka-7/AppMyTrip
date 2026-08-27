@@ -74,10 +74,20 @@ async function useEnglishUi(page: import("@playwright/test").Page) {
   }, LANG_STORAGE_KEY);
 }
 
-async function goToStep4(page: import("@playwright/test").Page) {
+async function goToStep2(page: import("@playwright/test").Page) {
   await page.goto(BASE_URL ? `${BASE_URL}/` : "/");
   await page.getByRole("button", { name: "Create initial app structure" }).click();
+  await page.getByText("Additional enhancements (optional)").waitFor();
+}
+
+async function goToStep3(page: import("@playwright/test").Page) {
+  await goToStep2(page);
   await page.getByRole("button", { name: "Skip, continue to agent" }).click();
+  await page.getByText("AI Completion Agent").waitFor();
+}
+
+async function goToStep4(page: import("@playwright/test").Page) {
+  await goToStep3(page);
   await page.getByRole("button", { name: "Continue to app design" }).click();
   await page.getByText("Step 4 of 4").waitFor();
 }
@@ -89,6 +99,48 @@ test.describe("capture UI screenshots", () => {
     await useEnglishUi(page);
     await mockBackend(page);
     await page.setViewportSize({ width: 1440, height: 900 });
+  });
+
+  test("step 1 text entry screenshot", async ({ page }) => {
+    await page.goto(BASE_URL ? `${BASE_URL}/` : "/");
+    await page.getByText("Step 1 of 4").waitFor();
+
+    await page.screenshot({
+      path: path.join(OUT_DIR, "step1-overview.png"),
+      fullPage: true,
+      animations: "disabled",
+    });
+  });
+
+  test("step 2 enhancements screenshot", async ({ page }) => {
+    await goToStep2(page);
+
+    // Check a few options so the screenshot shows the "selected" state too.
+    await page.getByText("Add driving directions").click();
+    await page.getByText("Add a historical podcast").click();
+    await page.getByText("Add a what-to-bring list for each day").click();
+
+    await page.screenshot({
+      path: path.join(OUT_DIR, "step2-overview.png"),
+      fullPage: true,
+      animations: "disabled",
+    });
+  });
+
+  test("step 3 completion agent screenshot", async ({ page }) => {
+    await goToStep3(page);
+    // The mocked /api/trip/parse response's initial_agent_message renders as
+    // the agent's opening chat bubble — wait for it before capturing.
+    await page.getByText("Your Rome itinerary looks great!").waitFor();
+
+    await page.screenshot({
+      path: path.join(OUT_DIR, "step3-overview.png"),
+      fullPage: true,
+      // Full-page screenshots can be stitched together mid-way through a CSS
+      // fade-in transition, capturing itinerary cards at partial opacity —
+      // disable animations/transitions for the capture to avoid that.
+      animations: "disabled",
+    });
   });
 
   test("step 4 design screenshots", async ({ page }) => {

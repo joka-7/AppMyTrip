@@ -10,11 +10,65 @@ This repository currently contains an early **TripWeaver AI** prototype: a FastA
 backend that uses an LLM to parse trip text and a React web UI that walks the user
 through a 4-step build flow with a live phone preview.
 
+## What you can do with it
+
+- **Turn free text into a trip app.** Paste WhatsApp messages, a rough itinerary, or
+  just jot down ideas — the AI structures it into day-by-day stops with times,
+  descriptions, and map coordinates (Step 1).
+- **Layer on the details you actually want.** Opt in per trip to driving/transit
+  directions, estimated prices, a historical audio podcast per site, links to
+  attraction/transport sites, an automatically-worked-out travel mode per leg, and a
+  what-to-bring packing list — each is one extra (mockable) AI call, so you only pay
+  for what you check (Step 2).
+- **Iterate with an AI completion agent.** Chat in plain language ("add a beach
+  afternoon on Saturday", "we land Friday morning now") and watch the itinerary
+  update live next to the conversation, with a rotating live preview so you see the
+  result immediately (Step 3).
+- **Design the app your trip members will actually use.** Pick a theme color or
+  custom accent, font (sans/rounded/serif), text density, background template, card
+  layout (list or timeline), corner style, which tabs are visible and in what order,
+  a starting tab/day, and a one-time welcome message — then deploy it to your own
+  device with a tap (Step 4).
+- **Watch every change live.** A phone-shaped preview mirrors the itinerary, map,
+  packing list, pricing, and AI chat tabs as you edit, at every step of the build.
+- **Get the right navigation link for every stop**, automatically: Google Maps and
+  Waze links per leg, using the travel mode that actually fits that leg (walking,
+  driving, transit, cycling, hiking) rather than one mode for the whole day.
+- **Never forget what to bring.** An AI-suggested or hand-edited checklist, split
+  into trip-wide items and per-day items, with each viewer ticking their own copy.
+- **Save, load, and share trips.** Sign in with Google, save trips to the cloud,
+  reorder/add/delete whole days, and share a link — read-only, or editable by
+  admins you invite — with an expiry you choose (7/30/90 days, or forever).
+- **Bring your own AI key.** Each user supplies their own Gemini, OpenAI, Anthropic,
+  or Groq API key from the navbar, so running the app costs its operator nothing.
+- **Print or export** the itinerary and checklist, or export the trip dates to a
+  calendar file.
+- **Use it in Hebrew, English, or French**, including full right-to-left layout.
+
 ## Screenshots
 
-Step 4 — **App design** (English UI). The builder panel on the left updates the live
-phone preview on the right as you change theme, fonts, background templates, tab
-order, and other options.
+All screenshots below are the English UI, captured at each step of the 4-step build
+flow — the builder panel on the left, with the live phone preview on the right.
+
+**Step 1 — Enter text.** Paste (or type) a free-text description of the trip; the AI
+turns it into a structured, day-by-day app:
+
+![Step 1 enter trip text](docs/screenshots/step1-overview.png)
+
+**Step 2 — Additional enhancements (optional).** Pick which extra details the AI
+should fill in — directions, prices, podcasts, links, travel mode, packing list —
+and watch them merge into the live preview:
+
+![Step 2 optional enhancements](docs/screenshots/step2-overview.png)
+
+**Step 3 — AI completion agent.** Chat with the AI to fill gaps or make changes
+before generating media; its opening message and your replies show up here:
+
+![Step 3 AI completion agent](docs/screenshots/step3-overview.png)
+
+**Step 4 — App design.** The builder panel on the left updates the live phone
+preview on the right as you change theme, fonts, background templates, tab order,
+and other options.
 
 | Overview | Live preview (default) |
 | --- | --- |
