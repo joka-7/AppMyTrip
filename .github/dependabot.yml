@@ -54,3 +54,10 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 3
+    # Ungrouped, this ecosystem opens one PR per action, so a quiet week still
+    # costs three reviews for what is really a single upkeep change. The
+    # workflows pin the same handful of actions, so move them together.
+    groups:
+      github-actions:
+        patterns:
+          - "*"
