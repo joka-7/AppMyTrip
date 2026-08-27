@@ -6,13 +6,7 @@
 // in the browser's localStorage — never sent anywhere but our own backend.
 
 export type LLMProvider =
-  | "gemini"
-  | "openai"
-  | "anthropic"
-  | "groq"
-  | "openrouter"
-  | "cerebras"
-  | "mistral";
+  "gemini" | "openai" | "anthropic" | "groq" | "openrouter" | "cerebras" | "mistral";
 
 // `free` marks providers with a usable free tier, surfaced in the key menu so
 // users can find a no-cost option quickly.
