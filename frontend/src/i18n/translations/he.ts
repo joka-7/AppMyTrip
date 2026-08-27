@@ -69,6 +69,12 @@ export const he = {
   // Chat panel
   "chat.inputPlaceholder": "ענה לסוכן (למשל: 'כן, תוסיף')",
   "chat.send": "שלח",
+  // Shown alongside a failed-turn notice, next to links straight into a free
+  // external AI chat product (ChatGPT/Claude/etc.) — offered once every saved
+  // credential has already failed, so there's nothing left for us to retry.
+  "chat.askElsewhere": "אפשר גם לשאול ישירות:",
+  "chat.askExternallyToggle": "שאלו AI חיצוני ישירות",
+  "chat.askExternallyNeedsText": "כתבו הודעה קודם כדי לשלוח אותה ל-AI חיצוני.",
 
   // Step 4 — design & deploy
   "step4.heading": "שלב אחרון: עיצוב האפליקציה שלך",
@@ -283,6 +289,11 @@ export const he = {
   "apiKey.inputPlaceholder": "API Key...",
   "apiKey.primaryNote": "הספק הזה מנוסה ראשון בכל בקשה.",
   "apiKey.makePrimary": "הפוך לספק הראשי",
+  "apiKey.backendLabel": "מנוע השרת",
+  "apiKey.backendLegacy": "רגיל",
+  "apiKey.backendModelDispatcher": "Model Dispatcher (משותף)",
+  "apiKey.backendNote":
+    "הגדרה מתקדמת לבדיקות — אם השרת לא הגדיר את Model Dispatcher, הבקשה תיפול חזרה להתנהגות הרגילה.",
 
   // Cloud menu (sign-in, save, share, my trips)
   "cloud.importSuccess": "הטיול יובא מהקובץ.",

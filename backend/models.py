@@ -125,6 +125,13 @@ _CREDENTIALS_DESC = (
 _MAX_CREDENTIAL_GROUPS = 10
 _MAX_LEGACY_API_KEYS = 20
 _MAX_PREFERENCES_LENGTH = 1000
+# Shared description for the `backend` request field — see LLMService._execute.
+_BACKEND_DESC = (
+    "Which implementation serves this request: 'legacy' (this module's own httpx "
+    "retry/rotation, the default) or 'model_dispatcher' (the model-dispatcher package's "
+    "ModelGateway). Falls back to the server's LLM_BACKEND env var (default 'legacy') "
+    "if omitted — set per-request to override that default just for this call."
+)
 
 
 class AgentInteractRequest(BaseModel):
@@ -163,6 +170,7 @@ class AgentInteractRequest(BaseModel):
         "'anthropic', or 'groq'. Falls back to the server's LLM_PROVIDER env var "
         "(default 'gemini') if omitted.",
     )
+    backend: Literal["legacy", "model_dispatcher"] | None = Field(None, description=_BACKEND_DESC)
 
 
 class ParseRequest(BaseModel):
@@ -201,6 +209,7 @@ class ParseRequest(BaseModel):
         "'anthropic', or 'groq'. Falls back to the server's LLM_PROVIDER env var "
         "(default 'gemini') if omitted.",
     )
+    backend: Literal["legacy", "model_dispatcher"] | None = Field(None, description=_BACKEND_DESC)
 
 
 class EnhanceOptions(BaseModel):
@@ -246,6 +255,7 @@ class EnhanceRequest(BaseModel):
         "'anthropic', or 'groq'. Falls back to the server's LLM_PROVIDER env var "
         "(default 'gemini') if omitted.",
     )
+    backend: Literal["legacy", "model_dispatcher"] | None = Field(None, description=_BACKEND_DESC)
 
 
 class GenerateMediaRequest(BaseModel):

@@ -6,13 +6,7 @@
 // in the browser's localStorage — never sent anywhere but our own backend.
 
 export type LLMProvider =
-  | "gemini"
-  | "openai"
-  | "anthropic"
-  | "groq"
-  | "openrouter"
-  | "cerebras"
-  | "mistral";
+  "gemini" | "openai" | "anthropic" | "groq" | "openrouter" | "cerebras" | "mistral";
 
 // `free` marks providers with a usable free tier, surfaced in the key menu so
 // users can find a no-cost option quickly.
@@ -145,4 +139,25 @@ export function removeApiKey(key: string, provider: LLMProvider): void {
     delete map[provider];
   }
   saveKeyMap(map);
+}
+
+// Which LLMService implementation the backend uses to actually call the
+// provider — a server-side choice between two equivalent code paths, distinct
+// from *which provider/key* above. "legacy" (this app's own httpx retry/
+// rotation) is the default and always available; "model_dispatcher" (the
+// shared model-dispatcher gateway several of our other apps are also
+// standardising on) requires the backend to have that package installed —
+// see backend/requirements-model-dispatcher.txt. Sending it when the backend
+// doesn't have it configured just falls back to the server's own
+// LLM_BACKEND env var default, same as omitting it entirely.
+export type Backend = "legacy" | "model_dispatcher";
+const BACKEND_STORAGE_KEY = "tripweaver_backend";
+
+export function getBackend(): Backend {
+  const stored = localStorage.getItem(BACKEND_STORAGE_KEY);
+  return stored === "model_dispatcher" ? "model_dispatcher" : "legacy";
+}
+
+export function setBackend(backend: Backend): void {
+  localStorage.setItem(BACKEND_STORAGE_KEY, backend);
 }

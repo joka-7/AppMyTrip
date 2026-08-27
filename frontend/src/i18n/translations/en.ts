@@ -70,6 +70,9 @@ export const en: Record<TranslationKey, string> = {
   // Chat panel
   "chat.inputPlaceholder": "Reply to the agent (e.g. 'yes, add it')",
   "chat.send": "Send",
+  "chat.askElsewhere": "Or ask directly:",
+  "chat.askExternallyToggle": "Ask an external AI directly",
+  "chat.askExternallyNeedsText": "Type a message first to send it to an external AI.",
 
   // Step 4 — design & deploy
   "step4.heading": "Final step: design your app",
@@ -286,6 +289,11 @@ export const en: Record<TranslationKey, string> = {
   "apiKey.inputPlaceholder": "API Key...",
   "apiKey.primaryNote": "This provider is tried first on every request.",
   "apiKey.makePrimary": "Make this the primary provider",
+  "apiKey.backendLabel": "Server engine",
+  "apiKey.backendLegacy": "Standard",
+  "apiKey.backendModelDispatcher": "Model Dispatcher (shared)",
+  "apiKey.backendNote":
+    "Advanced/testing setting — if the server hasn't set up Model Dispatcher, the request just falls back to the standard behavior.",
 
   // Cloud menu (sign-in, save, share, my trips)
   "cloud.importSuccess": "The trip was imported from the file.",

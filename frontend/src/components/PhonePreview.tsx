@@ -16,6 +16,7 @@ export default function PhonePreview({
   isSendingMessage,
   chatNotice,
   onRetryChat,
+  failedChatText,
   onUpdateActivity,
   onAddActivity,
   onDeleteActivity,
@@ -40,6 +41,7 @@ export default function PhonePreview({
   isSendingMessage?: boolean;
   chatNotice?: string | null;
   onRetryChat?: () => void;
+  failedChatText?: string | null;
   onUpdateActivity: (dayIndex: number, activityId: string, patch: Partial<Activity>) => void;
   onAddActivity: (dayIndex: number, activity: Activity) => void;
   onDeleteActivity?: (dayIndex: number, activityId: string) => void;
@@ -67,6 +69,7 @@ export default function PhonePreview({
         isSendingMessage={isSendingMessage}
         chatNotice={chatNotice}
         onRetryChat={onRetryChat}
+        failedChatText={failedChatText}
         onUpdateActivity={onUpdateActivity}
         onAddActivity={onAddActivity}
         onDeleteActivity={onDeleteActivity}

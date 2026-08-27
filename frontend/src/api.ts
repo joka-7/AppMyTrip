@@ -154,6 +154,7 @@ export function parseTrip(
   apiKeys?: string[] | null,
   provider?: string | null,
   credentials?: ProviderCredentials[] | null,
+  backend?: string | null,
 ): Promise<ParseResponse> {
   return postJSON<ParseResponse>("/api/trip/parse", {
     raw_text: rawText,
@@ -161,6 +162,7 @@ export function parseTrip(
     credentials: credentials ?? null,
     api_keys: apiKeys ?? null,
     provider: provider ?? null,
+    backend: backend ?? null,
   });
 }
 
@@ -172,6 +174,7 @@ export function agentInteract(
   apiKeys?: string[] | null,
   provider?: string | null,
   credentials?: ProviderCredentials[] | null,
+  backend?: string | null,
 ): Promise<AgentResponse> {
   return postJSON<AgentResponse>("/api/trip/agent", {
     trip_data: tripData,
@@ -180,6 +183,7 @@ export function agentInteract(
     credentials: credentials ?? null,
     api_keys: apiKeys ?? null,
     provider: provider ?? null,
+    backend: backend ?? null,
   });
 }
 
@@ -201,6 +205,7 @@ export function enhanceTrip(
   apiKeys?: string[] | null,
   provider?: string | null,
   credentials?: ProviderCredentials[] | null,
+  backend?: string | null,
 ): Promise<EnhanceResponse> {
   return postJSON<EnhanceResponse>("/api/trip/enhance", {
     trip_data: tripData,
@@ -208,5 +213,6 @@ export function enhanceTrip(
     credentials: credentials ?? null,
     api_keys: apiKeys ?? null,
     provider: provider ?? null,
+    backend: backend ?? null,
   });
 }

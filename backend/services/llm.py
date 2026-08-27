@@ -594,6 +594,7 @@ class LLMService:
         api_key: str | None = None,
         api_keys: list[str] | None = None,
         provider: str | None = None,
+        backend: str | None = None,
         max_retries: int = 3,
         max_tokens: int = 16384,
     ) -> dict:
@@ -608,7 +609,31 @@ class LLMService:
         The whole call — every provider group, every key, every retry — is bounded
         by REQUEST_DEADLINE_SECONDS from the moment it starts, so a serverless host
         can't be killed mid-request by its own execution-time limit; we give up on
-        our own terms first, with an explanation, instead."""
+        our own terms first, with an explanation, instead.
+
+        Selectable backend: when `backend` (or, if unset, the LLM_BACKEND env var —
+        default "legacy") is "model_dispatcher", this delegates to
+        services.llm_model_dispatcher instead of the logic below — same inputs, same
+        dict return, same HTTPException status-code contract, backed by the
+        model-dispatcher package instead of this module's hand-rolled httpx retry/
+        rotation. `backend` lets one request override the server's default without
+        changing it for anyone else; every caller of _execute (parse_trip_text,
+        agent_interaction, enhance_trip, and their internal helpers) is unaffected
+        by which backend actually ends up active."""
+        resolved_backend = (backend or os.environ.get("LLM_BACKEND", "legacy")).strip().lower()
+        if resolved_backend == "model_dispatcher":
+            from services import llm_model_dispatcher
+
+            return await llm_model_dispatcher.execute(
+                system_prompt,
+                user_content,
+                credentials,
+                api_key,
+                api_keys,
+                provider,
+                max_tokens,
+            )
+
         groups = cls._resolve_credential_groups(credentials, api_key, api_keys, provider)
         logger.info(
             "llm request: trying %d provider group(s): %s",
@@ -675,6 +700,7 @@ class LLMService:
         provider: str | None = None,
         api_keys: list[str] | None = None,
         credentials: list[ProviderCredentials] | None = None,
+        backend: str | None = None,
     ) -> TripData:
         """Calls the LLM to parse raw text into a structured TripData object.
 
@@ -712,6 +738,7 @@ class LLMService:
             api_key=api_key,
             api_keys=api_keys,
             provider=provider,
+            backend=backend,
         )
         _coerce_invalid_activity_types(json_data)
 
@@ -732,6 +759,7 @@ class LLMService:
         provider: str | None = None,
         api_keys: list[str] | None = None,
         credentials: list[ProviderCredentials] | None = None,
+        backend: str | None = None,
     ) -> AgentResponse:
         """Calls the LLM to update the trip based on user chat and return a conversational
         reply. Re-sending/regenerating the *entire* trip on every chat turn (the
@@ -743,7 +771,7 @@ class LLMService:
         response can never corrupt the trip, only cost the time it would have taken
         anyway."""
         intent = await cls._resolve_edit_intent(
-            current_trip, user_message, credentials, api_key, api_keys, provider
+            current_trip, user_message, credentials, api_key, api_keys, provider, backend
         )
         try:
             if intent.action == "add_days":
@@ -755,6 +783,7 @@ class LLMService:
                     provider,
                     api_keys,
                     credentials,
+                    backend,
                 )
             if intent.action == "edit_days" and intent.day_numbers:
                 return await cls._agent_edit_days(
@@ -766,11 +795,19 @@ class LLMService:
                     provider,
                     api_keys,
                     credentials,
+                    backend,
                 )
         except (ValueError, ValidationError):
             pass  # the scoped attempt didn't check out — fall through below
         return await cls._agent_interaction_full(
-            current_trip, user_message, preferences, api_key, provider, api_keys, credentials
+            current_trip,
+            user_message,
+            preferences,
+            api_key,
+            provider,
+            api_keys,
+            credentials,
+            backend,
         )
 
     @classmethod
@@ -782,6 +819,7 @@ class LLMService:
         api_key: str | None,
         api_keys: list[str] | None,
         provider: str | None,
+        backend: str | None = None,
     ) -> AgentDayIntent:
         """Cheaply decides how much of the trip a chat turn actually needs to touch.
         Tries two free, local heuristics first — an explicit day number mentioned in
@@ -799,7 +837,7 @@ class LLMService:
         elif _mentions_adding_a_day(user_message):
             return AgentDayIntent(action="add_days")
         return await cls._classify_intent_via_llm(
-            current_trip, user_message, credentials, api_key, api_keys, provider
+            current_trip, user_message, credentials, api_key, api_keys, provider, backend
         )
 
     @classmethod
@@ -811,6 +849,7 @@ class LLMService:
         api_key: str | None,
         api_keys: list[str] | None,
         provider: str | None,
+        backend: str | None = None,
     ) -> AgentDayIntent:
         """Small/fast fallback classification when the day-number heuristic can't tell —
         sends only a one-line summary of each day (never full content), so this stays
@@ -848,6 +887,7 @@ class LLMService:
                 api_key=api_key,
                 api_keys=api_keys,
                 provider=provider,
+                backend=backend,
                 max_retries=2,
                 max_tokens=MAX_TOKENS_CLASSIFY,
             )
@@ -865,6 +905,7 @@ class LLMService:
         provider: str | None,
         api_keys: list[str] | None,
         credentials: list[ProviderCredentials] | None,
+        backend: str | None = None,
     ) -> AgentResponse:
         """Handles a chat turn that only adds new day(s) to the end of the trip — sends
         just the trip's basic info and its last existing day (for continuity), not the
@@ -905,6 +946,7 @@ class LLMService:
             api_key=api_key,
             api_keys=api_keys,
             provider=provider,
+            backend=backend,
             max_tokens=MAX_TOKENS_SCOPED_EDIT,
         )
         if isinstance(json_data, dict):
@@ -927,6 +969,7 @@ class LLMService:
         provider: str | None,
         api_keys: list[str] | None,
         credentials: list[ProviderCredentials] | None,
+        backend: str | None = None,
     ) -> AgentResponse:
         """Handles a chat turn that only touches specific existing day(s) — sends just
         those day(s), not the whole itinerary. Every other day is guaranteed unaffected,
@@ -967,6 +1010,7 @@ class LLMService:
             api_key=api_key,
             api_keys=api_keys,
             provider=provider,
+            backend=backend,
             max_tokens=MAX_TOKENS_SCOPED_EDIT,
         )
         if isinstance(json_data, dict):
@@ -990,6 +1034,7 @@ class LLMService:
         provider: str | None = None,
         api_keys: list[str] | None = None,
         credentials: list[ProviderCredentials] | None = None,
+        backend: str | None = None,
     ) -> AgentResponse:
         """The original whole-trip agent turn: sends the entire itinerary and expects
         the entire itinerary back. Used directly for edits that genuinely need full
@@ -1040,6 +1085,7 @@ class LLMService:
             api_key=api_key,
             api_keys=api_keys,
             provider=provider,
+            backend=backend,
         )
         if isinstance(json_data, dict):
             _coerce_invalid_activity_types(json_data.get("updated_trip"))
@@ -1150,6 +1196,7 @@ class LLMService:
         api_key: str | None,
         api_keys: list[str] | None,
         provider: str | None,
+        backend: str | None = None,
     ) -> TripData:
         system_prompt = (
             "You are an expert travel planner AI enriching an existing trip itinerary with one "
@@ -1174,6 +1221,7 @@ class LLMService:
             api_key=api_key,
             api_keys=api_keys,
             provider=provider,
+            backend=backend,
         )
         _coerce_invalid_activity_types(json_data)
         try:
@@ -1200,6 +1248,7 @@ class LLMService:
         provider: str | None = None,
         api_keys: list[str] | None = None,
         credentials: list[ProviderCredentials] | None = None,
+        backend: str | None = None,
     ) -> TripData:
         """Fills in the optional extras the user opted into in Step 2 (directions, prices,
         podcast briefs, links), plus — always, regardless of `options` — real map
@@ -1230,7 +1279,13 @@ class LLMService:
         results = await asyncio.gather(
             *(
                 cls._enhance_one(
-                    current_trip, spec.instruction, credentials, api_key, api_keys, provider
+                    current_trip,
+                    spec.instruction,
+                    credentials,
+                    api_key,
+                    api_keys,
+                    provider,
+                    backend,
                 )
                 for spec in selected
             ),
