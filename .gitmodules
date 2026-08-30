@@ -1,3 +1,6 @@
 [submodule "backend/vendor/model-dispatcher"]
 	path = backend/vendor/model-dispatcher
 	url = https://github.com/joka-7/ModelDispatcher
+[submodule ".ai"]
+	path = .ai
+	url = https://github.com/joka-7/ogen-ai

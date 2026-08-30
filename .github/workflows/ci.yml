@@ -12,12 +12,15 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v7
-        with:
-          # backend/vendor/model-dispatcher is a git submodule (see
-          # backend/.gitmodules), needed to install and test the opt-in
-          # LLM_BACKEND=model_dispatcher path below — a plain checkout
-          # leaves it empty.
-          submodules: true
+      # Only backend/vendor/model-dispatcher is fetched, not every submodule.
+      # `.ai` (ogen-ai) is also a submodule now, and it's a private repo the
+      # default GITHUB_TOKEN cannot read — `submodules: true` would fail the
+      # job trying. CI doesn't need `.ai` anyway: ai-sync runs in `copy` mode,
+      # so AGENTS.md and the skill trees are real committed files.
+      - name: Fetch the model-dispatcher submodule
+        # This job defaults to `backend`; the submodule path is repo-relative.
+        working-directory: ${{ github.workspace }}
+        run: git submodule update --init --depth 1 backend/vendor/model-dispatcher
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
