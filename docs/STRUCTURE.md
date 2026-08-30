@@ -46,10 +46,6 @@ AppMyTrip/
 │   ├── uv.lock
 │   └── vercel.json
 ├── docs/                             # Design documentation
-│   ├── hld/                          # High-Level Design (architecture + flows)
-│   │   └── hld.md                    # AppMyTrip — High-Level Design (HLD)
-│   ├── lld/                          # Low-Level Design (modules, classes, contracts)
-│   │   └── lld.md                    # AppMyTrip — Low-Level Design (LLD)
 │   ├── screenshots/                  # Screenshots referenced from README.md
 │   │   ├── step1-overview.png
 │   │   ├── step2-overview.png
@@ -61,6 +57,8 @@ AppMyTrip/
 │   │   ├── step4-preview-customized.png
 │   │   └── step4-preview-map.png
 │   ├── .structure-notes.toml
+│   ├── HLD.md                        # High-Level Design (architecture + flows)
+│   ├── LLD.md                        # Low-Level Design (modules, classes, contracts)
 │   └── STRUCTURE.md                  # Repository structure
 ├── frontend/                         # Vite + React + TypeScript + Tailwind web app — the 4-step build flow and live…
 │   ├── e2e/                          # Playwright end-to-end tests (real browser, backend mocked)
