@@ -34,3 +34,4 @@ frontend/playwright/.cache/
 .env
 .env.*
 !.env.example
+.coverage

@@ -6,7 +6,15 @@ on:
 
 jobs:
   backend:
+    name: Backend (py${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # backend/pyproject.toml declares requires-python >=3.11, so the floor
+        # is part of the contract and gets tested alongside the 3.12 the rest
+        # of the portfolio runs.
+        python-version: ["3.11", "3.12"]
     defaults:
       run:
         working-directory: backend
@@ -23,7 +31,7 @@ jobs:
         run: git submodule update --init --depth 1 backend/vendor/model-dispatcher
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
       - run: pip install -r requirements-dev.txt
       # Opt-in and kept out of requirements-dev.txt (see
       # requirements-model-dispatcher.txt for why) — installed as its own
@@ -38,6 +46,26 @@ jobs:
         continue-on-error: true
         run: pip-audit -r requirements.txt
 
+  backend-coverage:
+    name: Backend coverage gate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt pytest-cov
+      - name: Run suite with coverage gate
+        # Floor set just under the 84% measured when this gate was added, so a
+        # marginal platform difference doesn't fail an unrelated PR. Ratchet it
+        # up as gaps close — it is a floor, not a target. Measured separately
+        # from the version matrix above: coverage is a property of the suite,
+        # not of the interpreter.
+        run: pytest --cov=. --cov-report=term-missing --cov-fail-under=82
+
   frontend:
     runs-on: ubuntu-latest
     defaults:
@@ -47,7 +75,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
@@ -70,7 +98,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
