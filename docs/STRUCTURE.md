@@ -1,15 +1,17 @@
 # Repository structure
 
 Every file in this repo and what is inside it. The tree below is **generated** —
-run `python <ogen-ai>/skills/repo_tree/gen_tree.py --project . --output docs/STRUCTURE.md`
+run `python .ai/skills/repo_tree/gen_tree.py --project . --output docs/STRUCTURE.md`
 to refresh it, and never edit between the markers by hand.
 
 <!-- BEGIN GENERATED TREE (depth=all entries=all) -->
 ```text
-appmytrip/
+AppMyTrip/
 ├── .github/
 │   ├── workflows/
-│   │   └── ci.yml
+│   │   ├── ci.yml
+│   │   └── security.yml
+│   ├── copilot-instructions.md       # Copilot's copy of AGENTS.md (generated)
 │   └── dependabot.yml
 ├── .run/                             # Shared PyCharm/WebStorm run configurations
 │   ├── Backend (FastAPI).run.xml
@@ -49,6 +51,9 @@ appmytrip/
 │   ├── lld/                          # Low-Level Design (modules, classes, contracts)
 │   │   └── lld.md                    # AppMyTrip — Low-Level Design (LLD)
 │   ├── screenshots/                  # Screenshots referenced from README.md
+│   │   ├── step1-overview.png
+│   │   ├── step2-overview.png
+│   │   ├── step3-overview.png
 │   │   ├── step4-customized.png
 │   │   ├── step4-design-panel.png
 │   │   ├── step4-live-preview.png
@@ -57,7 +62,7 @@ appmytrip/
 │   │   └── step4-preview-map.png
 │   ├── .structure-notes.toml
 │   └── STRUCTURE.md                  # Repository structure
-├── frontend/                         # Vite + React + TypeScript + Tailwind prototype
+├── frontend/                         # Vite + React + TypeScript + Tailwind web app — the 4-step build flow and live…
 │   ├── e2e/                          # Playwright end-to-end tests (real browser, backend mocked)
 │   │   ├── a11y.spec.ts
 │   │   ├── builder-flow.spec.ts
@@ -196,8 +201,13 @@ appmytrip/
 │   ├── vercel.json
 │   ├── vite.config.ts
 │   └── vitest.config.ts
+├── .ai                               # Ogen-ai submodule — the shared source of rules, skills and the ai-sync…
 ├── .gitignore
 ├── .gitmodules
-└── README.md                         # AppMyTrip
+├── AGENTS.md                         # The compiled coding rules every AI assistant reads — generated, do not…
+├── CLAUDE.md                         # Claude Code's copy of AGENTS.md (generated)
+├── GEMINI.md                         # Gemini CLI's copy of AGENTS.md (generated)
+├── README.md                         # AppMyTrip
+└── ai-config.toml                    # Which rule fragments and target tools ai-sync compiles for this repo
 ```
 <!-- END GENERATED TREE -->
