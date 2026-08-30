@@ -4,7 +4,7 @@
 > classes, functions, data contracts, and control flow for both the FastAPI
 > backend and the React frontend.
 
-Parent document: [`docs/hld/hld.md`](../hld/hld.md) (High-Level Design).
+Parent document: [`docs/HLD.md`](./HLD.md) (High-Level Design).
 
 ---
 
