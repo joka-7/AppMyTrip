@@ -28,8 +28,8 @@
 "frontend/e2e" = "Playwright end-to-end tests (real browser, backend mocked)"
 
 "docs" = "Design documentation"
-"docs/hld" = "High-Level Design (architecture + flows)"
-"docs/lld" = "Low-Level Design (modules, classes, contracts)"
+"docs/HLD.md" = "High-Level Design (architecture + flows)"
+"docs/LLD.md" = "Low-Level Design (modules, classes, contracts)"
 "docs/screenshots" = "Screenshots referenced from README.md"
 ".run" = "Shared PyCharm/WebStorm run configurations"
 
