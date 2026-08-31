@@ -5,7 +5,7 @@
 > Vite + React + TypeScript web client that walks the user through a 4-step build
 > flow with a live phone preview, then saves/shares the result through Firebase.
 
-Companion document: [`docs/LLD.md`](./LLD.md) (Low-Level Design).
+Companion document: [`docs/lld/lld.md`](../lld/lld.md) (Low-Level Design).
 
 ---
 
@@ -420,7 +420,7 @@ flowchart LR
 
 ## 11. References
 
-- Low-Level Design: [`docs/LLD.md`](./LLD.md)
+- Low-Level Design: [`docs/lld/lld.md`](../lld/lld.md)
 - Backend entrypoint: `backend/trip_api_backend.py`
 - API contract: `backend/models.py`, `frontend/src/api.ts`
 - Endpoints & builder: `backend/routers/builder.py`
