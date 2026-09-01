@@ -62,4 +62,8 @@ app.include_router(builder_router)
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Binding all interfaces is the point: this entrypoint is how the API is
+    # started for local testing and inside a container, where 127.0.0.1 would
+    # be unreachable from the host. Not narrowed to loopback because there is
+    # no separate production entrypoint to narrow away from.
+    uvicorn.run(app, host="0.0.0.0", port=8000)  # nosec B104
