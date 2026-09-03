@@ -6,9 +6,13 @@ structured, per-day trip app — with day tabs, a map of points of interest, a
 Waze), an AI completion agent, and rich media (historical podcasts). Web first,
 Android later.
 
-This repository currently contains an early **TripWeaver AI** prototype: a FastAPI
-backend that uses an LLM to parse trip text and a React web UI that walks the user
-through a 4-step build flow with a live phone preview.
+**Status: working web app.** A FastAPI backend parses trip text with an LLM, and a
+React web UI walks you through the 4-step build flow with a live phone preview.
+The flow runs end to end — parse, enrich, iterate with the AI agent, customise and
+deploy — behind CI (lint, type-check, 106 backend tests at 84% coverage, Playwright
+end-to-end) with grouped Dependabot updates.
+
+Not built yet: the **Android** app. Web is the only target today.
 
 ## What you can do with it
 
@@ -101,23 +105,28 @@ SCREENSHOT_BASE_URL=http://localhost:5174 npx playwright test e2e/screenshots.sp
 
 <!-- BEGIN GENERATED TREE (depth=1 entries=all) -->
 ```text
-appmytrip/
+AppMyTrip/
 ├── .github/
-├── .run/      # Shared PyCharm/WebStorm run configurations
-├── backend/   # FastAPI service (LLM parse, AI agent, TTS podcasts) — stateless
-├── docs/      # Design documentation
-├── frontend/  # Vite + React + TypeScript + Tailwind prototype
+├── .run/           # Shared PyCharm/WebStorm run configurations
+├── backend/        # FastAPI service (LLM parse, AI agent, TTS podcasts) — stateless
+├── docs/           # Design documentation
+├── frontend/       # Vite + React + TypeScript + Tailwind web app — the 4-step build flow and live…
+├── .ai             # Ogen-ai submodule — the shared source of rules, skills and the ai-sync…
 ├── .gitignore
 ├── .gitmodules
-└── README.md  # AppMyTrip
+├── AGENTS.md       # The compiled coding rules every AI assistant reads — generated, do not…
+├── CLAUDE.md       # Claude Code's copy of AGENTS.md (generated)
+├── GEMINI.md       # Gemini CLI's copy of AGENTS.md (generated)
+├── README.md       # AppMyTrip
+└── ai-config.toml  # Which rule fragments and target tools ai-sync compiles for this repo
 ```
 <!-- END GENERATED TREE -->
 
 Full annotated tree, every file: [`docs/STRUCTURE.md`](docs/STRUCTURE.md). Generated —
 regenerate after adding/renaming a file with:
 ```bash
-python <ogen-ai>/skills/repo_tree/gen_tree.py --project . --output docs/STRUCTURE.md
-python <ogen-ai>/skills/repo_tree/gen_tree.py --project . --output README.md --max-depth 1
+python .ai/skills/repo_tree/gen_tree.py --project . --output docs/STRUCTURE.md
+python .ai/skills/repo_tree/gen_tree.py --project . --output README.md --max-depth 1
 ```
 
 ## Backend
@@ -436,7 +445,7 @@ the live preview — entirely client-side, no backend call involved.
 
 If the backend is unreachable (or the `parse`/`agent` calls fail because no API key
 is configured — either via the frontend's API key menu or a server-side env var),
-the UI shows a notice and falls back to local mock behaviour so the prototype stays
+the UI shows a notice and falls back to local mock behaviour so the app stays
 demoable. The backend enables CORS (configurable via the `CORS_ORIGINS` env var,
 default `*`) so the browser can reach it.
 
@@ -457,8 +466,8 @@ frontend Node interpreter configured in the IDE's Node settings.
 
 ## Notes
 
-- Design docs: [`docs/hld/hld.md`](docs/hld/hld.md) (architecture) and
-  [`docs/lld/lld.md`](docs/lld/lld.md) (module-level detail).
+- Design docs: [`docs/HLD.md`](docs/HLD.md) (architecture) and
+  [`docs/LLD.md`](docs/LLD.md) (module-level detail).
 - The `parse` and `agent` endpoints need an LLM key — Gemini by default, or Groq (see
   "LLM provider" above). `generate-media` defaults to a mock TTS service (see
   "Text-to-speech provider" above for the free local Piper option).

@@ -74,7 +74,11 @@ def _slugify(title: str) -> str:
     readable slug prefix.
     """
     normalized = re.sub(r"[^a-z0-9]+", "_", title.lower().strip()).strip("_")
-    digest = hashlib.sha1(title.strip().encode("utf-8")).hexdigest()[:8]
+    # usedforsecurity=False: this digest only disambiguates two titles that
+    # slugify to the same filename. It never guards anything, so SHA-1's
+    # collision weakness is irrelevant here — and saying so keeps bandit's
+    # B324 from flagging a hash that was never a security control.
+    digest = hashlib.sha1(title.strip().encode("utf-8"), usedforsecurity=False).hexdigest()[:8]
     return f"{normalized}_{digest}" if normalized else f"podcast_{digest}"
 
 
