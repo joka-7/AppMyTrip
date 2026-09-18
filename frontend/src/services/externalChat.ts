@@ -6,16 +6,15 @@
 // of just leaving them stuck. No key, no backend call — it's just a deep
 // link into a product they can already use for free in another tab.
 //
-// Mirrors `openExternalChat`/`EXTERNAL_CHAT_PROVIDERS` in
-// @joka-7/modeldispatcher-browser-agent (the shared browser-agent package a
-// few of our other apps are standardising their own BYOK AI calls on) —
-// duplicated here rather than taken as a dependency because that package
-// isn't actually published yet (no version tag pushed on ModelDispatcher),
-// and this app opens links declaratively via <a href> rather than
-// window.open(), which didn't fit that package's imperative API. Worth
-// revisiting as a real dependency once it's published.
+// Backed by @joka-7/modeldispatcher-browser-agent's own EXTERNAL_CHAT_PROVIDERS
+// table (a few of our other apps standardise their BYOK AI calls on this same
+// package) rather than a hand-duplicated copy of it — this app still opens
+// links declaratively via <a href> instead of that package's imperative
+// `openExternalChat()`, so only the provider data table is reused here, not
+// that function. `name` is overridden below to keep this app's own,
+// shorter link labels unchanged.
 //
-// Same caveat as that package: the query-prefill parameters below
+// Same caveat as that package: the query-prefill parameters it uses
 // (claude.ai/new?q=, chatgpt.com/?q=, Google Search's udm=50 AI Mode) are
 // undocumented, reverse-engineered conventions, not a stable API any vendor
 // promises to keep working. Groq has no known one, so it just gets the plain
@@ -24,45 +23,21 @@
 // loses the user's question, just demotes it from "already typed in" to
 // "ready to paste."
 
-export type ExternalChatProviderId = "chatgpt" | "claude" | "gemini" | "groq";
+import {
+  EXTERNAL_CHAT_PROVIDERS as PACKAGE_EXTERNAL_CHAT_PROVIDERS,
+  type ExternalChatProviderId,
+} from "@joka-7/modeldispatcher-browser-agent";
 
-export interface ExternalChatProvider {
-  readonly id: ExternalChatProviderId;
-  readonly name: string;
-  readonly homeUrl: string;
-  readonly buildUrl: ((question: string) => string) | null;
-}
+export type { ExternalChatProviderId };
+export type ExternalChatProvider = (typeof PACKAGE_EXTERNAL_CHAT_PROVIDERS)[ExternalChatProviderId];
 
-export const EXTERNAL_CHAT_PROVIDERS: ExternalChatProvider[] = [
-  {
-    id: "chatgpt",
-    name: "ChatGPT",
-    homeUrl: "https://chatgpt.com/",
-    buildUrl: (question) =>
-      `https://chatgpt.com/?${new URLSearchParams({ q: question, hints: "search" })}`,
-  },
-  {
-    id: "claude",
-    name: "Claude",
-    homeUrl: "https://claude.ai/new",
-    buildUrl: (question) => `https://claude.ai/new?${new URLSearchParams({ q: question })}`,
-  },
-  {
-    id: "gemini",
-    name: "Gemini",
-    homeUrl: "https://www.google.com/",
-    // gemini.google.com itself has no known prefill parameter. Google
-    // Search's AI Mode does (udm=50), and is the more reliable target.
-    buildUrl: (question) =>
-      `https://www.google.com/search?${new URLSearchParams({ q: question, udm: "50" })}`,
-  },
-  {
-    id: "groq",
-    name: "Groq",
-    homeUrl: "https://groq.com/",
-    buildUrl: null,
-  },
-];
+const NAME_OVERRIDES: Partial<Record<ExternalChatProviderId, string>> = {
+  gemini: "Gemini",
+};
+
+export const EXTERNAL_CHAT_PROVIDERS: ExternalChatProvider[] = Object.values(
+  PACKAGE_EXTERNAL_CHAT_PROVIDERS,
+).map((provider) => ({ ...provider, name: NAME_OVERRIDES[provider.id] ?? provider.name }));
 
 /** The URL to open for `provider` given `question` — pre-filled where a
  * prefill parameter is known, the plain homepage otherwise. */
