@@ -1,9 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { RefObject } from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import CloudMenu from "./CloudMenu";
 import * as trips from "../services/tripsStore";
 import type { TripData } from "../api";
 import { DEFAULT_APP_DESIGN } from "../services/appDesign";
+
+const noopPrintTargetRef: RefObject<HTMLDivElement> = { current: null };
 
 vi.mock("../services/tripsStore", () => ({
   onAuthChange: vi.fn(),
@@ -33,6 +36,7 @@ describe("CloudMenu", () => {
         appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
         currentStep={1}
+        printTargetRef={noopPrintTargetRef}
         onTripIdChange={vi.fn()}
         onUpdateTrip={vi.fn()}
         onLoadTrip={vi.fn()}
@@ -63,6 +67,7 @@ describe("CloudMenu", () => {
         appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
         currentStep={1}
+        printTargetRef={noopPrintTargetRef}
         onTripIdChange={vi.fn()}
         onUpdateTrip={vi.fn()}
         onLoadTrip={onLoadTrip}
@@ -109,6 +114,7 @@ describe("CloudMenu", () => {
         appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
         currentStep={1}
+        printTargetRef={noopPrintTargetRef}
         onTripIdChange={vi.fn()}
         onUpdateTrip={vi.fn()}
         onLoadTrip={vi.fn()}
@@ -140,6 +146,7 @@ describe("CloudMenu", () => {
         appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
         currentStep={2}
+        printTargetRef={noopPrintTargetRef}
         onTripIdChange={onTripIdChange}
         onUpdateTrip={vi.fn()}
         onLoadTrip={vi.fn()}
@@ -193,6 +200,7 @@ describe("CloudMenu", () => {
         appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
         currentStep={1}
+        printTargetRef={noopPrintTargetRef}
         onTripIdChange={vi.fn()}
         onUpdateTrip={onUpdateTrip}
         onLoadTrip={vi.fn()}
@@ -239,6 +247,7 @@ describe("CloudMenu", () => {
         appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
         currentStep={4}
+        printTargetRef={noopPrintTargetRef}
         onTripIdChange={vi.fn()}
         onUpdateTrip={vi.fn()}
         onLoadTrip={vi.fn()}
@@ -296,6 +305,7 @@ describe("CloudMenu", () => {
         appDesign={DEFAULT_APP_DESIGN}
         tripId="trip-1"
         currentStep={4}
+        printTargetRef={noopPrintTargetRef}
         onTripIdChange={vi.fn()}
         onUpdateTrip={vi.fn()}
         onLoadTrip={vi.fn()}
@@ -347,6 +357,7 @@ describe("CloudMenu", () => {
         appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
         currentStep={1}
+        printTargetRef={noopPrintTargetRef}
         onTripIdChange={vi.fn()}
         onUpdateTrip={vi.fn()}
         onLoadTrip={onLoadTrip}
@@ -387,6 +398,7 @@ describe("CloudMenu", () => {
         appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
         currentStep={1}
+        printTargetRef={noopPrintTargetRef}
         onTripIdChange={vi.fn()}
         onUpdateTrip={vi.fn()}
         onLoadTrip={vi.fn()}
@@ -422,6 +434,7 @@ describe("CloudMenu", () => {
         appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
         currentStep={1}
+        printTargetRef={noopPrintTargetRef}
         onTripIdChange={vi.fn()}
         onUpdateTrip={vi.fn()}
         onLoadTrip={vi.fn()}

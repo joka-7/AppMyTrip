@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from "react";
 import type { RefObject } from "react";
 import {
   Download,
+  FileDown,
   Home,
   Printer,
   Save,
@@ -17,6 +18,7 @@ import { useDismissable } from "../hooks/useDismissable";
 import { useI18n } from "../i18n/useI18n";
 import type { AppDesign } from "../services/appDesign";
 import { exportTripToIcs } from "../services/icsExport";
+import { exportTripToPdf } from "../services/pdfExport";
 import { exportTripToFile, importTripFromFile } from "../services/tripFile";
 import { getCurrentSession, saveTrip, shareTrip, signInWithGoogle } from "../services/tripsStore";
 import { useTripBranding } from "../hooks/useTripBranding";
@@ -110,6 +112,8 @@ export default function SharedAppPage({
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   const menuRef = useDismissable(menuOpen, closeMenu);
   const [saveStatus, setSaveStatus] = useState<"idle" | "working" | "done" | "error">("idle");
+  const [pdfStatus, setPdfStatus] = useState<"idle" | "working" | "error">("idle");
+  const pdfTargetRef = useRef<HTMLDivElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [saveChangesStatus, setSaveChangesStatus] = useState<"idle" | "working" | "done" | "error">(
@@ -217,15 +221,32 @@ export default function SharedAppPage({
     }
   };
 
+  const handleExportPdf = async () => {
+    if (!pdfTargetRef.current) {
+      throw new Error("pdfTargetRef is not attached to a rendered element");
+    }
+    setPdfStatus("working");
+    try {
+      await exportTripToPdf(pdfTargetRef.current, tripData.title);
+      setPdfStatus("idle");
+    } catch (err) {
+      console.error(err);
+      setPdfStatus("error");
+    }
+  };
+
   return (
     <div
-      className="h-dvh overflow-hidden bg-surface-container flex justify-center print:h-auto print:overflow-visible print:bg-white"
+      className="h-dvh overflow-hidden bg-surface-container flex justify-center print:h-auto print:overflow-visible print:bg-white pdf-shared-shell"
       dir={dir}
     >
       {/* max-w-md only kicks in from the "sm" breakpoint up — on an actual
           phone (which is what this view is really for) it should fill the
           whole screen; the phone-frame look is purely a desktop preview. */}
-      <div className="w-full sm:max-w-md h-dvh bg-surface shadow-2xl flex flex-col overflow-hidden print:max-w-none print:h-auto print:shadow-none print:overflow-visible">
+      <div
+        ref={pdfTargetRef}
+        className="w-full sm:max-w-md h-dvh bg-surface shadow-2xl flex flex-col overflow-hidden print:max-w-none print:h-auto print:shadow-none print:overflow-visible pdf-shared-frame"
+      >
         <div className="no-print shrink-0 flex flex-wrap items-center justify-end gap-2 p-2 bg-white border-b border-outline/20">
           <a
             href={homeHref}
@@ -279,6 +300,17 @@ export default function SharedAppPage({
                   <Printer size={14} />
                   {t("sharedPage.print")}
                 </button>
+                <button
+                  onClick={handleExportPdf}
+                  disabled={pdfStatus === "working"}
+                  className="flex items-center gap-1.5 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high disabled:opacity-60 px-2.5 py-1.5 rounded-lg"
+                >
+                  <FileDown size={14} />
+                  {t("sharedPage.exportPdf")}
+                </button>
+                {pdfStatus === "error" && (
+                  <p className="text-red-700 px-1">{t("sharedPage.exportPdfFailed")}</p>
+                )}
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   className="flex items-center gap-1.5 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg"
