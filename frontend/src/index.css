@@ -111,3 +111,66 @@ body {
     content: none !important;
   }
 }
+
+/* PDF export mirrors the @media print rules above under a plain class
+   instead of a media query: html2canvas (used by pdfExport.ts) rasterizes
+   the live DOM and never evaluates `@media print`. Each rule here matches
+   the `print:*` utility already used on that same element for printing. */
+.pdf-export-mode .no-print {
+  display: none !important;
+}
+
+.pdf-export-mode .print-only-block,
+.pdf-export-mode .print-day {
+  display: block !important;
+}
+
+.pdf-export-mode .print-day > h2 {
+  display: block !important;
+}
+
+.pdf-export-mode .pdf-hide {
+  display: none !important;
+}
+
+.pdf-export-mode .pdf-root {
+  display: flex !important;
+  background: white !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  box-shadow: none !important;
+}
+
+.pdf-export-mode .pdf-frame {
+  width: 100% !important;
+  height: auto !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+.pdf-export-mode .pdf-inner {
+  height: auto !important;
+}
+
+.pdf-export-mode .pdf-scroll {
+  overflow: visible !important;
+  padding-bottom: 0 !important;
+  background: white !important;
+}
+
+.pdf-export-mode .pdf-shared-shell {
+  height: auto !important;
+  overflow: visible !important;
+  background: white !important;
+}
+
+.pdf-export-mode .pdf-shared-frame {
+  max-width: none !important;
+  height: auto !important;
+  overflow: visible !important;
+  box-shadow: none !important;
+}
