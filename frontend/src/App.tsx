@@ -15,7 +15,6 @@ import ApiNotice from "./components/ApiNotice";
 import BuilderStep1 from "./components/BuilderStep1";
 import type { AgentMessage } from "./components/BuilderStep3";
 import CloudMenu from "./components/CloudMenu";
-import { FooterLinks } from "./components/FooterLinks";
 import InstallAppButton from "./components/InstallAppButton";
 import ProgressBar from "./components/ProgressBar";
 import { useChecklistSuggest } from "./hooks/useChecklistSuggest";
@@ -980,7 +979,6 @@ export default function App() {
   return (
     <>
       {SHARED_TRIP_ID ? <SharedTripViewer tripId={SHARED_TRIP_ID} /> : <TripBuilder />}
-      <FooterLinks />
     </>
   );
 }
