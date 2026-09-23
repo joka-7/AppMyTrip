@@ -117,7 +117,9 @@ AppMyTrip/
 ├── AGENTS.md       # The compiled coding rules every AI assistant reads — generated, do not…
 ├── CLAUDE.md       # Claude Code's copy of AGENTS.md (generated)
 ├── GEMINI.md       # Gemini CLI's copy of AGENTS.md (generated)
+├── LICENSE
 ├── README.md       # AppMyTrip
+├── SECURITY.md     # Security Policy
 └── ai-config.toml  # Which rule fragments and target tools ai-sync compiles for this repo
 ```
 <!-- END GENERATED TREE -->

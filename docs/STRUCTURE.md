@@ -10,6 +10,7 @@ AppMyTrip/
 ├── .github/
 │   ├── workflows/
 │   │   ├── ci.yml
+│   │   ├── docs.yml
 │   │   └── security.yml
 │   ├── copilot-instructions.md       # Copilot's copy of AGENTS.md (generated)
 │   └── dependabot.yml
@@ -94,6 +95,7 @@ AppMyTrip/
 │   │   │   ├── CloudMenu.tsx
 │   │   │   ├── ErrorBoundary.test.tsx
 │   │   │   ├── ErrorBoundary.tsx
+│   │   │   ├── GithubIcon.tsx
 │   │   │   ├── InstallAppButton.tsx
 │   │   │   ├── ItineraryList.test.tsx
 │   │   │   ├── ItineraryList.tsx
@@ -157,6 +159,7 @@ AppMyTrip/
 │   │   │   ├── mapLinks.ts
 │   │   │   ├── normalizeTrip.test.ts
 │   │   │   ├── normalizeTrip.ts
+│   │   │   ├── pdfExport.ts
 │   │   │   ├── safeUrl.test.ts
 │   │   │   ├── safeUrl.ts
 │   │   │   ├── sequenceLabel.test.ts
@@ -205,7 +208,9 @@ AppMyTrip/
 ├── AGENTS.md                         # The compiled coding rules every AI assistant reads — generated, do not…
 ├── CLAUDE.md                         # Claude Code's copy of AGENTS.md (generated)
 ├── GEMINI.md                         # Gemini CLI's copy of AGENTS.md (generated)
+├── LICENSE
 ├── README.md                         # AppMyTrip
+├── SECURITY.md                       # Security Policy
 └── ai-config.toml                    # Which rule fragments and target tools ai-sync compiles for this repo
 ```
 <!-- END GENERATED TREE -->
