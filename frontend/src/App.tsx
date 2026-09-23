@@ -976,9 +976,5 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
 }
 
 export default function App() {
-  return (
-    <>
-      {SHARED_TRIP_ID ? <SharedTripViewer tripId={SHARED_TRIP_ID} /> : <TripBuilder />}
-    </>
-  );
+  return <>{SHARED_TRIP_ID ? <SharedTripViewer tripId={SHARED_TRIP_ID} /> : <TripBuilder />}</>;
 }
