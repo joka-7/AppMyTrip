@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { RefObject } from "react";
 import {
   Cloud,
   Calendar,
   Download,
+  FileDown,
   LogIn,
   LogOut,
   Printer,
@@ -16,6 +18,7 @@ import type { TripData } from "../api";
 import { useDismissable } from "../hooks/useDismissable";
 import { useI18n, type TranslationKey } from "../i18n/useI18n";
 import { exportTripToIcs } from "../services/icsExport";
+import { exportTripToPdf } from "../services/pdfExport";
 import { exportTripToFile, importTripFromFile } from "../services/tripFile";
 import LinkDisplay from "./LinkDisplay";
 import { shareMessage } from "../services/shareLink";
@@ -70,6 +73,7 @@ export default function CloudMenu({
   appDesign,
   tripId,
   currentStep,
+  printTargetRef,
   onTripIdChange,
   onLoadTrip,
   onImportTrip,
@@ -81,6 +85,8 @@ export default function CloudMenu({
   tripId: string | null;
   /** Current builder step (1-4) — used as the default "save as" stage. */
   currentStep: number;
+  /** The live-preview DOM node "Download PDF" captures — same subtree the Print button prints. */
+  printTargetRef: RefObject<HTMLDivElement>;
   onTripIdChange: (tripId: string | null) => void;
   onLoadTrip: (trip: TripData, tripId: string, appDesign: AppDesign) => void;
   onImportTrip: (trip: TripData, appDesign: AppDesign) => void;
@@ -132,6 +138,22 @@ export default function CloudMenu({
       setNotice(t("cloud.importSuccess"));
     } catch (err) {
       setNotice(err instanceof Error ? err.message : t("cloud.importFailed"));
+    }
+  };
+
+  const handleExportPdf = async () => {
+    if (!printTargetRef.current) {
+      throw new Error("printTargetRef is not attached to a rendered element");
+    }
+    setBusy(true);
+    setNotice(null);
+    try {
+      await exportTripToPdf(printTargetRef.current, tripData.title);
+    } catch (err) {
+      console.error(err);
+      setNotice(t("cloud.exportPdfFailed"));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -320,6 +342,14 @@ export default function CloudMenu({
       >
         <Printer size={16} />
         {t("cloud.print")}
+      </button>
+      <button
+        onClick={handleExportPdf}
+        disabled={tripData.days.length === 0 || busy}
+        className="flex items-center gap-1.5 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high disabled:opacity-50 px-3 py-1.5 rounded-full transition-colors"
+      >
+        <FileDown size={16} />
+        {t("cloud.exportPdf")}
       </button>
       <button
         onClick={() => fileInputRef.current?.click()}

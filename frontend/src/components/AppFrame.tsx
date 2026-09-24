@@ -269,7 +269,7 @@ export default function AppFrame({
   const useCustomHeader = Boolean(headerStyle);
 
   return (
-    <div className={`w-full h-full flex flex-col ${fontClass} print:h-auto`}>
+    <div className={`w-full h-full flex flex-col ${fontClass} print:h-auto pdf-inner`}>
       <div
         className={`${useCustomHeader ? "" : themeClass} shrink-0 text-white pt-10 pb-4 px-6 shadow-md transition-colors duration-300 relative`}
         style={headerStyle}
@@ -516,7 +516,7 @@ export default function AppFrame({
       )}
 
       <div
-        className={`flex-1 overflow-y-auto ${density.contentPad} ${bgClass} pb-24 print:overflow-visible print:pb-0 print:bg-white`}
+        className={`flex-1 overflow-y-auto ${density.contentPad} ${bgClass} pb-24 print:overflow-visible print:pb-0 print:bg-white pdf-scroll`}
       >
         {!hasTrip && (
           <div className="h-full flex flex-col items-center justify-center text-center text-ink-muted gap-3 px-6">
@@ -596,7 +596,7 @@ export default function AppFrame({
         )}
 
         {hasTrip && activeTab === "map" && appDesign.visibleTabs.map && (
-          <div className="h-full w-full animate-fade-in print:hidden">
+          <div className="h-full w-full animate-fade-in print:hidden pdf-hide">
             <Suspense
               fallback={
                 <div className="h-full flex items-center justify-center text-ink-muted text-sm">
@@ -619,13 +619,13 @@ export default function AppFrame({
         )}
 
         {hasTrip && activeTab === "price" && appDesign.visibleTabs.price && (
-          <div className="h-full animate-fade-in print:hidden">
+          <div className="h-full animate-fade-in print:hidden pdf-hide">
             <PriceSummary tripData={tripData} currency={currency} />
           </div>
         )}
 
         {hasTrip && activeTab === "chat" && appDesign.visibleTabs.chat && (
-          <div className="h-full animate-fade-in print:hidden">
+          <div className="h-full animate-fade-in print:hidden pdf-hide">
             <ChatPanel
               agentMessages={agentMessages}
               chatEndRef={chatEndRef}

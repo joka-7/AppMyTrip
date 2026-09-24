@@ -1,9 +1,9 @@
 fastapi>=0.141.1
 uvicorn[standard]>=0.52.4
 httpx>=0.28.1
-pydantic>=2.13.4
+pydantic>=2.13.5
 python-dotenv>=1.2.3
-piper-tts>=1.7.0; python_version >= "3.10"
+piper-tts>=1.8.0; python_version >= "3.10"
 
 # NOTE: the optional model-dispatcher LLM backend is intentionally NOT listed
 # here — see requirements-model-dispatcher.txt and its own comment for why.

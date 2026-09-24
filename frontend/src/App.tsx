@@ -250,6 +250,7 @@ function TripBuilder() {
   const [chatNotice, setChatNotice] = useState<string | null>(null);
   const [failedChatText, setFailedChatText] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const pdfTargetRef = useRef<HTMLDivElement>(null);
 
   // Starts empty; populated by /api/trip/parse (or DEMO_TRIP on fallback).
   const [tripData, setTripData] = useState<TripData>(EMPTY_TRIP);
@@ -529,6 +530,7 @@ function TripBuilder() {
             appDesign={appDesign}
             tripId={tripId}
             currentStep={step}
+            printTargetRef={pdfTargetRef}
             onTripIdChange={setTripId}
             onUpdateTrip={handleUpdateTrip}
             onLoadTrip={(trip, loadedTripId, loadedAppDesign) => {
@@ -648,7 +650,10 @@ function TripBuilder() {
             full-screen instead. `print:!block` is important-flagged so printing
             from a phone still gets the itinerary, which is rendered through this
             subtree. */}
-        <div className="flex-1 hidden lg:flex justify-center items-center bg-surface-container rounded-2xl border border-outline/20 py-10 relative overflow-hidden print:bg-white print:border-0 print:rounded-none print:py-0 print:shadow-none print:!block">
+        <div
+          ref={pdfTargetRef}
+          className="flex-1 hidden lg:flex justify-center items-center bg-surface-container rounded-2xl border border-outline/20 py-10 relative overflow-hidden print:bg-white print:border-0 print:rounded-none print:py-0 print:shadow-none print:!block pdf-root"
+        >
           <div className="no-print absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-4 py-1.5 rounded-full text-xs font-bold text-ink-muted uppercase tracking-wider shadow-sm z-10 flex items-center gap-2 border border-outline/20">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
             Live Preview
@@ -971,5 +976,5 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
 }
 
 export default function App() {
-  return SHARED_TRIP_ID ? <SharedTripViewer tripId={SHARED_TRIP_ID} /> : <TripBuilder />;
+  return <>{SHARED_TRIP_ID ? <SharedTripViewer tripId={SHARED_TRIP_ID} /> : <TripBuilder />}</>;
 }
