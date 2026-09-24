@@ -1,0 +1,270 @@
+{
+  "$defs": {
+    "Activity": {
+      "description": "Represents a single activity in the trip schedule.",
+      "properties": {
+        "id": {
+          "description": "Unique identifier for the activity",
+          "maxLength": 200,
+          "title": "Id",
+          "type": "string"
+        },
+        "time": {
+          "description": "Time of the activity (HH:MM)",
+          "maxLength": 20,
+          "title": "Time",
+          "type": "string"
+        },
+        "title": {
+          "description": "Title of the activity",
+          "maxLength": 300,
+          "title": "Title",
+          "type": "string"
+        },
+        "desc": {
+          "description": "Detailed description of the activity",
+          "maxLength": 4000,
+          "title": "Desc",
+          "type": "string"
+        },
+        "type": {
+          "enum": ["attraction", "food", "lodging", "transport"],
+          "title": "Type",
+          "type": "string"
+        },
+        "hasPodcast": {
+          "default": false,
+          "description": "Flag indicating if a historical podcast should be generated for this site",
+          "title": "Haspodcast",
+          "type": "boolean"
+        },
+        "podcast_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "URL pointing to the generated TTS audio file",
+          "title": "Podcast Url"
+        },
+        "podcast_brief": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Short historical/contextual brief about the site, narrated in the podcast in addition to 'desc'",
+          "title": "Podcast Brief"
+        },
+        "map_coordinates": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Dictionary with 'lat' and 'lng' keys for map rendering",
+          "title": "Map Coordinates"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Cost of this activity, in the trip's currency",
+          "title": "Price"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Link to the activity's official site or listing",
+          "title": "Url"
+        },
+        "directions_car": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Driving directions/notes to reach this activity from the previous stop",
+          "title": "Directions Car"
+        },
+        "directions_transit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Public-transit directions/notes to reach this activity from the previous stop",
+          "title": "Directions Transit"
+        },
+        "map_url": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "User-supplied Google Maps link that overrides the one built from 'map_coordinates'. Never invent one \u2014 leave as given.",
+          "title": "Map Url"
+        },
+        "travel_mode": {
+          "anyOf": [
+            {
+              "enum": ["driving", "walking", "bicycling", "transit", "hiking"],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "How you get to this activity from the previous stop. A single day is routinely mixed (drive to a trailhead, hike, bus back). Null means the client infers it from the activity and the distance from the previous stop.",
+          "title": "Travel Mode"
+        }
+      },
+      "required": ["id", "time", "title", "desc", "type"],
+      "title": "Activity",
+      "type": "object"
+    },
+    "ChecklistItem": {
+      "description": "One thing to bring/prepare, either for a single day or for the whole trip.",
+      "properties": {
+        "id": {
+          "maxLength": 200,
+          "title": "Id",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 300,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": ["id", "text"],
+      "title": "ChecklistItem",
+      "type": "object"
+    },
+    "TripDay": {
+      "description": "Represents a full day in the trip.",
+      "properties": {
+        "dayNum": {
+          "title": "Daynum",
+          "type": "integer"
+        },
+        "activities": {
+          "items": {
+            "$ref": "#/$defs/Activity"
+          },
+          "maxItems": 150,
+          "title": "Activities",
+          "type": "array"
+        },
+        "checklist": {
+          "description": "What's needed for this specific day (boots for a trail day, swimsuit for a beach day)",
+          "items": {
+            "$ref": "#/$defs/ChecklistItem"
+          },
+          "maxItems": 100,
+          "title": "Checklist",
+          "type": "array"
+        }
+      },
+      "required": ["dayNum"],
+      "title": "TripDay",
+      "type": "object"
+    }
+  },
+  "description": "The complete trip model to be sent to the client application.",
+  "properties": {
+    "title": {
+      "maxLength": 300,
+      "title": "Title",
+      "type": "string"
+    },
+    "dates": {
+      "maxLength": 200,
+      "title": "Dates",
+      "type": "string"
+    },
+    "days": {
+      "items": {
+        "$ref": "#/$defs/TripDay"
+      },
+      "maxItems": 120,
+      "title": "Days",
+      "type": "array"
+    },
+    "language": {
+      "default": "he",
+      "description": "ISO 639-1 code of the dominant language of the trip's source text (e.g. 'he' if most words/verbs are Hebrew, 'en' if mostly English). All generated content and agent chat replies should match this language.",
+      "maxLength": 10,
+      "title": "Language",
+      "type": "string"
+    },
+    "photo_album_url": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Link to a shared photo album for the whole trip",
+      "title": "Photo Album Url"
+    },
+    "checklist": {
+      "description": "Trip-wide essentials (passport, chargers) \u2014 things not tied to one day",
+      "items": {
+        "$ref": "#/$defs/ChecklistItem"
+      },
+      "maxItems": 100,
+      "title": "Checklist",
+      "type": "array"
+    }
+  },
+  "required": ["title", "dates"],
+  "title": "TripData",
+  "type": "object"
+}

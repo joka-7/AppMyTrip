@@ -37,7 +37,11 @@ export function exportTripToFile(tripData: TripData, appDesign: AppDesign): void
   URL.revokeObjectURL(url);
 }
 
-function isValidTripData(value: unknown): value is TripData {
+/** Structural check for a parsed `TripData` — not full schema validation,
+ * just enough to reject an obviously-wrong shape before it reaches the rest
+ * of the app. Shared by file import and the pasted-external-reply path
+ * (see externalTripReply.ts). */
+export function isValidTripData(value: unknown): value is TripData {
   if (!value || typeof value !== "object") return false;
   const trip = value as Partial<TripData>;
   if (!Array.isArray(trip.days)) return false;

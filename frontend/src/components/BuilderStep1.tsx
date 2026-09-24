@@ -1,6 +1,13 @@
+import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { PasteExternalReply } from "modeldispatcher-react-ui";
+import "modeldispatcher-react-ui/styles.css";
 import { useI18n, type TranslationKey } from "../i18n/useI18n";
 import { useRotatingHint } from "../hooks/useRotatingHint";
+import ExternalChatLinks from "./ExternalChatLinks";
+import { buildTripParsePrompt } from "../services/externalTripPrompt";
+import { parseExternalTripReply } from "../services/externalTripReply";
+import type { TripData } from "../api";
 
 const PARSE_HINTS: readonly TranslationKey[] = [
   "step1.hint.reading",
@@ -17,6 +24,8 @@ export default function BuilderStep1({
   isProcessing,
   hasExistingTrip,
   onContinueWithoutReprocessing,
+  hasAnyApiKey,
+  onExternalReplyParsed,
 }: {
   rawText: string;
   onChangeRawText: (text: string) => void;
@@ -27,9 +36,27 @@ export default function BuilderStep1({
   /** True once a trip was already parsed this session — lets the user go back here to tweak text without losing the ability to return without re-running the AI. */
   hasExistingTrip: boolean;
   onContinueWithoutReprocessing: () => void;
+  /** Whether any provider has a saved key — this app calls its own backend
+   * (not the provider directly), so "no key" means every request would just
+   * fail server-side; the escape hatch below only makes sense while this
+   * is false. */
+  hasAnyApiKey: boolean;
+  /** Called with a trip parsed from a pasted external-AI reply — continues
+   * exactly as a successful backend parse would. */
+  onExternalReplyParsed: (tripData: TripData) => void;
 }) {
   const { t } = useI18n();
   const waitHint = useRotatingHint(isProcessing, PARSE_HINTS);
+  const [replyError, setReplyError] = useState(false);
+
+  function handleExternalReply(rawReply: string): void {
+    try {
+      onExternalReplyParsed(parseExternalTripReply(rawReply));
+      setReplyError(false);
+    } catch {
+      setReplyError(true);
+    }
+  }
 
   return (
     <div className="animate-fade-in">
@@ -80,6 +107,25 @@ export default function BuilderStep1({
         <p className="mt-3 text-sm text-ink-muted text-center animate-fade-in" aria-live="polite">
           {t(waitHint)}
         </p>
+      )}
+
+      {!hasAnyApiKey && rawText.trim() && (
+        <div className="mt-6 pt-6 border-t border-outline/20">
+          <h3 className="text-sm font-semibold mb-1">{t("step1.noKey.heading")}</h3>
+          <p className="text-xs text-ink-muted mb-2">{t("step1.noKey.intro")}</p>
+          <div className="mb-3">
+            <ExternalChatLinks question={buildTripParsePrompt(rawText, preferences)} />
+          </div>
+          <PasteExternalReply
+            label={t("step1.noKey.pasteLabel")}
+            placeholder={t("step1.noKey.pastePlaceholder")}
+            applyLabel={t("step1.noKey.pasteApply")}
+            onApply={handleExternalReply}
+          />
+          {replyError && (
+            <p className="mt-2 text-xs text-red-600">{t("step1.noKey.invalidReply")}</p>
+          )}
+        </div>
       )}
     </div>
   );
