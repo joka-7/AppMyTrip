@@ -6,7 +6,7 @@
 // of just leaving them stuck. No key, no backend call — it's just a deep
 // link into a product they can already use for free in another tab.
 //
-// Backed by @joka-7/modeldispatcher-browser-agent's own EXTERNAL_CHAT_PROVIDERS
+// Backed by modeldispatcher-browser-agent's own EXTERNAL_CHAT_PROVIDERS
 // table (a few of our other apps standardise their BYOK AI calls on this same
 // package) rather than a hand-duplicated copy of it — this app still opens
 // links declaratively via <a href> instead of that package's imperative
@@ -26,7 +26,7 @@
 import {
   EXTERNAL_CHAT_PROVIDERS as PACKAGE_EXTERNAL_CHAT_PROVIDERS,
   type ExternalChatProviderId,
-} from "@joka-7/modeldispatcher-browser-agent";
+} from "modeldispatcher-browser-agent";
 
 export type { ExternalChatProviderId };
 export type ExternalChatProvider = (typeof PACKAGE_EXTERNAL_CHAT_PROVIDERS)[ExternalChatProviderId];
