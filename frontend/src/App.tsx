@@ -10,17 +10,18 @@ import React, {
 import { ChevronLeft, Smartphone, Wand2 } from "lucide-react";
 import { parseTrip, agentInteract, generateMedia, enhanceTrip, ApiError } from "./api";
 import type { EnhanceOptions, TripData } from "./api";
-import ApiKeyMenu from "./components/ApiKeyMenu";
 import ApiNotice from "./components/ApiNotice";
 import BuilderStep1 from "./components/BuilderStep1";
 import type { AgentMessage } from "./components/BuilderStep3";
 import CloudMenu from "./components/CloudMenu";
 import InstallAppButton from "./components/InstallAppButton";
 import ProgressBar from "./components/ProgressBar";
+import SettingsMenu from "./components/SettingsMenu";
 import { useChecklistSuggest } from "./hooks/useChecklistSuggest";
 import { useTripEditing } from "./hooks/useTripEditing";
 import { DEFAULT_APP_DESIGN, type AppDesign } from "./services/appDesign";
 import { getApiKeys, getApiProvider, getAllCredentials, getBackend } from "./services/apiKey";
+import { getAiMode } from "./services/externalChat";
 import {
   clearDraft,
   isRecoverableDraft,
@@ -49,7 +50,6 @@ import {
 } from "./services/tripsStore";
 import { setLangIfUnset, translate } from "./i18n/store";
 import { useI18n } from "./i18n/useI18n";
-import LanguageSwitcher from "./components/LanguageSwitcher";
 
 // Step 1 stays eager (it's the first paint of the builder). Later steps, the
 // live phone preview (and thus AppFrame), and the shared-app shell are lazy
@@ -525,9 +525,19 @@ function TripBuilder() {
           <div className="text-sm font-medium text-ink-muted bg-surface-container px-3 py-1 rounded-full">
             {t("nav.step", { step })}
           </div>
-          <LanguageSwitcher />
           <InstallAppButton />
-          <ApiKeyMenu />
+          <SettingsMenu
+            tripData={tripData}
+            appDesign={appDesign}
+            printTargetRef={pdfTargetRef}
+            onImportTrip={(trip, importedAppDesign) => {
+              setTripData(trip);
+              setTripId(null);
+              setAppDesign(importedAppDesign);
+              setAgentMessages([{ role: "agent", text: t("agent.imported") }]);
+              goToStep(3);
+            }}
+          />
           {tripData.days.length > 0 && (
             <button
               onClick={() => setPreviewOpen(true)}
@@ -542,7 +552,6 @@ function TripBuilder() {
             appDesign={appDesign}
             tripId={tripId}
             currentStep={step}
-            printTargetRef={pdfTargetRef}
             onTripIdChange={setTripId}
             onUpdateTrip={handleUpdateTrip}
             onLoadTrip={(trip, loadedTripId, loadedAppDesign) => {
@@ -557,13 +566,6 @@ function TripBuilder() {
               // editor. The nav bar's "Preview app" button is there if the
               // user wants a quick look without leaving the builder.
               goToStep(4);
-            }}
-            onImportTrip={(trip, importedAppDesign) => {
-              setTripData(trip);
-              setTripId(null);
-              setAppDesign(importedAppDesign);
-              setAgentMessages([{ role: "agent", text: t("agent.imported") }]);
-              goToStep(3);
             }}
           />
         </div>
@@ -605,7 +607,7 @@ function TripBuilder() {
                 isProcessing={isProcessing}
                 hasExistingTrip={tripData.days.length > 0}
                 onContinueWithoutReprocessing={() => goToStep(2)}
-                hasAnyApiKey={getAllCredentials().length > 0}
+                aiMode={getAiMode()}
                 onExternalReplyParsed={handleExternalReplyParsed}
               />
             )}

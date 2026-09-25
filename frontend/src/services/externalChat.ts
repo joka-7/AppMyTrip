@@ -24,6 +24,8 @@
 
 import {
   EXTERNAL_CHAT_PROVIDERS as PACKAGE_EXTERNAL_CHAT_PROVIDERS,
+  loadExternalChatFavorite,
+  saveExternalChatFavorite,
   type ExternalChatProviderId,
 } from "modeldispatcher-browser-agent";
 
@@ -49,4 +51,35 @@ export function copyToClipboard(text: string): void {
     // into. Silently accepted, same as this file's other unofficial-API
     // caveats.
   });
+}
+
+// Which of the two BYOK paths Step 1 uses: "apiKey" calls this app's own
+// backend with a saved key (see services/apiKey.ts), same as always;
+// "external" skips the backend call entirely and hands the parse prompt to
+// the visitor's chosen free chat app instead, pasting its reply back in.
+// A persisted, explicit choice (set in AiSettingsPanel) rather than the
+// automatic "no key saved yet" detection this used to be — that made Step 1
+// attempt (and fail) a backend call before ever explaining why.
+export type AiMode = "apiKey" | "external";
+const AI_MODE_STORAGE_KEY = "tripweaver_ai_mode";
+
+export function getAiMode(): AiMode {
+  return localStorage.getItem(AI_MODE_STORAGE_KEY) === "external" ? "external" : "apiKey";
+}
+
+export function setAiMode(mode: AiMode): void {
+  localStorage.setItem(AI_MODE_STORAGE_KEY, mode);
+}
+
+const FAVORITE_STORAGE_KEY = "tripweaver_ai_external_favorite";
+
+/** The chat app to lead with in external mode, or `null` until one is
+ * chosen — reuses modeldispatcher-browser-agent's own persistence so the
+ * stored value's ids always match EXTERNAL_CHAT_PROVIDERS above. */
+export function loadFavoriteExternalChat(): ExternalChatProviderId | null {
+  return loadExternalChatFavorite(undefined, FAVORITE_STORAGE_KEY);
+}
+
+export function saveFavoriteExternalChat(favorite: ExternalChatProviderId | null): void {
+  saveExternalChatFavorite(favorite, undefined, FAVORITE_STORAGE_KEY);
 }

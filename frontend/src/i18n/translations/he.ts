@@ -36,12 +36,15 @@ export const he = {
   "step1.hint.activities": "מזהה פעילויות ושעות...",
   "step1.reprocess": "נתח מחדש (יחליף את הטיול הקיים)",
   "step1.submit": "צור מבנה אפליקציה ראשוני",
-  "step1.noKey.heading": "עדיין אין לכם מפתח API?",
-  "step1.noKey.intro": "שאלו אפליקציית AI חינמית ישירות, הדביקו את התשובה שלה למטה, ונמשיך משם.",
-  "step1.noKey.pasteLabel": "הדביקו כאן את תשובת ה-AI",
-  "step1.noKey.pastePlaceholder": "הדביקו כאן את תגובת ה-JSON…",
-  "step1.noKey.pasteApply": "השתמש בתשובה הזו",
-  "step1.noKey.invalidReply":
+  "step1.external.heading": "שליחה ל-AI חיצוני",
+  "step1.external.intro": "שאלו אפליקציית AI חינמית ישירות, הדביקו את התשובה שלה למטה, ונמשיך משם.",
+  "step1.external.sendButton": "שליחה ל-AI חיצוני",
+  "step1.external.sendToFavorite": "שליחה ל-{favorite}",
+  "step1.external.tryAnother": "נסו אפליקציית AI אחרת",
+  "step1.external.pasteLabel": "הדביקו כאן את תשובת ה-AI",
+  "step1.external.pastePlaceholder": "הדביקו כאן את תגובת ה-JSON…",
+  "step1.external.pasteApply": "השתמש בתשובה הזו",
+  "step1.external.invalidReply":
     "זה לא נראה כמו טיול תקין עדיין — ודאו שהעתקתם את כל התשובה (כולל הסוגריים המסולסלים בפתיחה ובסיום) ונסו שוב.",
   "step1.exampleRawText":
     "היי, אנחנו טסים לרומא מחרתיים עד יום ראשון. ביום הראשון ננחת, ניסע למלון ליד המדרגות הספרדיות ואז נטייל באזור. ביום השני הקולוסיאום והפורום, ומלא קניות. ביום השלישי הוותיקן. צריכים גם למצוא איפה לאכול.",
@@ -301,6 +304,19 @@ export const he = {
   "apiKey.backendModelDispatcher": "Model Dispatcher (משותף)",
   "apiKey.backendNote":
     "הגדרה מתקדמת לבדיקות — אם השרת לא הגדיר את Model Dispatcher, הבקשה תיפול חזרה להתנהגות הרגילה.",
+  "apiKey.modeApiKey": "מפתח API",
+  "apiKey.modeExternal": "AI חיצוני",
+  "apiKey.externalDescription":
+    "דלגו על מפתחות API לגמרי — בשלב 1 נשלח לכם קישור לאפליקציית AI חינמית עם הטקסט שלכם מוכן להדבקה, ואתם מדביקים את התשובה בחזרה.",
+  "apiKey.favoriteHeading": "אפליקציית AI מועדפת",
+  "apiKey.favoriteNone": "בכל פעם תבחרו בעצמכם",
+  "apiKey.favoriteHint":
+    "נעבור ישר לאפליקציה הזו בלחיצה אחת בשלב 1; שאר האפשרויות תמיד יישארו זמינות.",
+
+  // Settings menu (⋮ overflow button)
+  "settingsMenu.button": "הגדרות",
+  "settingsMenu.language": "שפה",
+  "settingsMenu.fileActions": "קובץ",
 
   // Cloud menu (sign-in, save, share, my trips)
   "cloud.importSuccess": "הטיול יובא מהקובץ.",

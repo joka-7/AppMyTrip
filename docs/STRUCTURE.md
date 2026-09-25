@@ -77,6 +77,8 @@ AppMyTrip/
 │   │   └── logo.png
 │   ├── src/
 │   │   ├── components/               # Builder steps (1-4), AppFrame, MapView, CloudMenu, and shared UI
+│   │   │   ├── AiSettingsPanel.test.tsx
+│   │   │   ├── AiSettingsPanel.tsx
 │   │   │   ├── ApiKeyMenu.test.tsx
 │   │   │   ├── ApiKeyMenu.tsx
 │   │   │   ├── ApiNotice.tsx
@@ -97,6 +99,8 @@ AppMyTrip/
 │   │   │   ├── ErrorBoundary.test.tsx
 │   │   │   ├── ErrorBoundary.tsx
 │   │   │   ├── ExternalChatLinks.tsx
+│   │   │   ├── FileActions.test.tsx
+│   │   │   ├── FileActions.tsx
 │   │   │   ├── GithubIcon.tsx
 │   │   │   ├── InstallAppButton.tsx
 │   │   │   ├── ItineraryList.test.tsx
@@ -114,6 +118,8 @@ AppMyTrip/
 │   │   │   ├── PriceSummary.test.tsx
 │   │   │   ├── PriceSummary.tsx
 │   │   │   ├── ProgressBar.tsx
+│   │   │   ├── SettingsMenu.test.tsx
+│   │   │   ├── SettingsMenu.tsx
 │   │   │   ├── SharedAppPage.test.tsx
 │   │   │   ├── SharedAppPage.tsx
 │   │   │   ├── ThemeSelector.test.tsx

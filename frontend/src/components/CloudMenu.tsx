@@ -1,25 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { RefObject } from "react";
-import {
-  Cloud,
-  Calendar,
-  Download,
-  FileDown,
-  LogIn,
-  LogOut,
-  Printer,
-  Save,
-  Share2,
-  FolderOpen,
-  Upload,
-  X,
-} from "lucide-react";
+import { Cloud, CloudOff, LogOut, Save, Share2, FolderOpen, X } from "lucide-react";
 import type { TripData } from "../api";
 import { useDismissable } from "../hooks/useDismissable";
 import { useI18n, type TranslationKey } from "../i18n/useI18n";
-import { exportTripToIcs } from "../services/icsExport";
-import { exportTripToPdf } from "../services/pdfExport";
-import { exportTripToFile, importTripFromFile } from "../services/tripFile";
 import LinkDisplay from "./LinkDisplay";
 import { shareMessage } from "../services/shareLink";
 import {
@@ -73,10 +56,8 @@ export default function CloudMenu({
   appDesign,
   tripId,
   currentStep,
-  printTargetRef,
   onTripIdChange,
   onLoadTrip,
-  onImportTrip,
   onUpdateTrip,
 }: {
   tripData: TripData;
@@ -85,11 +66,8 @@ export default function CloudMenu({
   tripId: string | null;
   /** Current builder step (1-4) — used as the default "save as" stage. */
   currentStep: number;
-  /** The live-preview DOM node "Download PDF" captures — same subtree the Print button prints. */
-  printTargetRef: RefObject<HTMLDivElement>;
   onTripIdChange: (tripId: string | null) => void;
   onLoadTrip: (trip: TripData, tripId: string, appDesign: AppDesign) => void;
-  onImportTrip: (trip: TripData, appDesign: AppDesign) => void;
   /** Applies a renamed title back to the trip being edited, so a name typed
    * into the save box (see BuilderStep4's own name field for the same idea)
    * sticks around instead of only living in the saved Firestore doc. */
@@ -97,6 +75,7 @@ export default function CloudMenu({
 }) {
   const { t } = useI18n();
   const [email, setEmail] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(null);
   const [trips, setTrips] = useState<CloudTripSummary[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -126,37 +105,6 @@ export default function CloudMenu({
   useEffect(() => {
     if (!saveNameTouchedRef.current) setSaveName(tripData.title);
   }, [tripData.title]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    try {
-      const { tripData: imported, appDesign: importedAppDesign } = await importTripFromFile(file);
-      onImportTrip(imported, importedAppDesign);
-      setNotice(t("cloud.importSuccess"));
-    } catch (err) {
-      setNotice(err instanceof Error ? err.message : t("cloud.importFailed"));
-    }
-  };
-
-  const handleExportPdf = async () => {
-    if (!printTargetRef.current) {
-      throw new Error("printTargetRef is not attached to a rendered element");
-    }
-    setBusy(true);
-    setNotice(null);
-    try {
-      await exportTripToPdf(printTargetRef.current, tripData.title);
-    } catch (err) {
-      console.error(err);
-      setNotice(t("cloud.exportPdfFailed"));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const refreshTrips = async (id: string) => {
     setTrips(await listTrips(id));
   };
@@ -166,10 +114,12 @@ export default function CloudMenu({
       if (user) {
         setEmail(user.email);
         setUid(user.uid);
+        setDisplayName(user.displayName);
         refreshTrips(user.uid);
       } else {
         setEmail(null);
         setUid(null);
+        setDisplayName(null);
         setTrips([]);
       }
     });
@@ -182,6 +132,7 @@ export default function CloudMenu({
       const session = await signInWithGoogle();
       setEmail(session.email);
       setUid(session.uid);
+      setDisplayName(session.displayName);
       await refreshTrips(session.uid);
     } catch (err) {
       console.error(err);
@@ -195,6 +146,7 @@ export default function CloudMenu({
     await signOutOfGoogle();
     setEmail(null);
     setUid(null);
+    setDisplayName(null);
     setTrips([]);
     onTripIdChange(null);
     setIsOpen(false);
@@ -311,219 +263,160 @@ export default function CloudMenu({
     }
   };
 
-  const fileImportControls = (
-    <>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="application/json"
-        onChange={handleImportFile}
-        className="hidden"
-      />
-      <button
-        onClick={() => exportTripToFile(tripData, appDesign)}
-        className="flex items-center gap-1.5 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-full transition-colors"
-      >
-        <Download size={16} />
-        {t("cloud.export")}
-      </button>
-      <button
-        onClick={() => exportTripToIcs(tripData)}
-        disabled={tripData.days.length === 0}
-        className="flex items-center gap-1.5 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high disabled:opacity-50 px-3 py-1.5 rounded-full transition-colors"
-      >
-        <Calendar size={16} />
-        {t("cloud.exportIcs")}
-      </button>
-      <button
-        onClick={() => window.print()}
-        disabled={tripData.days.length === 0}
-        className="flex items-center gap-1.5 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high disabled:opacity-50 px-3 py-1.5 rounded-full transition-colors"
-      >
-        <Printer size={16} />
-        {t("cloud.print")}
-      </button>
-      <button
-        onClick={handleExportPdf}
-        disabled={tripData.days.length === 0 || busy}
-        className="flex items-center gap-1.5 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high disabled:opacity-50 px-3 py-1.5 rounded-full transition-colors"
-      >
-        <FileDown size={16} />
-        {t("cloud.exportPdf")}
-      </button>
-      <button
-        onClick={() => fileInputRef.current?.click()}
-        className="flex items-center gap-1.5 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-full transition-colors"
-      >
-        <Upload size={16} />
-        {t("cloud.import")}
-      </button>
-    </>
-  );
-
   if (!email) {
     return (
-      <div className="flex flex-wrap items-center gap-2">
-        {fileImportControls}
-        <button
-          onClick={handleSignIn}
-          disabled={busy}
-          className="flex items-center gap-2 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-full transition-colors"
-        >
-          <LogIn size={16} />
-          {busy ? t("cloud.signingIn") : t("cloud.signIn")}
-        </button>
-      </div>
+      <button
+        onClick={handleSignIn}
+        disabled={busy}
+        aria-label={busy ? t("cloud.signingIn") : t("cloud.signIn")}
+        title={busy ? t("cloud.signingIn") : t("cloud.signIn")}
+        className="flex items-center gap-1.5 text-sm font-medium text-ink-muted hover:bg-surface-container-high px-2.5 py-1.5 rounded-full transition-colors"
+      >
+        <CloudOff size={18} />
+        <span className="hidden sm:inline">{busy ? t("cloud.signingIn") : t("cloud.signIn")}</span>
+      </button>
     );
   }
 
   return (
-    // flex-wrap, same as the signed-out branch above: the parent navbar can only
-    // break *between* its children, so without this the four file controls plus
-    // the email chip become one unbreakable ~500px row and push the whole
-    // document into horizontal scroll on a phone.
-    <div className="flex flex-wrap items-center gap-2">
-      {fileImportControls}
-      <div className="relative min-w-0" ref={menuRef}>
-        <button
-          onClick={() => setIsOpen((v) => !v)}
-          aria-expanded={isOpen}
-          aria-haspopup="menu"
-          className="flex items-center gap-2 max-w-[12rem] sm:max-w-none min-w-0 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-full transition-colors"
-        >
-          <Cloud size={16} className="shrink-0" />
-          {/* A long address is one unbreakable token; as a flex item it has
-              min-width:auto and would otherwise refuse to shrink. */}
-          <span className="truncate">{email}</span>
-        </button>
+    <div className="relative min-w-0" ref={menuRef}>
+      <button
+        onClick={() => setIsOpen((v) => !v)}
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        title={displayName ?? email}
+        className="flex items-center gap-1.5 max-w-[10rem] sm:max-w-none min-w-0 text-sm font-medium text-ink-muted hover:bg-surface-container-high px-2.5 py-1.5 rounded-full transition-colors"
+      >
+        <Cloud size={18} className="shrink-0" />
+        <span className="hidden sm:inline truncate">{displayName?.split(" ")[0] || email}</span>
+      </button>
 
-        {isOpen && (
-          <div
-            role="menu"
-            className="fixed inset-x-4 top-4 max-h-[calc(100vh-2rem)] w-auto overflow-y-auto
+      {isOpen && (
+        <div
+          role="menu"
+          className="fixed inset-x-4 top-4 max-h-[calc(100vh-2rem)] w-auto overflow-y-auto
               sm:absolute sm:inset-x-auto sm:top-auto sm:end-0 sm:mt-2 sm:max-h-none sm:w-96
               sm:max-w-[calc(100vw-2rem)] sm:overflow-visible bg-white rounded-xl shadow-lg
               border border-outline/20 p-4 z-40 text-start"
-          >
-            {notice && <p className="text-xs text-amber-700 mb-2">{notice}</p>}
-            {shareUrl && (
-              <div className="mb-3">
-                <LinkDisplay
-                  url={shareUrl}
-                  shareTitle={tripData.title}
-                  shareText={shareMessage(tripData, shareUrl)}
-                />
-              </div>
-            )}
-
-            <input
-              type="text"
-              value={saveName}
-              onChange={(e) => handleChangeSaveName(e.target.value)}
-              placeholder={t("step4.tripNamePlaceholder")}
-              aria-label={t("step4.tripNameLabel")}
-              className="w-full border border-outline/40 rounded-md px-2.5 py-1.5 text-sm mb-2"
-            />
-            <div className="flex gap-2 mb-2">
-              <button
-                onClick={handleSave}
-                disabled={busy}
-                className="flex-1 flex items-center justify-center gap-1.5 bg-primary hover:bg-primary-dark text-white text-sm px-3 py-2 rounded-lg"
-              >
-                <Save size={14} />
-                {t("common.save")}
-              </button>
-              <button
-                onClick={handleShare}
-                disabled={busy}
-                className="flex-1 flex items-center justify-center gap-1.5 bg-surface-container hover:bg-surface-container-high text-ink-muted text-sm px-3 py-2 rounded-lg"
-              >
-                <Share2 size={14} />
-                {t("cloud.share")}
-              </button>
+        >
+          {notice && <p className="text-xs text-amber-700 mb-2">{notice}</p>}
+          {shareUrl && (
+            <div className="mb-3">
+              <LinkDisplay
+                url={shareUrl}
+                shareTitle={tripData.title}
+                shareText={shareMessage(tripData, shareUrl)}
+              />
             </div>
-            <label className="block text-xs text-ink-muted mb-2">
-              {t("cloud.saveAsLabel")}{" "}
-              <select
-                value={saveStage}
-                onChange={(e) => setSaveStage(e.target.value as TripStage)}
-                className="border border-outline/40 rounded-md px-1.5 py-0.5 text-xs"
-              >
-                {SAVE_STAGES.map((opt) => (
-                  <option key={opt.stage} value={opt.stage}>
-                    {t(opt.labelKey)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-xs text-ink-muted mb-4">
-              {t("cloud.shareValidity")}{" "}
-              <select
-                value={shareDays}
-                onChange={(e) => setShareDays(Number(e.target.value))}
-                className="border border-outline/40 rounded-md px-1.5 py-0.5 text-xs"
-              >
-                {SHARE_DURATIONS.map((opt) => (
-                  <option key={opt.days} value={opt.days}>
-                    {t(opt.labelKey)}
-                  </option>
-                ))}
-              </select>
-            </label>
+          )}
 
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-ink-muted mb-2">
-              <FolderOpen size={14} />
-              {t("cloud.myTrips")}
-            </div>
-            <ul className="max-h-48 overflow-y-auto space-y-1 mb-3">
-              {trips.length === 0 && (
-                <li className="text-xs text-ink-muted py-2">{t("cloud.noTrips")}</li>
-              )}
-              {trips.map((trip) => (
-                <li key={trip.id} className="flex items-center gap-1 group">
-                  <button
-                    onClick={() => handleLoad(trip)}
-                    disabled={busy}
-                    title={trip.name}
-                    className="flex-1 min-w-0 flex items-center gap-1.5 text-sm text-ink text-start hover:text-primary px-2 py-1.5 rounded-lg hover:bg-surface-container"
-                  >
-                    <span className="truncate">{trip.name}</span>
-                    {trip.stage && (
-                      <span className="shrink-0 text-[10px] font-medium text-ink-muted bg-surface-container-high px-1.5 py-0.5 rounded-full">
-                        {t(STAGE_LABEL_KEYS[trip.stage])}
-                      </span>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(trip)}
-                    disabled={busy}
-                    aria-label={
-                      confirmDeleteId === trip.id
-                        ? t("cloud.deleteConfirmAria", { name: trip.name })
-                        : t("cloud.deleteAria", { name: trip.name })
-                    }
-                    className={`p-1 ${
-                      confirmDeleteId === trip.id
-                        ? "opacity-100 text-red-600 font-semibold text-[10px] px-1.5"
-                        : "opacity-0 group-hover:opacity-100 focus:opacity-100 text-ink-muted hover:text-red-500"
-                    }`}
-                  >
-                    {confirmDeleteId === trip.id ? t("cloud.deleteConfirm") : <X size={14} />}
-                  </button>
-                </li>
-              ))}
-            </ul>
-
+          <input
+            type="text"
+            value={saveName}
+            onChange={(e) => handleChangeSaveName(e.target.value)}
+            placeholder={t("step4.tripNamePlaceholder")}
+            aria-label={t("step4.tripNameLabel")}
+            className="w-full border border-outline/40 rounded-md px-2.5 py-1.5 text-sm mb-2"
+          />
+          <div className="flex gap-2 mb-2">
             <button
-              onClick={handleSignOut}
-              className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-ink"
+              onClick={handleSave}
+              disabled={busy}
+              className="flex-1 flex items-center justify-center gap-1.5 bg-primary hover:bg-primary-dark text-white text-sm px-3 py-2 rounded-lg"
             >
-              <LogOut size={14} />
-              {t("cloud.signOut")}
+              <Save size={14} />
+              {t("common.save")}
+            </button>
+            <button
+              onClick={handleShare}
+              disabled={busy}
+              className="flex-1 flex items-center justify-center gap-1.5 bg-surface-container hover:bg-surface-container-high text-ink-muted text-sm px-3 py-2 rounded-lg"
+            >
+              <Share2 size={14} />
+              {t("cloud.share")}
             </button>
           </div>
-        )}
-      </div>
+          <label className="block text-xs text-ink-muted mb-2">
+            {t("cloud.saveAsLabel")}{" "}
+            <select
+              value={saveStage}
+              onChange={(e) => setSaveStage(e.target.value as TripStage)}
+              className="border border-outline/40 rounded-md px-1.5 py-0.5 text-xs"
+            >
+              {SAVE_STAGES.map((opt) => (
+                <option key={opt.stage} value={opt.stage}>
+                  {t(opt.labelKey)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-xs text-ink-muted mb-4">
+            {t("cloud.shareValidity")}{" "}
+            <select
+              value={shareDays}
+              onChange={(e) => setShareDays(Number(e.target.value))}
+              className="border border-outline/40 rounded-md px-1.5 py-0.5 text-xs"
+            >
+              {SHARE_DURATIONS.map((opt) => (
+                <option key={opt.days} value={opt.days}>
+                  {t(opt.labelKey)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-ink-muted mb-2">
+            <FolderOpen size={14} />
+            {t("cloud.myTrips")}
+          </div>
+          <ul className="max-h-48 overflow-y-auto space-y-1 mb-3">
+            {trips.length === 0 && (
+              <li className="text-xs text-ink-muted py-2">{t("cloud.noTrips")}</li>
+            )}
+            {trips.map((trip) => (
+              <li key={trip.id} className="flex items-center gap-1 group">
+                <button
+                  onClick={() => handleLoad(trip)}
+                  disabled={busy}
+                  title={trip.name}
+                  className="flex-1 min-w-0 flex items-center gap-1.5 text-sm text-ink text-start hover:text-primary px-2 py-1.5 rounded-lg hover:bg-surface-container"
+                >
+                  <span className="truncate">{trip.name}</span>
+                  {trip.stage && (
+                    <span className="shrink-0 text-[10px] font-medium text-ink-muted bg-surface-container-high px-1.5 py-0.5 rounded-full">
+                      {t(STAGE_LABEL_KEYS[trip.stage])}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => handleDelete(trip)}
+                  disabled={busy}
+                  aria-label={
+                    confirmDeleteId === trip.id
+                      ? t("cloud.deleteConfirmAria", { name: trip.name })
+                      : t("cloud.deleteAria", { name: trip.name })
+                  }
+                  className={`p-1 ${
+                    confirmDeleteId === trip.id
+                      ? "opacity-100 text-red-600 font-semibold text-[10px] px-1.5"
+                      : "opacity-0 group-hover:opacity-100 focus:opacity-100 text-ink-muted hover:text-red-500"
+                  }`}
+                >
+                  {confirmDeleteId === trip.id ? t("cloud.deleteConfirm") : <X size={14} />}
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <button
+            onClick={handleSignOut}
+            className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-ink"
+          >
+            <LogOut size={14} />
+            {t("cloud.signOut")}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
