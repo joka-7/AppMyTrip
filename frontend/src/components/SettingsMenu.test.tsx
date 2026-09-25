@@ -60,6 +60,21 @@ describe("SettingsMenu", () => {
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
+  // Regression guard: combining three sections here makes the dropdown tall
+  // enough to cover the whole viewport on a phone — including the ⋮ button
+  // that opened it — so an explicit close control has to work even when
+  // outside-click and Escape aren't reachable.
+  it("has an always-visible close button that dismisses the menu", () => {
+    renderMenu();
+    fireEvent.click(screen.getByRole("button", { name: "הגדרות" }));
+    const menu = screen.getByRole("menu");
+
+    const closeButton = within(menu).getByRole("button", { name: "סגירה" });
+    expect(closeButton).toBeVisible();
+    fireEvent.click(closeButton);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
   it("wires the import action from FileActions through to onImportTrip", async () => {
     vi.mocked(tripFile.importTripFromFile).mockResolvedValue({
       tripData: { ...sampleTrip, days: [{ dayNum: 1, activities: [], checklist: [] }] },

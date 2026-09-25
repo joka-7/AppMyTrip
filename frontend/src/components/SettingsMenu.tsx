@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import type { RefObject } from "react";
-import { MoreVertical } from "lucide-react";
+import { MoreVertical, X } from "lucide-react";
 import type { TripData } from "../api";
 import type { AppDesign } from "../services/appDesign";
 import { useDismissable } from "../hooks/useDismissable";
@@ -53,6 +53,23 @@ export default function SettingsMenu({
             sm:max-w-[calc(100vw-2rem)] sm:overflow-visible bg-white rounded-xl shadow-lg
             border border-outline/20 p-4 z-40 text-start space-y-4"
         >
+          {/* Combining three sections here (unlike CloudMenu's shorter dropdown)
+              makes this tall enough to cover the whole screen on a phone,
+              including the ⋮ button that opened it — so closing can't rely on
+              useDismissable's outside-click/Escape alone; this stays reachable
+              regardless of scroll position or content height. */}
+          <div className="sticky top-0 -mx-4 -mt-4 flex items-center justify-between gap-2 rounded-t-xl border-b border-outline/10 bg-white px-4 py-3">
+            <h2 className="text-sm font-semibold text-ink">{t("settingsMenu.button")}</h2>
+            <button
+              type="button"
+              onClick={closeMenu}
+              aria-label={t("apiKey.close")}
+              className="flex items-center justify-center w-7 h-7 rounded-full text-ink-muted hover:bg-surface-container-high transition-colors"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
           <section>
             <h3 className="text-xs font-semibold text-ink-muted mb-1.5">
               {t("settingsMenu.language")}
