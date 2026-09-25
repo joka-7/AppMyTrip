@@ -36,6 +36,14 @@ export const fr: Record<TranslationKey, string> = {
   "step1.hint.activities": "Identification des activités et horaires...",
   "step1.reprocess": "Réanalyser (remplace le voyage existant)",
   "step1.submit": "Créer la structure initiale de l'app",
+  "step1.noKey.heading": "Pas encore de clé API ?",
+  "step1.noKey.intro":
+    "Posez la question directement à une appli IA gratuite, collez sa réponse ci-dessous, et on continue à partir de là.",
+  "step1.noKey.pasteLabel": "Collez ici la réponse de l'IA",
+  "step1.noKey.pastePlaceholder": "Collez ici la réponse JSON…",
+  "step1.noKey.pasteApply": "Utiliser cette réponse",
+  "step1.noKey.invalidReply":
+    "Cela ne ressemble pas encore à un voyage valide — vérifiez que vous avez copié toute la réponse (y compris les accolades d'ouverture et de fermeture) et réessayez.",
   "step1.exampleRawText":
     "Salut, nous partons pour Rome après-demain jusqu'à dimanche. Le premier jour, nous atterrissons, allons à l'hôtel près de la place d'Espagne, puis nous explorons le quartier. Le deuxième jour, le Colisée et le Forum, et beaucoup de shopping. Le troisième jour, le Vatican. Il faut aussi trouver où manger.",
 

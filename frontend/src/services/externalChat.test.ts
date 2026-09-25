@@ -8,11 +8,12 @@ function provider(id: string) {
 }
 
 describe("EXTERNAL_CHAT_PROVIDERS", () => {
-  it("covers exactly chatgpt, claude, gemini, and groq", () => {
+  it("covers exactly chatgpt, claude, gemini, geminiApp, and groq", () => {
     expect(EXTERNAL_CHAT_PROVIDERS.map((p) => p.id).sort()).toEqual([
       "chatgpt",
       "claude",
       "gemini",
+      "geminiApp",
       "groq",
     ]);
   });

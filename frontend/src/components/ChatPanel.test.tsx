@@ -46,6 +46,7 @@ describe("ChatPanel", () => {
     expect(url.searchParams.get("q")).toBe("add a beach day");
 
     expect(screen.getByRole("link", { name: "ChatGPT" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Gemini (Google AI Mode)" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Gemini" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Groq" })).toBeTruthy();
   });

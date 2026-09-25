@@ -11,8 +11,7 @@
 // package) rather than a hand-duplicated copy of it — this app still opens
 // links declaratively via <a href> instead of that package's imperative
 // `openExternalChat()`, so only the provider data table is reused here, not
-// that function. `name` is overridden below to keep this app's own,
-// shorter link labels unchanged.
+// that function.
 //
 // Same caveat as that package: the query-prefill parameters it uses
 // (claude.ai/new?q=, chatgpt.com/?q=, Google Search's udm=50 AI Mode) are
@@ -31,13 +30,9 @@ import {
 export type { ExternalChatProviderId };
 export type ExternalChatProvider = (typeof PACKAGE_EXTERNAL_CHAT_PROVIDERS)[ExternalChatProviderId];
 
-const NAME_OVERRIDES: Partial<Record<ExternalChatProviderId, string>> = {
-  gemini: "Gemini",
-};
-
 export const EXTERNAL_CHAT_PROVIDERS: ExternalChatProvider[] = Object.values(
   PACKAGE_EXTERNAL_CHAT_PROVIDERS,
-).map((provider) => ({ ...provider, name: NAME_OVERRIDES[provider.id] ?? provider.name }));
+);
 
 /** The URL to open for `provider` given `question` — pre-filled where a
  * prefill parameter is known, the plain homepage otherwise. */

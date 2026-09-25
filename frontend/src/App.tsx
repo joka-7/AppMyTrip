@@ -333,6 +333,18 @@ function TripBuilder() {
     }
   };
 
+  /** Continues exactly as handleProcessText's success path would, but from a
+   * trip parsed out of a pasted external-AI reply instead of a backend call —
+   * see BuilderStep1's no-key escape hatch. */
+  const handleExternalReplyParsed = (tripData: TripData) => {
+    setApiNotice(null);
+    setFailedEnhanceOptions(null);
+    setTripData(normalizeTripForLoad(tripData));
+    setTripId(null);
+    setAgentMessages([{ role: "agent", text: t("agent.initial") }]);
+    goToStep(2);
+  };
+
   // Remembered so activities added later via chat can get the same Step 2 extras.
   const [enhanceOptions, setEnhanceOptions] = useState<EnhanceOptions>({});
   // Set only when handleEnhance fails, so ApiNotice can offer a one-click
@@ -593,6 +605,8 @@ function TripBuilder() {
                 isProcessing={isProcessing}
                 hasExistingTrip={tripData.days.length > 0}
                 onContinueWithoutReprocessing={() => goToStep(2)}
+                hasAnyApiKey={getAllCredentials().length > 0}
+                onExternalReplyParsed={handleExternalReplyParsed}
               />
             )}
             <Suspense fallback={<StepFallback />}>

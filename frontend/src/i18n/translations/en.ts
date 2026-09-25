@@ -37,6 +37,14 @@ export const en: Record<TranslationKey, string> = {
   "step1.hint.activities": "Identifying activities and times...",
   "step1.reprocess": "Re-analyze (replaces the existing trip)",
   "step1.submit": "Create initial app structure",
+  "step1.noKey.heading": "No API key yet?",
+  "step1.noKey.intro":
+    "Ask a free AI app directly, paste its reply below, and we'll continue from there.",
+  "step1.noKey.pasteLabel": "Paste the AI's reply here",
+  "step1.noKey.pastePlaceholder": "Paste the JSON response here…",
+  "step1.noKey.pasteApply": "Use this reply",
+  "step1.noKey.invalidReply":
+    "That doesn't look like a valid trip yet — check that you copied the whole reply (including the opening and closing braces) and try again.",
   "step1.exampleRawText":
     "Hi, we're flying to Rome the day after tomorrow until Sunday. On the first day we land, head to the hotel near the Spanish Steps and then explore the area. On the second day the Colosseum and the Forum, and lots of shopping. On the third day the Vatican. We also need to find places to eat.",
 

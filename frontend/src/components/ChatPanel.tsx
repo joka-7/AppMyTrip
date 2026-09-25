@@ -1,39 +1,12 @@
 import { useState, type RefObject } from "react";
 import { ExternalLink } from "lucide-react";
 import { useI18n } from "../i18n/useI18n";
-import {
-  buildExternalChatUrl,
-  copyToClipboard,
-  EXTERNAL_CHAT_PROVIDERS,
-} from "../services/externalChat";
+import ExternalChatLinks from "./ExternalChatLinks";
 import LanguageIndicator from "./LanguageIndicator";
 
 export interface AgentMessage {
   role: string;
   text: string;
-}
-
-/** One row of "ChatGPT / Claude / Gemini / Groq" deep links for `question`,
- * shared by both the failure-notice path and the proactive toggle below. */
-function ExternalChatLinks({ question }: { question: string }) {
-  const { t } = useI18n();
-  return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">
-      <span>{t("chat.askElsewhere")}</span>
-      {EXTERNAL_CHAT_PROVIDERS.map((provider) => (
-        <a
-          key={provider.id}
-          href={buildExternalChatUrl(provider, question)}
-          target="_blank"
-          rel="noreferrer"
-          onClick={() => copyToClipboard(question)}
-          className="font-medium text-primary hover:text-primary-dark underline"
-        >
-          {provider.name}
-        </a>
-      ))}
-    </div>
-  );
 }
 
 /**
