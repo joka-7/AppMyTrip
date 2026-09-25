@@ -45,31 +45,104 @@ describe("CloudMenu", () => {
   // misconfigured Firebase) used to have nowhere to render — the signed-out
   // branch was just the button, and `notice` was only ever shown inside the
   // signed-in dropdown.
-  it("shows and can dismiss a notice when sign-in fails", async () => {
-    vi.mocked(trips.signInWithGoogle).mockRejectedValue(new Error("popup blocked"));
-    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  describe("sign-in failure notice", () => {
+    function renderSignedOut() {
+      return render(
+        <CloudMenu
+          tripData={sampleTrip}
+          appDesign={DEFAULT_APP_DESIGN}
+          tripId={null}
+          currentStep={1}
+          onTripIdChange={vi.fn()}
+          onUpdateTrip={vi.fn()}
+          onLoadTrip={vi.fn()}
+        />,
+      );
+    }
 
-    render(
-      <CloudMenu
-        tripData={sampleTrip}
-        appDesign={DEFAULT_APP_DESIGN}
-        tripId={null}
-        currentStep={1}
-        onTripIdChange={vi.fn()}
-        onUpdateTrip={vi.fn()}
-        onLoadTrip={vi.fn()}
-      />,
-    );
+    it("shows and can dismiss a notice for an unclassified failure, with the actual error appended", async () => {
+      vi.mocked(trips.signInWithGoogle).mockRejectedValue(new Error("something odd"));
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    fireEvent.click(screen.getByRole("button", { name: /התחברות עם Google/ }));
-    await waitFor(() => {
-      expect(screen.getByText("ההתחברות ל-Google נכשלה. נסו שוב.")).toBeInTheDocument();
+      renderSignedOut();
+      fireEvent.click(screen.getByRole("button", { name: /התחברות עם Google/ }));
+      await waitFor(() => {
+        expect(screen.getByText(/ההתחברות ל-Google נכשלה\. נסו שוב\./)).toBeInTheDocument();
+      });
+      expect(screen.getByText(/something odd/)).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "סגירה" }));
+      expect(screen.queryByText(/ההתחברות ל-Google נכשלה/)).not.toBeInTheDocument();
+
+      consoleErrorSpy.mockRestore();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "סגירה" }));
-    expect(screen.queryByText("ההתחברות ל-Google נכשלה. נסו שוב.")).not.toBeInTheDocument();
+    it("shows a specific message for a blocked popup", async () => {
+      vi.mocked(trips.signInWithGoogle).mockRejectedValue(
+        Object.assign(new Error("blocked"), { code: "auth/popup-blocked" }),
+      );
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    consoleErrorSpy.mockRestore();
+      renderSignedOut();
+      fireEvent.click(screen.getByRole("button", { name: /התחברות עם Google/ }));
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            "הדפדפן חסם את חלון ההתחברות של Google. אפשרו חלונות קופצים לאתר הזה ונסו שוב.",
+          ),
+        ).toBeInTheDocument();
+      });
+
+      consoleErrorSpy.mockRestore();
+    });
+
+    it("shows a specific message for an unauthorized domain (e.g. an unauthorized preview deployment)", async () => {
+      vi.mocked(trips.signInWithGoogle).mockRejectedValue(
+        Object.assign(new Error("domain"), { code: "auth/unauthorized-domain" }),
+      );
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      renderSignedOut();
+      fireEvent.click(screen.getByRole("button", { name: /התחברות עם Google/ }));
+      await waitFor(() => {
+        expect(
+          screen.getByText(/הכתובת הנוכחית אינה מורשית להתחברות עם Google/),
+        ).toBeInTheDocument();
+      });
+
+      consoleErrorSpy.mockRestore();
+    });
+
+    it("shows a specific message for a network failure", async () => {
+      vi.mocked(trips.signInWithGoogle).mockRejectedValue(
+        Object.assign(new Error("offline"), { code: "auth/network-request-failed" }),
+      );
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      renderSignedOut();
+      fireEvent.click(screen.getByRole("button", { name: /התחברות עם Google/ }));
+      await waitFor(() => {
+        expect(screen.getByText(/בעיית רשת מנעה את ההתחברות/)).toBeInTheDocument();
+      });
+
+      consoleErrorSpy.mockRestore();
+    });
+
+    it("shows no notice at all when the user just closes the Google popup themselves", async () => {
+      vi.mocked(trips.signInWithGoogle).mockRejectedValue(
+        Object.assign(new Error("closed"), { code: "auth/popup-closed-by-user" }),
+      );
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      renderSignedOut();
+      fireEvent.click(screen.getByRole("button", { name: /התחברות עם Google/ }));
+      await waitFor(() => {
+        expect(trips.signInWithGoogle).toHaveBeenCalled();
+      });
+      expect(screen.queryByRole("button", { name: "סגירה" })).not.toBeInTheDocument();
+
+      consoleErrorSpy.mockRestore();
+    });
   });
 
   it("signs in, lists trips, and loads a selected trip", async () => {
