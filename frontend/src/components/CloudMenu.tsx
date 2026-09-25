@@ -4,6 +4,7 @@ import type { TripData } from "../api";
 import { useDismissable } from "../hooks/useDismissable";
 import { useI18n, type TranslationKey } from "../i18n/useI18n";
 import LinkDisplay from "./LinkDisplay";
+import { appendErrorDetail } from "../services/errorMessage";
 import { shareMessage } from "../services/shareLink";
 import {
   type CloudTripSummary,
@@ -125,6 +126,37 @@ export default function CloudMenu({
     });
   }, []);
 
+  // Firebase auth errors carry a stable `.code` (see
+  // https://firebase.google.com/docs/reference/js/auth#autherrorcodes) worth
+  // telling apart instead of one generic "sign-in failed" for every case:
+  // the user closing the Google popup themselves isn't a failure at all, a
+  // blocked popup and an unauthorized domain (e.g. a preview deployment
+  // that was never added to the Firebase console's authorized domains list)
+  // each need a different fix, and anything else still gets the actual
+  // code/message appended so it's diagnosable instead of a dead end.
+  const describeSignInError = (err: unknown): string | null => {
+    const code =
+      err && typeof err === "object" && "code" in err
+        ? String((err as { code: unknown }).code)
+        : null;
+    switch (code) {
+      case "auth/popup-closed-by-user":
+      case "auth/cancelled-popup-request":
+        return null;
+      case "auth/popup-blocked":
+        return t("cloud.signInPopupBlocked");
+      case "auth/unauthorized-domain":
+        return t("cloud.signInUnauthorizedDomain");
+      case "auth/network-request-failed":
+        return t("cloud.signInNetworkFailed");
+      default:
+        return appendErrorDetail(
+          t("cloud.signInFailed"),
+          err instanceof Error ? err.message : String(err),
+        );
+    }
+  };
+
   const handleSignIn = async () => {
     setBusy(true);
     setNotice(null);
@@ -136,7 +168,7 @@ export default function CloudMenu({
       await refreshTrips(session.uid);
     } catch (err) {
       console.error(err);
-      setNotice(t("cloud.signInFailed"));
+      setNotice(describeSignInError(err));
     } finally {
       setBusy(false);
     }

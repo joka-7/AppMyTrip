@@ -345,6 +345,12 @@ export const en: Record<TranslationKey, string> = {
   "cloud.importSuccess": "The trip was imported from the file.",
   "cloud.importFailed": "Importing the file failed.",
   "cloud.signInFailed": "Signing in with Google failed. Please try again.",
+  "cloud.signInPopupBlocked":
+    "Your browser blocked the Google sign-in popup. Allow popups for this site and try again.",
+  "cloud.signInUnauthorizedDomain":
+    "This address isn't authorized for Google sign-in (e.g. a temporary preview link). Try the site's main address, or contact whoever manages the project.",
+  "cloud.signInNetworkFailed":
+    "A network problem prevented sign-in. Check your connection and try again.",
   "cloud.saved": "The trip was saved to your account.",
   "cloud.saveFailed": "Saving the trip failed.",
   "cloud.shareBeforeSave": "Save the trip before sharing it.",

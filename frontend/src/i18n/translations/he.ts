@@ -343,6 +343,11 @@ export const he = {
   "cloud.importSuccess": "הטיול יובא מהקובץ.",
   "cloud.importFailed": "ייבוא הקובץ נכשל.",
   "cloud.signInFailed": "ההתחברות ל-Google נכשלה. נסו שוב.",
+  "cloud.signInPopupBlocked":
+    "הדפדפן חסם את חלון ההתחברות של Google. אפשרו חלונות קופצים לאתר הזה ונסו שוב.",
+  "cloud.signInUnauthorizedDomain":
+    "הכתובת הנוכחית אינה מורשית להתחברות עם Google (למשל כתובת תצוגה מקדימה זמנית). נסו מהכתובת הראשית של האתר, או פנו למי שמנהל את הפרויקט.",
+  "cloud.signInNetworkFailed": "בעיית רשת מנעה את ההתחברות. בדקו את החיבור לאינטרנט ונסו שוב.",
   "cloud.saved": "הטיול נשמר בחשבונכם.",
   "cloud.saveFailed": "שמירת הטיול נכשלה.",
   "cloud.shareBeforeSave": "שמרו את הטיול לפני שיתופו.",

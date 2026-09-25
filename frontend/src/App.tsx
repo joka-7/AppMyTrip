@@ -23,6 +23,7 @@ import { DEFAULT_APP_DESIGN, type AppDesign } from "./services/appDesign";
 import { getApiKeys, getApiProvider, getAllCredentials, getBackend } from "./services/apiKey";
 import { getAiMode } from "./services/externalChat";
 import type { ExternalAgentTurn } from "./services/externalTripReply";
+import { appendErrorDetail } from "./services/errorMessage";
 import {
   clearDraft,
   isRecoverableDraft,
@@ -116,26 +117,6 @@ const describeApiError = (err: unknown, fallback: string): string => {
   }
   return fallback;
 };
-
-/** Appends a short backend error detail to a friendly message so the actual cause
- * is visible in the UI, without needing server log access to find out why. Labeled
- * and wrapped in Unicode bidi-isolate marks (U+2066/U+2069, invisible themselves) so
- * this often-English/URL-containing technical line doesn't get visually reordered/
- * garbled when embedded in a Hebrew (RTL) sentence — without that, mixed-direction
- * text reads as scrambled rather than just "in a different language." */
-function appendErrorDetail(message: string, detail: string): string {
-  const trimmed = detail.trim();
-  if (!trimmed) return message;
-  const short = trimmed.length > 220 ? `${trimmed.slice(0, 220)}…` : trimmed;
-  const label = translate("apiError.technicalDetailLabel");
-  // U+2066/U+2069 (LRI/PDI) are invisible Unicode "isolate" marks — written
-  // as escapes, not literal characters, so they survive editing/diffing
-  // intact. They stop the bidi algorithm from reordering this English/URL
-  // text when it's embedded in a Hebrew (RTL) sentence.
-  const LRI = "⁦";
-  const PDI = "⁩";
-  return `${message}\n${label} ${LRI}${short}${PDI}`;
-}
 
 // Generic sample trip used as an offline demo / fallback when the backend is
 // unreachable (e.g. no GEMINI_API_KEY). Intentionally not tied to a specific

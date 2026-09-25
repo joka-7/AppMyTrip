@@ -353,6 +353,12 @@ export const fr: Record<TranslationKey, string> = {
   "cloud.importSuccess": "Le voyage a été importé depuis le fichier.",
   "cloud.importFailed": "L'importation du fichier a échoué.",
   "cloud.signInFailed": "La connexion avec Google a échoué. Réessayez.",
+  "cloud.signInPopupBlocked":
+    "Votre navigateur a bloqué la fenêtre de connexion Google. Autorisez les fenêtres pop-up pour ce site et réessayez.",
+  "cloud.signInUnauthorizedDomain":
+    "Cette adresse n'est pas autorisée pour la connexion Google (par exemple un lien d'aperçu temporaire). Essayez depuis l'adresse principale du site, ou contactez la personne qui gère le projet.",
+  "cloud.signInNetworkFailed":
+    "Un problème réseau a empêché la connexion. Vérifiez votre connexion internet et réessayez.",
   "cloud.saved": "Le voyage a été enregistré sur votre compte.",
   "cloud.saveFailed": "L'enregistrement du voyage a échoué.",
   "cloud.shareBeforeSave": "Enregistrez le voyage avant de le partager.",
