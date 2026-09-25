@@ -265,16 +265,38 @@ export default function CloudMenu({
 
   if (!email) {
     return (
-      <button
-        onClick={handleSignIn}
-        disabled={busy}
-        aria-label={busy ? t("cloud.signingIn") : t("cloud.signIn")}
-        title={busy ? t("cloud.signingIn") : t("cloud.signIn")}
-        className="flex items-center gap-1.5 text-sm font-medium text-ink-muted hover:bg-surface-container-high px-2.5 py-1.5 rounded-full transition-colors"
-      >
-        <CloudOff size={18} />
-        <span className="hidden sm:inline">{busy ? t("cloud.signingIn") : t("cloud.signIn")}</span>
-      </button>
+      <div className="relative">
+        <button
+          onClick={handleSignIn}
+          disabled={busy}
+          aria-label={busy ? t("cloud.signingIn") : t("cloud.signIn")}
+          title={busy ? t("cloud.signingIn") : t("cloud.signIn")}
+          className="flex items-center gap-1.5 text-sm font-medium text-ink-muted hover:bg-surface-container-high px-2.5 py-1.5 rounded-full transition-colors"
+        >
+          <CloudOff size={18} />
+          <span className="hidden sm:inline">
+            {busy ? t("cloud.signingIn") : t("cloud.signIn")}
+          </span>
+        </button>
+        {/* A failed sign-in (blocked popup, cancelled OAuth, misconfigured
+            Firebase, ...) used to have nowhere to render — this branch was
+            just the button, with `notice` only ever shown inside the
+            signed-in dropdown below. */}
+        {notice && (
+          <div className="absolute end-0 top-full mt-1 w-64 max-w-[calc(100vw-2rem)] bg-white border border-outline/20 rounded-xl shadow-lg p-3 z-40 text-start">
+            <div className="flex items-start gap-2">
+              <p className="flex-1 text-xs text-amber-700">{notice}</p>
+              <button
+                onClick={() => setNotice(null)}
+                aria-label={t("apiKey.close")}
+                className="shrink-0 text-ink-muted hover:text-ink"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     );
   }
 

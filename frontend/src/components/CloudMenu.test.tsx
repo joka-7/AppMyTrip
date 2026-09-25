@@ -41,6 +41,37 @@ describe("CloudMenu", () => {
     expect(screen.getByRole("button", { name: /התחברות עם Google/ })).toBeInTheDocument();
   });
 
+  // Regression guard: a failed sign-in (blocked popup, cancelled OAuth,
+  // misconfigured Firebase) used to have nowhere to render — the signed-out
+  // branch was just the button, and `notice` was only ever shown inside the
+  // signed-in dropdown.
+  it("shows and can dismiss a notice when sign-in fails", async () => {
+    vi.mocked(trips.signInWithGoogle).mockRejectedValue(new Error("popup blocked"));
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    render(
+      <CloudMenu
+        tripData={sampleTrip}
+        appDesign={DEFAULT_APP_DESIGN}
+        tripId={null}
+        currentStep={1}
+        onTripIdChange={vi.fn()}
+        onUpdateTrip={vi.fn()}
+        onLoadTrip={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /התחברות עם Google/ }));
+    await waitFor(() => {
+      expect(screen.getByText("ההתחברות ל-Google נכשלה. נסו שוב.")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "סגירה" }));
+    expect(screen.queryByText("ההתחברות ל-Google נכשלה. נסו שוב.")).not.toBeInTheDocument();
+
+    consoleErrorSpy.mockRestore();
+  });
+
   it("signs in, lists trips, and loads a selected trip", async () => {
     vi.mocked(trips.signInWithGoogle).mockResolvedValue({
       uid: "uid-123",
