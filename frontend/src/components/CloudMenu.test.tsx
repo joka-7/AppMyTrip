@@ -1,12 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { RefObject } from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import CloudMenu from "./CloudMenu";
 import * as trips from "../services/tripsStore";
 import type { TripData } from "../api";
 import { DEFAULT_APP_DESIGN } from "../services/appDesign";
-
-const noopPrintTargetRef: RefObject<HTMLDivElement> = { current: null };
 
 vi.mock("../services/tripsStore", () => ({
   onAuthChange: vi.fn(),
@@ -36,11 +33,9 @@ describe("CloudMenu", () => {
         appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
         currentStep={1}
-        printTargetRef={noopPrintTargetRef}
         onTripIdChange={vi.fn()}
         onUpdateTrip={vi.fn()}
         onLoadTrip={vi.fn()}
-        onImportTrip={vi.fn()}
       />,
     );
     expect(screen.getByRole("button", { name: /התחברות עם Google/ })).toBeInTheDocument();
@@ -67,21 +62,19 @@ describe("CloudMenu", () => {
         appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
         currentStep={1}
-        printTargetRef={noopPrintTargetRef}
         onTripIdChange={vi.fn()}
         onUpdateTrip={vi.fn()}
         onLoadTrip={onLoadTrip}
-        onImportTrip={vi.fn()}
       />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /התחברות עם Google/ }));
 
     await waitFor(() => {
-      expect(screen.getByText("user@example.com")).toBeInTheDocument();
+      expect(screen.getByText("User")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("user@example.com"));
+    fireEvent.click(screen.getByText("User"));
     fireEvent.click(screen.getByText("My Trip"));
 
     await waitFor(() => {
@@ -93,38 +86,39 @@ describe("CloudMenu", () => {
     expect(trips.loadTrip).toHaveBeenCalledWith("uid-123", "trip-1");
   });
 
-  // Regression guard: the signed-in branch used to lack `flex-wrap`, so the four
-  // file controls plus the email chip formed one unbreakable row that pushed the
-  // whole document into horizontal scroll on a phone. The parent navbar can only
-  // break *between* its children, so this row has to be able to wrap on its own.
-  it("lets its toolbar wrap and truncates a long email when signed in", async () => {
+  // Regression guard: when no display name is available (an older account, or
+  // a provider that doesn't return one), the connect control falls back to the
+  // raw email — which can be much longer than a first name — so it still needs
+  // to truncate rather than push the navbar into horizontal scroll.
+  it("falls back to a truncated email when signed in with no display name", async () => {
     vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
       callback({
         uid: "uid-123",
         email: "averylongaddress@example.com",
-        displayName: "User",
+        displayName: null,
       } as never);
       return () => {};
     });
     vi.mocked(trips.listTrips).mockResolvedValue([]);
 
-    const { container } = render(
+    render(
       <CloudMenu
         tripData={sampleTrip}
         appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
         currentStep={1}
-        printTargetRef={noopPrintTargetRef}
         onTripIdChange={vi.fn()}
         onUpdateTrip={vi.fn()}
         onLoadTrip={vi.fn()}
-        onImportTrip={vi.fn()}
       />,
     );
 
     const email = await screen.findByText("averylongaddress@example.com");
     expect(email).toHaveClass("truncate");
-    expect(container.firstElementChild).toHaveClass("flex-wrap");
+    expect(screen.getByRole("button", { name: /averylongaddress@example.com/ })).toHaveAttribute(
+      "title",
+      "averylongaddress@example.com",
+    );
   });
 
   it("saves with the selected stage and shows it as a tag once the list refreshes", async () => {
@@ -146,18 +140,16 @@ describe("CloudMenu", () => {
         appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
         currentStep={2}
-        printTargetRef={noopPrintTargetRef}
         onTripIdChange={onTripIdChange}
         onUpdateTrip={vi.fn()}
         onLoadTrip={vi.fn()}
-        onImportTrip={vi.fn()}
       />,
     );
 
     await waitFor(() => {
-      expect(screen.getByText("user@example.com")).toBeInTheDocument();
+      expect(screen.getByText("User")).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText("user@example.com"));
+    fireEvent.click(screen.getByText("User"));
 
     // Defaults to the current builder step (2), matching the "currentStep" prop.
     const stageSelect = screen.getByLabelText(/שמירה בשלב/) as HTMLSelectElement;
@@ -200,18 +192,16 @@ describe("CloudMenu", () => {
         appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
         currentStep={1}
-        printTargetRef={noopPrintTargetRef}
         onTripIdChange={vi.fn()}
         onUpdateTrip={onUpdateTrip}
         onLoadTrip={vi.fn()}
-        onImportTrip={vi.fn()}
       />,
     );
 
     await waitFor(() => {
-      expect(screen.getByText("user@example.com")).toBeInTheDocument();
+      expect(screen.getByText("User")).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText("user@example.com"));
+    fireEvent.click(screen.getByText("User"));
 
     const nameInput = screen.getByPlaceholderText(/לדוגמה: טיול לרומא/) as HTMLInputElement;
     // Defaults to the trip's current title.
@@ -247,18 +237,16 @@ describe("CloudMenu", () => {
         appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
         currentStep={4}
-        printTargetRef={noopPrintTargetRef}
         onTripIdChange={vi.fn()}
         onUpdateTrip={vi.fn()}
         onLoadTrip={vi.fn()}
-        onImportTrip={vi.fn()}
       />,
     );
 
     await waitFor(() => {
-      expect(screen.getByText("user@example.com")).toBeInTheDocument();
+      expect(screen.getByText("User")).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText("user@example.com"));
+    fireEvent.click(screen.getByText("User"));
 
     const stageSelect = screen.getByLabelText(/שמירה בשלב/) as HTMLSelectElement;
     fireEvent.change(stageSelect, { target: { value: "final" } });
@@ -305,18 +293,16 @@ describe("CloudMenu", () => {
         appDesign={DEFAULT_APP_DESIGN}
         tripId="trip-1"
         currentStep={4}
-        printTargetRef={noopPrintTargetRef}
         onTripIdChange={vi.fn()}
         onUpdateTrip={vi.fn()}
         onLoadTrip={vi.fn()}
-        onImportTrip={vi.fn()}
       />,
     );
 
     await waitFor(() => {
-      expect(screen.getByText("user@example.com")).toBeInTheDocument();
+      expect(screen.getByText("User")).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText("user@example.com"));
+    fireEvent.click(screen.getByText("User"));
     fireEvent.click(screen.getByRole("button", { name: /שיתוף/ }));
 
     // The share itself succeeded — the link must still be shown as a manual
@@ -357,18 +343,16 @@ describe("CloudMenu", () => {
         appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
         currentStep={1}
-        printTargetRef={noopPrintTargetRef}
         onTripIdChange={vi.fn()}
         onUpdateTrip={vi.fn()}
         onLoadTrip={onLoadTrip}
-        onImportTrip={vi.fn()}
       />,
     );
 
     await waitFor(() => {
-      expect(screen.getByText("user@example.com")).toBeInTheDocument();
+      expect(screen.getByText("User")).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText("user@example.com"));
+    fireEvent.click(screen.getByText("User"));
     fireEvent.click(screen.getByText("Finished Trip"));
 
     await waitFor(() => {
@@ -398,20 +382,18 @@ describe("CloudMenu", () => {
         appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
         currentStep={1}
-        printTargetRef={noopPrintTargetRef}
         onTripIdChange={vi.fn()}
         onUpdateTrip={vi.fn()}
         onLoadTrip={vi.fn()}
-        onImportTrip={vi.fn()}
       />,
     );
 
     await waitFor(() => {
-      expect(screen.getByText("user@example.com")).toBeInTheDocument();
+      expect(screen.getByText("User")).toBeInTheDocument();
     });
     expect(trips.listTrips).toHaveBeenCalledWith("uid-123");
 
-    fireEvent.click(screen.getByText("user@example.com"));
+    fireEvent.click(screen.getByText("User"));
     await waitFor(() => {
       expect(screen.getByText("My Trip")).toBeInTheDocument();
     });
@@ -434,18 +416,16 @@ describe("CloudMenu", () => {
         appDesign={DEFAULT_APP_DESIGN}
         tripId={null}
         currentStep={1}
-        printTargetRef={noopPrintTargetRef}
         onTripIdChange={vi.fn()}
         onUpdateTrip={vi.fn()}
         onLoadTrip={vi.fn()}
-        onImportTrip={vi.fn()}
       />,
     );
 
     await waitFor(() => {
-      expect(screen.getByText("user@example.com")).toBeInTheDocument();
+      expect(screen.getByText("User")).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText("user@example.com"));
+    fireEvent.click(screen.getByText("User"));
     await waitFor(() => {
       expect(screen.getByText("My Trip")).toBeInTheDocument();
     });

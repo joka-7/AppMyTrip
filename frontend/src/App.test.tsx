@@ -469,6 +469,9 @@ describe("App builder flow", () => {
       const englishExample = /Hi, we're flying to Rome/;
       expect(screen.getByDisplayValue(hebrewExample)).toBeInTheDocument();
 
+      // The language picker now lives inside the ⋮ settings dropdown.
+      fireEvent.click(screen.getByRole("button", { name: "הגדרות" }));
+
       // Untouched: switching language updates the example text in place.
       await act(async () => {
         fireEvent.change(screen.getByRole("combobox", { name: /שפת הממשק/ }), {

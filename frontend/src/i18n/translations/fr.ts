@@ -36,13 +36,16 @@ export const fr: Record<TranslationKey, string> = {
   "step1.hint.activities": "Identification des activités et horaires...",
   "step1.reprocess": "Réanalyser (remplace le voyage existant)",
   "step1.submit": "Créer la structure initiale de l'app",
-  "step1.noKey.heading": "Pas encore de clé API ?",
-  "step1.noKey.intro":
+  "step1.external.heading": "Envoyer à une IA externe",
+  "step1.external.intro":
     "Posez la question directement à une appli IA gratuite, collez sa réponse ci-dessous, et on continue à partir de là.",
-  "step1.noKey.pasteLabel": "Collez ici la réponse de l'IA",
-  "step1.noKey.pastePlaceholder": "Collez ici la réponse JSON…",
-  "step1.noKey.pasteApply": "Utiliser cette réponse",
-  "step1.noKey.invalidReply":
+  "step1.external.sendButton": "Envoyer à une IA externe",
+  "step1.external.sendToFavorite": "Envoyer à {favorite}",
+  "step1.external.tryAnother": "Essayer une autre appli IA",
+  "step1.external.pasteLabel": "Collez ici la réponse de l'IA",
+  "step1.external.pastePlaceholder": "Collez ici la réponse JSON…",
+  "step1.external.pasteApply": "Utiliser cette réponse",
+  "step1.external.invalidReply":
     "Cela ne ressemble pas encore à un voyage valide — vérifiez que vous avez copié toute la réponse (y compris les accolades d'ouverture et de fermeture) et réessayez.",
   "step1.exampleRawText":
     "Salut, nous partons pour Rome après-demain jusqu'à dimanche. Le premier jour, nous atterrissons, allons à l'hôtel près de la place d'Espagne, puis nous explorons le quartier. Le deuxième jour, le Colisée et le Forum, et beaucoup de shopping. Le troisième jour, le Vatican. Il faut aussi trouver où manger.",
@@ -310,6 +313,19 @@ export const fr: Record<TranslationKey, string> = {
   "apiKey.backendModelDispatcher": "Model Dispatcher (partagé)",
   "apiKey.backendNote":
     "Réglage avancé/de test — si le serveur n'a pas configuré Model Dispatcher, la requête revient simplement au comportement standard.",
+  "apiKey.modeApiKey": "Clé API",
+  "apiKey.modeExternal": "IA externe",
+  "apiKey.externalDescription":
+    "Passez complètement les clés API — l'étape 1 vous donne un lien vers une appli IA gratuite avec votre texte prêt à coller, et vous collez sa réponse en retour.",
+  "apiKey.favoriteHeading": "Appli IA favorite",
+  "apiKey.favoriteNone": "Me demander à chaque fois",
+  "apiKey.favoriteHint":
+    "On passera directement à cette appli en un clic à l'étape 1 ; les autres options restent aussi disponibles.",
+
+  // Settings menu (⋮ overflow button)
+  "settingsMenu.button": "Réglages",
+  "settingsMenu.language": "Langue",
+  "settingsMenu.fileActions": "Fichier",
 
   // Cloud menu (sign-in, save, share, my trips)
   "cloud.importSuccess": "Le voyage a été importé depuis le fichier.",

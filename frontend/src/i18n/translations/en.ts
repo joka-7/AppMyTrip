@@ -37,13 +37,16 @@ export const en: Record<TranslationKey, string> = {
   "step1.hint.activities": "Identifying activities and times...",
   "step1.reprocess": "Re-analyze (replaces the existing trip)",
   "step1.submit": "Create initial app structure",
-  "step1.noKey.heading": "No API key yet?",
-  "step1.noKey.intro":
+  "step1.external.heading": "Send to external AI",
+  "step1.external.intro":
     "Ask a free AI app directly, paste its reply below, and we'll continue from there.",
-  "step1.noKey.pasteLabel": "Paste the AI's reply here",
-  "step1.noKey.pastePlaceholder": "Paste the JSON response here…",
-  "step1.noKey.pasteApply": "Use this reply",
-  "step1.noKey.invalidReply":
+  "step1.external.sendButton": "Send to external AI",
+  "step1.external.sendToFavorite": "Send to {favorite}",
+  "step1.external.tryAnother": "Try a different AI app",
+  "step1.external.pasteLabel": "Paste the AI's reply here",
+  "step1.external.pastePlaceholder": "Paste the JSON response here…",
+  "step1.external.pasteApply": "Use this reply",
+  "step1.external.invalidReply":
     "That doesn't look like a valid trip yet — check that you copied the whole reply (including the opening and closing braces) and try again.",
   "step1.exampleRawText":
     "Hi, we're flying to Rome the day after tomorrow until Sunday. On the first day we land, head to the hotel near the Spanish Steps and then explore the area. On the second day the Colosseum and the Forum, and lots of shopping. On the third day the Vatican. We also need to find places to eat.",
@@ -302,6 +305,19 @@ export const en: Record<TranslationKey, string> = {
   "apiKey.backendModelDispatcher": "Model Dispatcher (shared)",
   "apiKey.backendNote":
     "Advanced/testing setting — if the server hasn't set up Model Dispatcher, the request just falls back to the standard behavior.",
+  "apiKey.modeApiKey": "API key",
+  "apiKey.modeExternal": "External AI",
+  "apiKey.externalDescription":
+    "Skip API keys entirely — Step 1 gives you a link to a free AI app with your text ready to paste in, and you paste its reply back.",
+  "apiKey.favoriteHeading": "Favorite AI app",
+  "apiKey.favoriteNone": "Ask me each time",
+  "apiKey.favoriteHint":
+    "We'll jump straight to this app with one click in Step 1; the other options stay available too.",
+
+  // Settings menu (⋮ overflow button)
+  "settingsMenu.button": "Settings",
+  "settingsMenu.language": "Language",
+  "settingsMenu.fileActions": "File",
 
   // Cloud menu (sign-in, save, share, my trips)
   "cloud.importSuccess": "The trip was imported from the file.",
