@@ -22,6 +22,7 @@ import { useTripEditing } from "./hooks/useTripEditing";
 import { DEFAULT_APP_DESIGN, type AppDesign } from "./services/appDesign";
 import { getApiKeys, getApiProvider, getAllCredentials, getBackend } from "./services/apiKey";
 import { getAiMode } from "./services/externalChat";
+import type { ExternalAgentTurn } from "./services/externalTripReply";
 import {
   clearDraft,
   isRecoverableDraft,
@@ -418,6 +419,16 @@ function TripBuilder() {
     }
   };
 
+  /** Continues exactly as handleEnhance's success path would, but from a trip
+   * parsed out of a pasted external-AI reply instead of a backend call — see
+   * BuilderStep2's no-key escape hatch. */
+  const handleExternalEnhanceApplied = (trip: TripData) => {
+    setTripData(normalizeTripForLoad(trip));
+    setFailedEnhanceOptions(null);
+    setApiNotice(null);
+    goToStep(3);
+  };
+
   const sendChatMessage = async (userText: string) => {
     if (!userText.trim()) return;
 
@@ -477,6 +488,21 @@ function TripBuilder() {
   const handleRetryChat = async () => {
     if (!failedChatText) return;
     await sendChatMessage(failedChatText);
+  };
+
+  /** Applies one chat turn parsed from a pasted external-AI reply — see
+   * BuilderStep3's no-key escape hatch. Skips the backend-only follow-up
+   * enhance pass sendChatMessage runs for newly added activities (see
+   * findNewActivities below); nothing left to fall back to without a key. */
+  const handleExternalAgentTurnApplied = (userMessage: string, turn: ExternalAgentTurn) => {
+    setAgentMessages((prev) => [
+      ...prev,
+      { role: "user", text: userMessage },
+      { role: "agent", text: turn.agentReply },
+    ]);
+    setTripData(normalizeTripForLoad(turn.updatedTrip));
+    setChatNotice(null);
+    setFailedChatText(null);
   };
 
   const {
@@ -614,10 +640,13 @@ function TripBuilder() {
             <Suspense fallback={<StepFallback />}>
               {step === 2 && (
                 <BuilderStep2
+                  tripData={tripData}
                   onSubmit={handleEnhance}
                   onSkip={() => goToStep(3)}
                   onBack={() => goToStep(1)}
                   isEnhancing={isEnhancing}
+                  aiMode={getAiMode()}
+                  onExternalReplyParsed={handleExternalEnhanceApplied}
                 />
               )}
 
@@ -635,6 +664,10 @@ function TripBuilder() {
                   onContinue={handleContinueToDesign}
                   onBack={() => goToStep(2)}
                   isGeneratingMedia={isGeneratingMedia}
+                  tripData={tripData}
+                  preferences={preferences}
+                  aiMode={getAiMode()}
+                  onExternalTurnApplied={handleExternalAgentTurnApplied}
                   tripDates={tripData.dates}
                   onChangeTripDates={(dates) => handleUpdateTrip({ dates })}
                   language={tripData.language}

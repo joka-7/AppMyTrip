@@ -86,7 +86,9 @@ AppMyTrip/
 │   │   │   ├── AppFrame.tsx
 │   │   │   ├── BuilderStep1.test.tsx
 │   │   │   ├── BuilderStep1.tsx
+│   │   │   ├── BuilderStep2.test.tsx
 │   │   │   ├── BuilderStep2.tsx
+│   │   │   ├── BuilderStep3.test.tsx
 │   │   │   ├── BuilderStep3.tsx
 │   │   │   ├── BuilderStep4.test.tsx
 │   │   │   ├── BuilderStep4.tsx
@@ -125,6 +127,7 @@ AppMyTrip/
 │   │   │   ├── ThemeSelector.test.tsx
 │   │   │   └── ThemeSelector.tsx
 │   │   ├── data/
+│   │   │   ├── agentResponseSchema.json
 │   │   │   └── tripDataSchema.json
 │   │   ├── hooks/                    # Podcast player, install prompt, trip branding, checklist, editing
 │   │   │   ├── useChecklistSuggest.ts

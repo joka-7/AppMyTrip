@@ -69,6 +69,17 @@ export const en: Record<TranslationKey, string> = {
   "step2.opt.links": "Add links to attraction/transport sites",
   "step2.opt.packing": "Add a what-to-bring list for each day",
   "step2.opt.travel_mode": "Work out how you travel between stops",
+  "step2.external.heading": "Send to external AI",
+  "step2.external.intro":
+    "Ask a free AI app directly, paste its reply below, and we'll continue from there.",
+  "step2.external.sendButton": "Send to external AI",
+  "step2.external.sendToFavorite": "Send to {favorite}",
+  "step2.external.tryAnother": "Try a different AI app",
+  "step2.external.pasteLabel": "Paste the AI's reply here",
+  "step2.external.pastePlaceholder": "Paste the JSON response here…",
+  "step2.external.pasteApply": "Use this reply",
+  "step2.external.invalidReply":
+    "That doesn't look like a valid trip yet — check that you copied the whole reply (including the opening and closing braces) and try again.",
 
   // Step 3 — completion agent
   "step3.heading": "AI Completion Agent",
@@ -77,6 +88,17 @@ export const en: Record<TranslationKey, string> = {
   "step3.datesPlaceholder": "For example: July 12–19",
   "step3.generating": "Generating media (podcasts)...",
   "step3.continue": "Continue to app design",
+  "step3.external.heading": "Send to external AI",
+  "step3.external.intro":
+    "Write your request above, send it to a free AI app, and paste its reply below.",
+  "step3.external.needsText": "Type a message above to send it to an external AI.",
+  "step3.external.sendToFavorite": "Send to {favorite}",
+  "step3.external.tryAnother": "Try a different AI app",
+  "step3.external.pasteLabel": "Paste the AI's reply here",
+  "step3.external.pastePlaceholder": "Paste the JSON response here…",
+  "step3.external.pasteApply": "Use this reply",
+  "step3.external.invalidReply":
+    "That doesn't look like a valid reply yet — check that you copied the whole reply (including the opening and closing braces) and try again.",
 
   // Chat panel
   "chat.inputPlaceholder": "Reply to the agent (e.g. 'yes, add it')",

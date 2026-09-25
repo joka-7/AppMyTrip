@@ -6,13 +6,26 @@ import {
   ChevronRight,
   Link as LinkIcon,
   Route,
+  Send,
   Train,
   Volume2,
   Wallet,
 } from "lucide-react";
-import type { EnhanceOptions } from "../api";
+import { PasteExternalReply } from "modeldispatcher-react-ui";
+import "modeldispatcher-react-ui/styles.css";
+import type { EnhanceOptions, TripData } from "../api";
 import { useRotatingHint } from "../hooks/useRotatingHint";
 import { useI18n, type TranslationKey } from "../i18n/useI18n";
+import ExternalChatLinks from "./ExternalChatLinks";
+import {
+  buildExternalChatUrl,
+  copyToClipboard,
+  EXTERNAL_CHAT_PROVIDERS,
+  loadFavoriteExternalChat,
+  type AiMode,
+} from "../services/externalChat";
+import { buildTripEnhancePrompt } from "../services/externalTripPrompt";
+import { parseExternalTripReply } from "../services/externalTripReply";
 
 const OPTIONS: {
   key: keyof EnhanceOptions;
@@ -35,18 +48,32 @@ const ENHANCE_HINTS: readonly TranslationKey[] = [
 ];
 
 export default function BuilderStep2({
+  tripData,
   onSubmit,
   onSkip,
   onBack,
   isEnhancing,
+  aiMode,
+  onExternalReplyParsed,
 }: {
+  tripData: TripData;
   onSubmit: (options: EnhanceOptions) => void;
   onSkip: () => void;
   onBack: () => void;
   isEnhancing: boolean;
+  /** Which BYOK path this app uses (see services/externalChat.ts's AiMode):
+   * "apiKey" submits to this app's own backend as before; "external" skips
+   * the backend call entirely and hands a combined enrichment prompt to the
+   * visitor's chosen free chat app instead. */
+  aiMode: AiMode;
+  /** Called with the fully enhanced trip parsed from a pasted external-AI
+   * reply — continues exactly as a successful backend enhance would. */
+  onExternalReplyParsed: (tripData: TripData) => void;
 }) {
   const { t } = useI18n();
   const [options, setOptions] = useState<EnhanceOptions>({});
+  const [replyError, setReplyError] = useState(false);
+  const [showOtherProviders, setShowOtherProviders] = useState(false);
   const waitHint = useRotatingHint(isEnhancing, ENHANCE_HINTS);
 
   const toggle = (key: keyof EnhanceOptions) =>
@@ -60,6 +87,25 @@ export default function BuilderStep2({
         ? {}
         : OPTIONS.reduce((acc, { key }) => ({ ...acc, [key]: true }), {} as EnhanceOptions),
     );
+
+  const favoriteId = aiMode === "external" ? loadFavoriteExternalChat() : null;
+  const favoriteProvider = EXTERNAL_CHAT_PROVIDERS.find((p) => p.id === favoriteId);
+  const question = buildTripEnhancePrompt(tripData, options);
+
+  function handleExternalReply(rawReply: string): void {
+    try {
+      onExternalReplyParsed(parseExternalTripReply(rawReply));
+      setReplyError(false);
+    } catch {
+      setReplyError(true);
+    }
+  }
+
+  function handleSendToFavorite(): void {
+    if (!favoriteProvider || !question) return;
+    copyToClipboard(question);
+    window.open(buildExternalChatUrl(favoriteProvider, question), "_blank", "noopener,noreferrer");
+  }
 
   return (
     <div className="animate-fade-in">
@@ -114,7 +160,7 @@ export default function BuilderStep2({
             {t("step2.skip")}
             <ChevronRight size={20} />
           </button>
-        ) : (
+        ) : aiMode === "apiKey" ? (
           <button
             onClick={() => onSubmit(options)}
             disabled={isEnhancing}
@@ -124,12 +170,52 @@ export default function BuilderStep2({
             {isEnhancing ? t("step2.submitting") : t("step2.submit")}
             {!isEnhancing && <ChevronRight size={20} />}
           </button>
+        ) : (
+          <button
+            onClick={favoriteProvider ? handleSendToFavorite : () => setShowOtherProviders(true)}
+            className="bg-primary hover:bg-primary-dark text-white px-8 py-3 rounded-xl font-medium flex items-center gap-2 flex-1 justify-center transition-colors shadow-md"
+          >
+            <Send size={20} />
+            {favoriteProvider
+              ? t("step2.external.sendToFavorite", { favorite: favoriteProvider.name })
+              : t("step2.external.sendButton")}
+          </button>
         )}
       </div>
       {waitHint && (
         <p className="mt-3 text-sm text-ink-muted text-center animate-fade-in" aria-live="polite">
           {t(waitHint)}
         </p>
+      )}
+
+      {aiMode === "external" && hasSelection && question && (
+        <div className="mt-6 pt-6 border-t border-outline/20">
+          <h3 className="text-sm font-semibold mb-1">{t("step2.external.heading")}</h3>
+          <p className="text-xs text-ink-muted mb-2">{t("step2.external.intro")}</p>
+          {favoriteProvider && !showOtherProviders && (
+            <button
+              type="button"
+              onClick={() => setShowOtherProviders(true)}
+              className="text-xs text-primary hover:text-primary-dark underline mb-3"
+            >
+              {t("step2.external.tryAnother")}
+            </button>
+          )}
+          {(!favoriteProvider || showOtherProviders) && (
+            <div className="mb-3">
+              <ExternalChatLinks question={question} />
+            </div>
+          )}
+          <PasteExternalReply
+            label={t("step2.external.pasteLabel")}
+            placeholder={t("step2.external.pastePlaceholder")}
+            applyLabel={t("step2.external.pasteApply")}
+            onApply={handleExternalReply}
+          />
+          {replyError && (
+            <p className="mt-2 text-xs text-red-600">{t("step2.external.invalidReply")}</p>
+          )}
+        </div>
       )}
     </div>
   );

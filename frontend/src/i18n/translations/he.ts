@@ -67,6 +67,16 @@ export const he = {
   "step2.opt.links": "הוספת קישורים לאתרי האטרקציות/תחבורה",
   "step2.opt.packing": "הוספת רשימת ציוד לכל יום",
   "step2.opt.travel_mode": "זיהוי אופן ההגעה בין העצירות",
+  "step2.external.heading": "שליחה ל-AI חיצוני",
+  "step2.external.intro": "שאלו אפליקציית AI חינמית ישירות, הדביקו את התשובה שלה למטה, ונמשיך משם.",
+  "step2.external.sendButton": "שליחה ל-AI חיצוני",
+  "step2.external.sendToFavorite": "שליחה ל-{favorite}",
+  "step2.external.tryAnother": "נסו אפליקציית AI אחרת",
+  "step2.external.pasteLabel": "הדביקו כאן את תשובת ה-AI",
+  "step2.external.pastePlaceholder": "הדביקו כאן את תגובת ה-JSON…",
+  "step2.external.pasteApply": "השתמש בתשובה הזו",
+  "step2.external.invalidReply":
+    "זה לא נראה כמו טיול תקין עדיין — ודאו שהעתקתם את כל התשובה (כולל הסוגריים המסולסלים בפתיחה ובסיום) ונסו שוב.",
 
   // Step 3 — completion agent
   "step3.heading": "סוכן השלמות AI",
@@ -75,6 +85,17 @@ export const he = {
   "step3.datesPlaceholder": "לדוגמה: 12-19 ביולי",
   "step3.generating": "מייצר מדיה (פודקאסטים)...",
   "step3.continue": "המשך לעיצוב האפליקציה",
+  "step3.external.heading": "שליחה ל-AI חיצוני",
+  "step3.external.intro":
+    "כתבו את הבקשה שלכם למעלה, שלחו אותה לאפליקציית AI חינמית, והדביקו את התשובה למטה.",
+  "step3.external.needsText": "הקלידו הודעה למעלה כדי לשלוח אותה ל-AI חיצוני.",
+  "step3.external.sendToFavorite": "שליחה ל-{favorite}",
+  "step3.external.tryAnother": "נסו אפליקציית AI אחרת",
+  "step3.external.pasteLabel": "הדביקו כאן את תשובת ה-AI",
+  "step3.external.pastePlaceholder": "הדביקו כאן את תגובת ה-JSON…",
+  "step3.external.pasteApply": "השתמש בתשובה הזו",
+  "step3.external.invalidReply":
+    "זה לא נראה כמו תשובה תקינה עדיין — ודאו שהעתקתם את כל התשובה (כולל הסוגריים המסולסלים בפתיחה ובסיום) ונסו שוב.",
 
   // Chat panel
   "chat.inputPlaceholder": "ענה לסוכן (למשל: 'כן, תוסיף')",
