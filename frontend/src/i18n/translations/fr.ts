@@ -68,6 +68,17 @@ export const fr: Record<TranslationKey, string> = {
   "step2.opt.links": "Ajouter des liens vers les sites des attractions/transports",
   "step2.opt.packing": "Ajouter une liste d'affaires à emporter pour chaque jour",
   "step2.opt.travel_mode": "Déterminer le mode de déplacement entre les arrêts",
+  "step2.external.heading": "Envoyer à une IA externe",
+  "step2.external.intro":
+    "Posez la question directement à une appli IA gratuite, collez sa réponse ci-dessous, et on continue à partir de là.",
+  "step2.external.sendButton": "Envoyer à une IA externe",
+  "step2.external.sendToFavorite": "Envoyer à {favorite}",
+  "step2.external.tryAnother": "Essayer une autre appli IA",
+  "step2.external.pasteLabel": "Collez ici la réponse de l'IA",
+  "step2.external.pastePlaceholder": "Collez ici la réponse JSON…",
+  "step2.external.pasteApply": "Utiliser cette réponse",
+  "step2.external.invalidReply":
+    "Cela ne ressemble pas encore à un voyage valide — vérifiez que vous avez copié toute la réponse (y compris les accolades d'ouverture et de fermeture) et réessayez.",
 
   // Step 3 — completion agent
   "step3.heading": "Agent de complétion IA",
@@ -76,6 +87,17 @@ export const fr: Record<TranslationKey, string> = {
   "step3.datesPlaceholder": "Par exemple : 12–19 juillet",
   "step3.generating": "Génération des médias (podcasts)...",
   "step3.continue": "Continuer vers le design de l'app",
+  "step3.external.heading": "Envoyer à une IA externe",
+  "step3.external.intro":
+    "Écrivez votre demande ci-dessus, envoyez-la à une appli IA gratuite, et collez sa réponse ci-dessous.",
+  "step3.external.needsText": "Tapez un message ci-dessus pour l'envoyer à une IA externe.",
+  "step3.external.sendToFavorite": "Envoyer à {favorite}",
+  "step3.external.tryAnother": "Essayer une autre appli IA",
+  "step3.external.pasteLabel": "Collez ici la réponse de l'IA",
+  "step3.external.pastePlaceholder": "Collez ici la réponse JSON…",
+  "step3.external.pasteApply": "Utiliser cette réponse",
+  "step3.external.invalidReply":
+    "Cela ne ressemble pas encore à une réponse valide — vérifiez que vous avez copié toute la réponse (y compris les accolades d'ouverture et de fermeture) et réessayez.",
 
   // Chat panel
   "chat.inputPlaceholder": "Répondez à l'agent (ex. « oui, ajoute-le »)",
