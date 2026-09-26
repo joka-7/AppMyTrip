@@ -77,6 +77,26 @@ describe("CloudMenu", () => {
       consoleErrorSpy.mockRestore();
     });
 
+    // Regression guard: the navbar wraps on mobile, so this button can land
+    // anywhere in the wrapped row — an `absolute`-only panel anchored to it
+    // could render partly off the edge of the viewport. `fixed` (pinned to
+    // the viewport, same as this app's other floating panels) on mobile,
+    // only switching to an anchor-relative `absolute` at the `sm:` breakpoint
+    // where wrapping isn't a concern, keeps it fully on-screen either way.
+    it("pins the notice to the viewport on mobile instead of anchoring it to the button", async () => {
+      vi.mocked(trips.signInWithGoogle).mockRejectedValue(new Error("something odd"));
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      renderSignedOut();
+      fireEvent.click(screen.getByRole("button", { name: /התחברות עם Google/ }));
+      const closeButton = await screen.findByRole("button", { name: "סגירה" });
+      const panel = closeButton.closest('[class*="rounded-xl"]');
+      expect(panel).toHaveClass("fixed", "inset-x-4", "top-4");
+      expect(panel).toHaveClass("sm:absolute", "sm:inset-x-auto");
+
+      consoleErrorSpy.mockRestore();
+    });
+
     it("shows a specific message for a blocked popup", async () => {
       vi.mocked(trips.signInWithGoogle).mockRejectedValue(
         Object.assign(new Error("blocked"), { code: "auth/popup-blocked" }),

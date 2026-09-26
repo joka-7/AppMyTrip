@@ -313,9 +313,18 @@ export default function CloudMenu({
         {/* A failed sign-in (blocked popup, cancelled OAuth, misconfigured
             Firebase, ...) used to have nowhere to render — this branch was
             just the button, with `notice` only ever shown inside the
-            signed-in dropdown below. */}
+            signed-in dropdown below. `fixed` (not `absolute`) on mobile,
+            same as every other floating panel in this file: the navbar
+            wraps there, so this button can land anywhere in the wrapped
+            row — anchoring to it directly let the panel run straight off
+            the edge of the viewport instead of staying fully on-screen. */}
         {notice && (
-          <div className="absolute end-0 top-full mt-1 w-64 max-w-[calc(100vw-2rem)] bg-white border border-outline/20 rounded-xl shadow-lg p-3 z-40 text-start">
+          <div
+            className="fixed inset-x-4 top-4 w-auto
+              sm:absolute sm:inset-x-auto sm:top-full sm:end-0 sm:mt-1 sm:w-64
+              sm:max-w-[calc(100vw-2rem)] bg-white border border-outline/20 rounded-xl
+              shadow-lg p-3 z-40 text-start"
+          >
             <div className="flex items-start gap-2">
               <p className="flex-1 text-xs text-amber-700">{notice}</p>
               <button
