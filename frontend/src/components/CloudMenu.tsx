@@ -146,7 +146,11 @@ export default function CloudMenu({
       case "auth/popup-blocked":
         return t("cloud.signInPopupBlocked");
       case "auth/unauthorized-domain":
-        return t("cloud.signInUnauthorizedDomain");
+        // The domain itself is the one actionable fact here (it's what
+        // someone needs to add to the Firebase console's authorized-domains
+        // list) — show it directly instead of sending the user hunting for
+        // their own address bar.
+        return t("cloud.signInUnauthorizedDomain", { domain: window.location.hostname });
       case "auth/network-request-failed":
         return t("cloud.signInNetworkFailed");
       default:

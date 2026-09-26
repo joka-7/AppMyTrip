@@ -116,7 +116,7 @@ describe("CloudMenu", () => {
       consoleErrorSpy.mockRestore();
     });
 
-    it("shows a specific message for an unauthorized domain (e.g. an unauthorized preview deployment)", async () => {
+    it("shows a specific message naming the actual domain, for an unauthorized domain (e.g. an unauthorized preview deployment)", async () => {
       vi.mocked(trips.signInWithGoogle).mockRejectedValue(
         Object.assign(new Error("domain"), { code: "auth/unauthorized-domain" }),
       );
@@ -125,8 +125,10 @@ describe("CloudMenu", () => {
       renderSignedOut();
       fireEvent.click(screen.getByRole("button", { name: /התחברות עם Google/ }));
       await waitFor(() => {
+        // jsdom's default location is localhost — this asserts the actual
+        // hostname is interpolated in, not that it's this specific value.
         expect(
-          screen.getByText(/הכתובת הנוכחית אינה מורשית להתחברות עם Google/),
+          screen.getByText(new RegExp(`הכתובת ${window.location.hostname} אינה מורשית`)),
         ).toBeInTheDocument();
       });
 

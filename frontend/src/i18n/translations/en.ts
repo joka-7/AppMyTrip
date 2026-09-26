@@ -348,7 +348,7 @@ export const en: Record<TranslationKey, string> = {
   "cloud.signInPopupBlocked":
     "Your browser blocked the Google sign-in popup. Allow popups for this site and try again.",
   "cloud.signInUnauthorizedDomain":
-    "This address isn't authorized for Google sign-in (e.g. a temporary preview link). Try the site's main address, or contact whoever manages the project.",
+    "The address {domain} isn't authorized for Google sign-in. If this is the site's main address, it needs to be added to the authorized domains list in the Firebase console; if not, try the site's main address instead.",
   "cloud.signInNetworkFailed":
     "A network problem prevented sign-in. Check your connection and try again.",
   "cloud.saved": "The trip was saved to your account.",
