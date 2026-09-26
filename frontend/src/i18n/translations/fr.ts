@@ -356,7 +356,7 @@ export const fr: Record<TranslationKey, string> = {
   "cloud.signInPopupBlocked":
     "Votre navigateur a bloqué la fenêtre de connexion Google. Autorisez les fenêtres pop-up pour ce site et réessayez.",
   "cloud.signInUnauthorizedDomain":
-    "Cette adresse n'est pas autorisée pour la connexion Google (par exemple un lien d'aperçu temporaire). Essayez depuis l'adresse principale du site, ou contactez la personne qui gère le projet.",
+    "L'adresse {domain} n'est pas autorisée pour la connexion Google. S'il s'agit de l'adresse principale du site, elle doit être ajoutée à la liste des domaines autorisés dans la console Firebase ; sinon, essayez depuis l'adresse principale du site.",
   "cloud.signInNetworkFailed":
     "Un problème réseau a empêché la connexion. Vérifiez votre connexion internet et réessayez.",
   "cloud.saved": "Le voyage a été enregistré sur votre compte.",
