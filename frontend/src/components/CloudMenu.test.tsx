@@ -7,6 +7,7 @@ import { DEFAULT_APP_DESIGN } from "../services/appDesign";
 
 vi.mock("../services/tripsStore", () => ({
   onAuthChange: vi.fn(),
+  completeRedirectSignIn: vi.fn(),
   signInWithGoogle: vi.fn(),
   signOutOfGoogle: vi.fn(),
   listTrips: vi.fn(),
@@ -24,6 +25,9 @@ describe("CloudMenu", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(trips.onAuthChange).mockImplementation(() => () => {});
+    // No redirect sign-in pending by default (see tripsStore's completeRedirectSignIn) —
+    // individual tests override this to exercise the redirect-completion path.
+    vi.mocked(trips.completeRedirectSignIn).mockResolvedValue(null);
   });
 
   it("shows a sign-in button when signed out", () => {

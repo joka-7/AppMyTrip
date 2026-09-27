@@ -17,6 +17,48 @@ import { buildShareUrl } from "./shareLink";
 
 export type { FirebaseUser };
 
+// Marks an in-flight redirect sign-in (see signInWithGoogle/completeRedirectSignIn)
+// so the next page load knows to collect its result — set right before
+// signInWithRedirect navigates away, since nothing in memory survives that.
+const REDIRECT_PENDING_KEY = "amt_auth_redirect_pending";
+
+function readRedirectPendingFlag(): boolean {
+  try {
+    return window.localStorage.getItem(REDIRECT_PENDING_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeRedirectPendingFlag(pending: boolean): void {
+  try {
+    if (pending) window.localStorage.setItem(REDIRECT_PENDING_KEY, "1");
+    else window.localStorage.removeItem(REDIRECT_PENDING_KEY);
+  } catch {
+    // Ignore storage failures (private browsing, quota, ...) — worst case is
+    // completeRedirectSignIn() no-ops on the next load and the user just
+    // signs in again.
+  }
+}
+
+/** Google sign-in errors worth retrying as a full-page redirect instead of a
+ * popup — mobile browsers (especially an installed/home-screen Safari icon)
+ * routinely can't complete the popup handshake and report it in these forms,
+ * even though a plain desktop popup would have worked. Matches
+ * JobFlowTracker's shouldFallbackToRedirect. */
+function shouldFallbackToRedirect(err: unknown): boolean {
+  const code =
+    err && typeof err === "object" && "code" in err ? String((err as { code: unknown }).code) : "";
+  const message = err instanceof Error ? err.message : String(err);
+  return (
+    code === "auth/popup-blocked" ||
+    code === "auth/popup-closed-by-user" ||
+    code === "auth/internal-error" ||
+    /requested action is invalid/i.test(message) ||
+    /not authorized|auth site/i.test(message)
+  );
+}
+
 let authPromise: Promise<Auth | null> | null = null;
 let dbPromise: Promise<Firestore | null> | null = null;
 let cachedAuth: Auth | null = null;
@@ -108,15 +150,46 @@ export function getCurrentSession(): CloudSession | null {
   return { uid: user.uid, email: user.email, displayName: user.displayName };
 }
 
-export async function signInWithGoogle(): Promise<CloudSession> {
+/** Signs in with a popup; falls back to a full-page redirect on mobile-typical
+ * popup failures (see shouldFallbackToRedirect). Returns null when it fell
+ * back to a redirect — the page navigates away, and completeRedirectSignIn()
+ * picks up the result (via onAuthChange) on the next load. */
+export async function signInWithGoogle(): Promise<CloudSession | null> {
   const auth = await getAuthInstance();
   if (!auth) {
     throw new Error(
       "Google sign-in is not configured — set VITE_FIREBASE_* env vars (see README).",
     );
   }
-  const { GoogleAuthProvider, signInWithPopup } = await import("firebase/auth");
-  const result = await signInWithPopup(auth, new GoogleAuthProvider());
+  const { GoogleAuthProvider, signInWithPopup, signInWithRedirect, browserPopupRedirectResolver } =
+    await import("firebase/auth");
+  const provider = new GoogleAuthProvider();
+  try {
+    const result = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
+    return {
+      uid: result.user.uid,
+      email: result.user.email,
+      displayName: result.user.displayName,
+    };
+  } catch (err) {
+    if (!shouldFallbackToRedirect(err)) throw err;
+    writeRedirectPendingFlag(true);
+    await signInWithRedirect(auth, provider);
+    return null;
+  }
+}
+
+/** Call once on app load to collect the result of a redirect sign-in kicked
+ * off by signInWithGoogle's fallback. No-op (and no Firebase SDK load) unless
+ * one is actually pending. */
+export async function completeRedirectSignIn(): Promise<CloudSession | null> {
+  if (!readRedirectPendingFlag()) return null;
+  writeRedirectPendingFlag(false);
+  const auth = await getAuthInstance();
+  if (!auth) return null;
+  const { getRedirectResult } = await import("firebase/auth");
+  const result = await getRedirectResult(auth);
+  if (!result) return null;
   return {
     uid: result.user.uid,
     email: result.user.email,

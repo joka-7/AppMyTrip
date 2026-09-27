@@ -18,9 +18,12 @@ vi.mock("firebase/auth", () => ({
     return () => {};
   }),
   GoogleAuthProvider: vi.fn(),
+  browserPopupRedirectResolver: {},
   signInWithPopup: vi.fn(async () => ({
     user: { uid: "u1", email: "a@b.com", displayName: "A" },
   })),
+  signInWithRedirect: vi.fn(async () => {}),
+  getRedirectResult: vi.fn(async () => null),
   signOut: vi.fn(async () => {
     authState.currentUser = null;
   }),
@@ -81,12 +84,67 @@ describe("tripsStore", () => {
     docs.clear();
     authState.currentUser = null;
     vi.resetModules();
+    vi.clearAllMocks();
+    window.localStorage.clear();
   });
 
   it("signInWithGoogle returns the signed-in session", async () => {
+    const auth = await import("firebase/auth");
+    vi.mocked(auth.signInWithPopup).mockResolvedValue({
+      user: { uid: "u1", email: "a@b.com", displayName: "A" },
+    } as never);
     const { signInWithGoogle } = await import("./tripsStore");
     const session = await signInWithGoogle();
     expect(session).toEqual({ uid: "u1", email: "a@b.com", displayName: "A" });
+  });
+
+  // Regression guard: mobile browsers (especially an installed/home-screen
+  // Safari icon) routinely can't complete the popup handshake — this used to
+  // leave those visitors stuck on an error a desktop popup would never hit.
+  it("signInWithGoogle falls back to a redirect when the popup is blocked, and returns null", async () => {
+    const auth = await import("firebase/auth");
+    vi.mocked(auth.signInWithPopup).mockRejectedValue(
+      Object.assign(new Error("popup blocked"), { code: "auth/popup-blocked" }),
+    );
+    const { signInWithGoogle } = await import("./tripsStore");
+    const session = await signInWithGoogle();
+    expect(session).toBeNull();
+    expect(auth.signInWithRedirect).toHaveBeenCalledTimes(1);
+  });
+
+  it("signInWithGoogle rethrows a popup failure that isn't worth retrying as a redirect", async () => {
+    const auth = await import("firebase/auth");
+    vi.mocked(auth.signInWithPopup).mockRejectedValue(
+      Object.assign(new Error("network down"), { code: "auth/network-request-failed" }),
+    );
+    const { signInWithGoogle } = await import("./tripsStore");
+    await expect(signInWithGoogle()).rejects.toThrow("network down");
+    expect(auth.signInWithRedirect).not.toHaveBeenCalled();
+  });
+
+  it("completeRedirectSignIn is a no-op when no redirect sign-in is pending", async () => {
+    const auth = await import("firebase/auth");
+    const { completeRedirectSignIn } = await import("./tripsStore");
+    const session = await completeRedirectSignIn();
+    expect(session).toBeNull();
+    expect(auth.getRedirectResult).not.toHaveBeenCalled();
+  });
+
+  it("completeRedirectSignIn collects a pending redirect's result", async () => {
+    const auth = await import("firebase/auth");
+    vi.mocked(auth.signInWithPopup).mockRejectedValue(
+      Object.assign(new Error("popup blocked"), { code: "auth/popup-blocked" }),
+    );
+    vi.mocked(auth.getRedirectResult).mockResolvedValue({
+      user: { uid: "u2", email: "c@d.com", displayName: "C" },
+    } as never);
+    const { signInWithGoogle, completeRedirectSignIn } = await import("./tripsStore");
+    await signInWithGoogle(); // marks a redirect as pending
+    const session = await completeRedirectSignIn();
+    expect(session).toEqual({ uid: "u2", email: "c@d.com", displayName: "C" });
+    // Pending flag is one-shot — a second call shouldn't re-hit the SDK.
+    await completeRedirectSignIn();
+    expect(auth.getRedirectResult).toHaveBeenCalledTimes(1);
   });
 
   it("saveTrip writes a doc and returns its id", async () => {
