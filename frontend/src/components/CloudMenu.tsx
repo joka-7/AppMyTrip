@@ -308,8 +308,8 @@ export default function CloudMenu({
         <div
           role="menu"
           className="fixed inset-x-4 top-4 max-h-[calc(100vh-2rem)] w-auto overflow-y-auto
-              sm:absolute sm:inset-x-auto sm:top-auto sm:end-0 sm:mt-2 sm:max-h-none sm:w-96
-              sm:max-w-[calc(100vw-2rem)] sm:overflow-visible bg-white rounded-xl shadow-lg
+              sm:absolute sm:inset-x-auto sm:top-auto sm:end-0 sm:mt-2 sm:max-h-[70vh] sm:w-96
+              sm:max-w-[calc(100vw-2rem)] sm:overflow-y-auto bg-white rounded-xl shadow-lg
               border border-outline/20 p-4 z-40 text-start"
         >
           <div className="flex items-center justify-between gap-2 mb-2">

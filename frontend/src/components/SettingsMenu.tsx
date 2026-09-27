@@ -59,8 +59,8 @@ export default function SettingsMenu({
         <div
           role="menu"
           className="fixed inset-x-4 top-4 max-h-[calc(100vh-2rem)] w-auto overflow-y-auto
-            sm:absolute sm:inset-x-auto sm:top-auto sm:end-0 sm:mt-2 sm:max-h-none sm:w-80
-            sm:max-w-[calc(100vw-2rem)] sm:overflow-visible bg-white rounded-xl shadow-lg
+            sm:absolute sm:inset-x-auto sm:top-auto sm:end-0 sm:mt-2 sm:max-h-[70vh] sm:w-80
+            sm:max-w-[calc(100vw-2rem)] sm:overflow-y-auto bg-white rounded-xl shadow-lg
             border border-outline/20 p-4 z-40 text-start space-y-4"
         >
           {/* Combining sections here makes this tall enough to cover the whole
@@ -109,8 +109,8 @@ export default function SettingsMenu({
           aria-modal="true"
           aria-label={t("settingsMenu.settings")}
           className="fixed inset-x-4 top-4 max-h-[calc(100vh-2rem)] w-auto overflow-y-auto
-            sm:absolute sm:inset-x-auto sm:top-auto sm:end-0 sm:mt-2 sm:max-h-none sm:w-80
-            sm:max-w-[calc(100vw-2rem)] sm:overflow-visible bg-white rounded-xl shadow-lg
+            sm:absolute sm:inset-x-auto sm:top-auto sm:end-0 sm:mt-2 sm:max-h-[70vh] sm:w-80
+            sm:max-w-[calc(100vw-2rem)] sm:overflow-y-auto bg-white rounded-xl shadow-lg
             border border-outline/20 p-4 z-50 text-start space-y-4"
         >
           <div className="sticky top-0 -mx-4 -mt-4 flex items-center gap-2 rounded-t-xl border-b border-outline/10 bg-white px-4 py-3">
