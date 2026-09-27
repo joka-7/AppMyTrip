@@ -9,6 +9,7 @@ import { shareMessage } from "../services/shareLink";
 import {
   type CloudTripSummary,
   type TripStage,
+  completeRedirectSignIn,
   deleteSharedTrip,
   deleteTrip,
   listTrips,
@@ -134,38 +135,60 @@ export default function CloudMenu({
   // that was never added to the Firebase console's authorized domains list)
   // each need a different fix, and anything else still gets the actual
   // code/message appended so it's diagnosable instead of a dead end.
-  const describeSignInError = (err: unknown): string | null => {
-    const code =
-      err && typeof err === "object" && "code" in err
-        ? String((err as { code: unknown }).code)
-        : null;
-    switch (code) {
-      case "auth/popup-closed-by-user":
-      case "auth/cancelled-popup-request":
-        return null;
-      case "auth/popup-blocked":
-        return t("cloud.signInPopupBlocked");
-      case "auth/unauthorized-domain":
-        // The domain itself is the one actionable fact here (it's what
-        // someone needs to add to the Firebase console's authorized-domains
-        // list) — show it directly instead of sending the user hunting for
-        // their own address bar.
-        return t("cloud.signInUnauthorizedDomain", { domain: window.location.hostname });
-      case "auth/network-request-failed":
-        return t("cloud.signInNetworkFailed");
-      default:
-        return appendErrorDetail(
-          t("cloud.signInFailed"),
-          err instanceof Error ? err.message : String(err),
-        );
-    }
-  };
+  const describeSignInError = useCallback(
+    (err: unknown): string | null => {
+      const code =
+        err && typeof err === "object" && "code" in err
+          ? String((err as { code: unknown }).code)
+          : null;
+      switch (code) {
+        case "auth/popup-closed-by-user":
+        case "auth/cancelled-popup-request":
+          return null;
+        case "auth/popup-blocked":
+          return t("cloud.signInPopupBlocked");
+        case "auth/unauthorized-domain":
+          // The domain itself is the one actionable fact here (it's what
+          // someone needs to add to the Firebase console's authorized-domains
+          // list) — show it directly instead of sending the user hunting for
+          // their own address bar.
+          return t("cloud.signInUnauthorizedDomain", { domain: window.location.hostname });
+        case "auth/network-request-failed":
+          return t("cloud.signInNetworkFailed");
+        default:
+          return appendErrorDetail(
+            t("cloud.signInFailed"),
+            err instanceof Error ? err.message : String(err),
+          );
+      }
+    },
+    [t],
+  );
+
+  // Collects the result of a redirect sign-in kicked off by handleSignIn's
+  // popup-failure fallback (see tripsStore's signInWithGoogle) — a no-op
+  // unless one is actually pending, since the redirect navigated the page
+  // away and this is the next load landing back. A successful result also
+  // reaches onAuthChange above via Firebase's own auth-state listener; this
+  // is only here to surface a redirect-specific failure the popup path
+  // never would have hit.
+  useEffect(() => {
+    completeRedirectSignIn().catch((err) => {
+      console.error(err);
+      setNotice(describeSignInError(err));
+    });
+  }, [describeSignInError]);
 
   const handleSignIn = async () => {
     setBusy(true);
     setNotice(null);
     try {
       const session = await signInWithGoogle();
+      // null means signInWithGoogle fell back to a full-page redirect
+      // instead of a popup (see shouldFallbackToRedirect) — the page is
+      // about to navigate away, and completeRedirectSignIn() above picks up
+      // the result on the next load, so there's no session to apply yet.
+      if (!session) return;
       setEmail(session.email);
       setUid(session.uid);
       setDisplayName(session.displayName);
