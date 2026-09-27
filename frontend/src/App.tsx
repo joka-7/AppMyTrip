@@ -531,7 +531,7 @@ function TripBuilder() {
           <AppLogo />
           <h1 className="text-lg sm:text-xl font-bold text-ink truncate">{t("nav.title")}</h1>
         </div>
-        <div className="flex flex-nowrap items-center gap-2 sm:gap-3 min-w-0 overflow-x-auto hide-scrollbar">
+        <div className="flex flex-nowrap items-center gap-2 sm:gap-3 min-w-0 overflow-x-auto hide-scrollbar sm:overflow-visible">
           <div className="shrink-0 text-sm font-medium text-ink-muted bg-surface-container px-3 py-1 rounded-full">
             {t("nav.step", { step })}
           </div>
