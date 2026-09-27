@@ -528,53 +528,59 @@ function TripBuilder() {
           <AppLogo />
           <h1 className="text-lg sm:text-xl font-bold text-ink truncate">{t("nav.title")}</h1>
         </div>
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
-          <div className="text-sm font-medium text-ink-muted bg-surface-container px-3 py-1 rounded-full">
+        <div className="flex flex-nowrap items-center gap-2 sm:gap-3 min-w-0 overflow-x-auto hide-scrollbar">
+          <div className="shrink-0 text-sm font-medium text-ink-muted bg-surface-container px-3 py-1 rounded-full">
             {t("nav.step", { step })}
           </div>
-          <InstallAppButton />
-          <SettingsMenu
-            tripData={tripData}
-            appDesign={appDesign}
-            printTargetRef={pdfTargetRef}
-            onImportTrip={(trip, importedAppDesign) => {
-              setTripData(trip);
-              setTripId(null);
-              setAppDesign(importedAppDesign);
-              setAgentMessages([{ role: "agent", text: t("agent.imported") }]);
-              goToStep(3);
-            }}
-          />
+          <div className="shrink-0">
+            <InstallAppButton />
+          </div>
+          <div className="shrink-0">
+            <SettingsMenu
+              tripData={tripData}
+              appDesign={appDesign}
+              printTargetRef={pdfTargetRef}
+              onImportTrip={(trip, importedAppDesign) => {
+                setTripData(trip);
+                setTripId(null);
+                setAppDesign(importedAppDesign);
+                setAgentMessages([{ role: "agent", text: t("agent.imported") }]);
+                goToStep(3);
+              }}
+            />
+          </div>
           {tripData.days.length > 0 && (
             <button
               onClick={() => setPreviewOpen(true)}
-              className="flex items-center gap-1.5 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-full transition-colors"
+              className="shrink-0 flex items-center gap-1.5 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-full transition-colors"
             >
               <Smartphone size={16} />
               {t("nav.preview")}
             </button>
           )}
-          <CloudMenu
-            tripData={tripData}
-            appDesign={appDesign}
-            tripId={tripId}
-            currentStep={step}
-            onTripIdChange={setTripId}
-            onUpdateTrip={handleUpdateTrip}
-            onLoadTrip={(trip, loadedTripId, loadedAppDesign) => {
-              setTripData(trip);
-              setTripId(loadedTripId);
-              setAppDesign(loadedAppDesign);
-              setAgentMessages([{ role: "agent", text: t("agent.loaded") }]);
-              // Reaching here means the trip wasn't saved as "Final app" (that
-              // case navigates straight to the real "?shared=" link instead,
-              // see CloudMenu's handleLoad) — it's still in progress, so land
-              // on the design/publish step rather than the from-scratch chat
-              // editor. The nav bar's "Preview app" button is there if the
-              // user wants a quick look without leaving the builder.
-              goToStep(4);
-            }}
-          />
+          <div className="shrink-0">
+            <CloudMenu
+              tripData={tripData}
+              appDesign={appDesign}
+              tripId={tripId}
+              currentStep={step}
+              onTripIdChange={setTripId}
+              onUpdateTrip={handleUpdateTrip}
+              onLoadTrip={(trip, loadedTripId, loadedAppDesign) => {
+                setTripData(trip);
+                setTripId(loadedTripId);
+                setAppDesign(loadedAppDesign);
+                setAgentMessages([{ role: "agent", text: t("agent.loaded") }]);
+                // Reaching here means the trip wasn't saved as "Final app" (that
+                // case navigates straight to the real "?shared=" link instead,
+                // see CloudMenu's handleLoad) — it's still in progress, so land
+                // on the design/publish step rather than the from-scratch chat
+                // editor. The nav bar's "Preview app" button is there if the
+                // user wants a quick look without leaving the builder.
+                goToStep(4);
+              }}
+            />
+          </div>
         </div>
       </nav>
 

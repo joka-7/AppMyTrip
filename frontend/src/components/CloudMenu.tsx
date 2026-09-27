@@ -330,7 +330,7 @@ export default function CloudMenu({
           disabled={busy}
           aria-label={busy ? t("cloud.signingIn") : t("cloud.signIn")}
           title={busy ? t("cloud.signingIn") : t("cloud.signIn")}
-          className="flex items-center gap-1.5 text-sm font-medium text-ink-muted hover:bg-surface-container-high px-2.5 py-1.5 rounded-full transition-colors"
+          className="flex items-center gap-1.5 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-full transition-colors"
         >
           <CloudOff size={18} />
           <span className="hidden sm:inline">
@@ -375,7 +375,7 @@ export default function CloudMenu({
         aria-expanded={isOpen}
         aria-haspopup="menu"
         title={displayName ?? email}
-        className="flex items-center gap-1.5 max-w-[10rem] sm:max-w-none min-w-0 text-sm font-medium text-ink-muted hover:bg-surface-container-high px-2.5 py-1.5 rounded-full transition-colors"
+        className="flex items-center gap-1.5 max-w-[10rem] sm:max-w-none min-w-0 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-full transition-colors"
       >
         <Cloud size={18} className="shrink-0" />
         <span className="hidden sm:inline truncate">{displayName?.split(" ")[0] || email}</span>
