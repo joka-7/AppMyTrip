@@ -15,8 +15,10 @@ import BuilderStep1 from "./components/BuilderStep1";
 import type { AgentMessage } from "./components/BuilderStep3";
 import CloudMenu from "./components/CloudMenu";
 import InstallAppButton from "./components/InstallAppButton";
+import MyTripsButton from "./components/MyTripsButton";
 import ProgressBar from "./components/ProgressBar";
 import SettingsMenu from "./components/SettingsMenu";
+import { useBackToClose } from "./hooks/useBackToClose";
 import { useChecklistSuggest } from "./hooks/useChecklistSuggest";
 import { useTripEditing } from "./hooks/useTripEditing";
 import { DEFAULT_APP_DESIGN, type AppDesign } from "./services/appDesign";
@@ -246,6 +248,7 @@ function TripBuilder() {
   // around it. Opened automatically after loading a saved trip from
   // CloudMenu, or manually via the nav bar's preview button.
   const [previewOpen, setPreviewOpen] = useState(false);
+  useBackToClose(previewOpen, () => setPreviewOpen(false));
 
   const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([]);
   // Offer to restore a mid-build draft after a refresh — only set once on mount.
@@ -559,13 +562,9 @@ function TripBuilder() {
             </button>
           )}
           <div className="shrink-0">
-            <CloudMenu
-              tripData={tripData}
-              appDesign={appDesign}
+            <MyTripsButton
               tripId={tripId}
-              currentStep={step}
               onTripIdChange={setTripId}
-              onUpdateTrip={handleUpdateTrip}
               onLoadTrip={(trip, loadedTripId, loadedAppDesign) => {
                 setTripData(trip);
                 setTripId(loadedTripId);
@@ -573,12 +572,22 @@ function TripBuilder() {
                 setAgentMessages([{ role: "agent", text: t("agent.loaded") }]);
                 // Reaching here means the trip wasn't saved as "Final app" (that
                 // case navigates straight to the real "?shared=" link instead,
-                // see CloudMenu's handleLoad) — it's still in progress, so land
-                // on the design/publish step rather than the from-scratch chat
-                // editor. The nav bar's "Preview app" button is there if the
-                // user wants a quick look without leaving the builder.
+                // see MyTripsButton's handleLoad) — it's still in progress, so
+                // land on the design/publish step rather than the from-scratch
+                // chat editor. The nav bar's "Preview app" button is there if
+                // the user wants a quick look without leaving the builder.
                 goToStep(4);
               }}
+            />
+          </div>
+          <div className="shrink-0">
+            <CloudMenu
+              tripData={tripData}
+              appDesign={appDesign}
+              tripId={tripId}
+              currentStep={step}
+              onTripIdChange={setTripId}
+              onUpdateTrip={handleUpdateTrip}
             />
           </div>
         </div>
