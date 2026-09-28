@@ -68,14 +68,16 @@ export default function BuilderStep3({
    * needs its own backend key). */
   onExternalTurnApplied: (userMessage: string, turn: ExternalAgentTurn) => void;
 }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [replyError, setReplyError] = useState(false);
   const [showOtherProviders, setShowOtherProviders] = useState(false);
 
   const favoriteId = aiMode === "external" ? loadFavoriteExternalChat() : null;
   const favoriteProvider = EXTERNAL_CHAT_PROVIDERS.find((p) => p.id === favoriteId);
   const trimmedInput = chatInput.trim();
-  const question = trimmedInput ? buildAgentTurnPrompt(tripData, trimmedInput, preferences) : null;
+  const question = trimmedInput
+    ? buildAgentTurnPrompt(tripData, trimmedInput, preferences, lang)
+    : null;
 
   function handleExternalReply(rawReply: string): void {
     try {

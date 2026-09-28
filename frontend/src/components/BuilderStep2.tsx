@@ -70,7 +70,7 @@ export default function BuilderStep2({
    * reply — continues exactly as a successful backend enhance would. */
   onExternalReplyParsed: (tripData: TripData) => void;
 }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [options, setOptions] = useState<EnhanceOptions>({});
   const [replyError, setReplyError] = useState(false);
   const [showOtherProviders, setShowOtherProviders] = useState(false);
@@ -90,7 +90,7 @@ export default function BuilderStep2({
 
   const favoriteId = aiMode === "external" ? loadFavoriteExternalChat() : null;
   const favoriteProvider = EXTERNAL_CHAT_PROVIDERS.find((p) => p.id === favoriteId);
-  const question = buildTripEnhancePrompt(tripData, options);
+  const question = buildTripEnhancePrompt(tripData, options, lang);
 
   function handleExternalReply(rawReply: string): void {
     try {
