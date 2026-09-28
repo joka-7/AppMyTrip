@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import LanguageSwitcher from "./LanguageSwitcher";
 import ProgressBar from "./ProgressBar";
@@ -14,7 +14,7 @@ describe("LanguageSwitcher", () => {
     render(
       <>
         <LanguageSwitcher />
-        <ProgressBar step={1} />
+        <ProgressBar step={1} maxStepReached={1} onStepClick={vi.fn()} />
       </>,
     );
 
