@@ -319,6 +319,7 @@ export const en: Record<TranslationKey, string> = {
   "apiKey.hideAria": "Hide the key",
   "apiKey.addKey": "Add key",
   "apiKey.close": "Close",
+  "apiKey.credit": "Built by joka-7",
   "apiKey.inputPlaceholder": "API Key...",
   "apiKey.primaryNote": "This provider is tried first on every request.",
   "apiKey.makePrimary": "Make this the primary provider",

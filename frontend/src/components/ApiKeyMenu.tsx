@@ -216,34 +216,37 @@ export default function ApiKeyMenu() {
             {t("apiKey.close")}
           </button>
 
-          <div className="flex items-center justify-center gap-4 pt-3 mt-1 border-t border-outline/10">
-            <a
-              href="https://github.com/joka-7"
-              target="_blank"
-              rel="noreferrer"
-              aria-label="GitHub"
-              className="text-ink-muted hover:text-ink transition-colors"
-            >
-              <GithubIcon size={16} />
-            </a>
-            <a
-              href="https://jk-dev-7.vercel.app"
-              target="_blank"
-              rel="noreferrer"
-              aria-label="jk.dev portfolio"
-              className="text-ink-muted hover:text-ink transition-colors"
-            >
-              <Globe size={16} />
-            </a>
-            <a
-              href="https://github.com/joka-7/AppMyTrip"
-              target="_blank"
-              rel="noreferrer"
-              aria-label="View repository"
-              className="text-ink-muted hover:text-ink transition-colors"
-            >
-              <FolderGit2 size={16} />
-            </a>
+          <div className="flex flex-col items-center gap-1.5 pt-3 mt-1 border-t border-outline/10">
+            <span className="text-[11px] text-ink-muted">{t("apiKey.credit")}</span>
+            <div className="flex items-center justify-center gap-4">
+              <a
+                href="https://github.com/joka-7"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="GitHub"
+                className="text-ink-muted hover:text-ink transition-colors"
+              >
+                <GithubIcon size={16} />
+              </a>
+              <a
+                href="https://jk-dev-7.vercel.app"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="jk.dev portfolio"
+                className="text-ink-muted hover:text-ink transition-colors"
+              >
+                <Globe size={16} />
+              </a>
+              <a
+                href="https://github.com/joka-7/AppMyTrip"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="View repository"
+                className="text-ink-muted hover:text-ink transition-colors"
+              >
+                <FolderGit2 size={16} />
+              </a>
+            </div>
           </div>
         </div>
       )}

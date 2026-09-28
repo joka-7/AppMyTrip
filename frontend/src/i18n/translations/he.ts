@@ -317,6 +317,7 @@ export const he = {
   "apiKey.hideAria": "הסתרת המפתח",
   "apiKey.addKey": "הוספת מפתח",
   "apiKey.close": "סגירה",
+  "apiKey.credit": "נבנה על ידי joka-7",
   "apiKey.inputPlaceholder": "API Key...",
   "apiKey.primaryNote": "הספק הזה מנוסה ראשון בכל בקשה.",
   "apiKey.makePrimary": "הפוך לספק הראשי",
