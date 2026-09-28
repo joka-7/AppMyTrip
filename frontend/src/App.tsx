@@ -546,10 +546,12 @@ function TripBuilder() {
           {tripData.days.length > 0 && (
             <button
               onClick={() => setPreviewOpen(true)}
+              aria-label={t("nav.preview")}
+              title={t("nav.preview")}
               className="shrink-0 flex items-center gap-1.5 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-full transition-colors"
             >
               <Smartphone size={16} />
-              {t("nav.preview")}
+              <span className="hidden sm:inline">{t("nav.preview")}</span>
             </button>
           )}
           <div className="shrink-0">

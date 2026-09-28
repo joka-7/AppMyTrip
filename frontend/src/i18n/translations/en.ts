@@ -381,6 +381,7 @@ export const en: Record<TranslationKey, string> = {
   "cloud.stage.step4": "Step 4",
   "cloud.stage.final": "Final app",
   "cloud.myTrips": "My trips",
+  "cloud.loadingTrips": "Loading your trips…",
   "cloud.noTrips": "No saved trips yet.",
   "cloud.signOut": "Sign out",
 

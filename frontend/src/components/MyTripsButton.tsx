@@ -43,6 +43,7 @@ export default function MyTripsButton({
   const [uid, setUid] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [trips, setTrips] = useState<CloudTripSummary[]>([]);
+  const [tripsLoading, setTripsLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -65,15 +66,33 @@ export default function MyTripsButton({
     setTrips(await listTrips(id));
   }, []);
 
-  const handleOpen = () => {
+  const handleOpen = useCallback(
+    (id: string) => {
+      setIsOpen(true);
+      setNotice(null);
+      setTripsLoading(true);
+      refreshTrips(id)
+        .catch((err) => {
+          console.error(err);
+          setNotice(t("cloud.loadFailed"));
+        })
+        .finally(() => setTripsLoading(false));
+    },
+    [refreshTrips, t],
+  );
+
+  // The final/shared app's "My Trips" link navigates back here with
+  // "myTrips=1" (see SharedAppPage's homeHref) so landing on the builder
+  // also reopens the trips list, instead of requiring an extra manual click.
+  useEffect(() => {
     if (!uid) return;
-    setIsOpen(true);
-    setNotice(null);
-    refreshTrips(uid).catch((err) => {
-      console.error(err);
-      setNotice(t("cloud.loadFailed"));
-    });
-  };
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("myTrips") !== "1") return;
+    handleOpen(uid);
+    params.delete("myTrips");
+    const query = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+  }, [uid, handleOpen]);
 
   const handleLoad = async (trip: CloudTripSummary) => {
     if (!uid) return;
@@ -131,7 +150,7 @@ export default function MyTripsButton({
   return (
     <div className="relative" ref={panelRef}>
       <button
-        onClick={handleOpen}
+        onClick={() => handleOpen(uid)}
         aria-expanded={isOpen}
         aria-haspopup="menu"
         title={t("cloud.myTrips")}
@@ -167,8 +186,12 @@ export default function MyTripsButton({
           {notice && <p className="text-xs text-amber-700 mb-2">{notice}</p>}
 
           <ul className="max-h-64 overflow-y-auto space-y-1">
-            {trips.length === 0 && (
-              <li className="text-xs text-ink-muted py-2">{t("cloud.noTrips")}</li>
+            {tripsLoading ? (
+              <li className="text-xs text-ink-muted py-2">{t("cloud.loadingTrips")}</li>
+            ) : (
+              trips.length === 0 && (
+                <li className="text-xs text-ink-muted py-2">{t("cloud.noTrips")}</li>
+              )
             )}
             {trips.map((trip) => (
               <li key={trip.id} className="flex items-center gap-1 group">

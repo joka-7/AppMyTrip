@@ -389,6 +389,7 @@ export const fr: Record<TranslationKey, string> = {
   "cloud.stage.step4": "Étape 4",
   "cloud.stage.final": "Application finale",
   "cloud.myTrips": "Mes voyages",
+  "cloud.loadingTrips": "Chargement de vos voyages…",
   "cloud.noTrips": "Aucun voyage enregistré pour le moment.",
   "cloud.signOut": "Se déconnecter",
 

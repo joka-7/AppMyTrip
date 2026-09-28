@@ -117,8 +117,10 @@ export default function SharedAppPage({
   const [savedCopyId, setSavedCopyId] = useState<string | null>(null);
   // "?shared=" is read once at module load (see App.tsx's SHARED_TRIP_ID), so
   // there's no in-app route back to the builder/"My trips" — leaving this
-  // view means an actual navigation, dropping the query string.
-  const homeHref = window.location.pathname;
+  // view means an actual navigation, dropping the query string. "myTrips=1"
+  // tells the builder to auto-open the saved-trips list instead of landing
+  // on its default screen (see MyTripsButton's handling of the same flag).
+  const homeHref = `${window.location.pathname}?myTrips=1`;
 
   const handleSaveToAccount = async () => {
     setSaveStatus("working");

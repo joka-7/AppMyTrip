@@ -54,6 +54,27 @@ describe("MyTripsButton", () => {
     expect(trips.listTrips).toHaveBeenCalledWith("uid-123");
   });
 
+  it("shows a loading message instead of the empty placeholder while trips are still being fetched", async () => {
+    let resolveTrips: (value: never[]) => void = () => {};
+    vi.mocked(trips.listTrips).mockReturnValue(
+      new Promise((resolve) => {
+        resolveTrips = resolve;
+      }),
+    );
+
+    renderSignedIn();
+    fireEvent.click(await screen.findByRole("button", { name: "הטיולים שלי" }));
+
+    expect(await screen.findByText("טוען את הטיולים שלך…")).toBeInTheDocument();
+    expect(screen.queryByText("אין טיולים שמורים עדיין.")).not.toBeInTheDocument();
+
+    resolveTrips([]);
+    await waitFor(() => {
+      expect(screen.getByText("אין טיולים שמורים עדיין.")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("טוען את הטיולים שלך…")).not.toBeInTheDocument();
+  });
+
   it("shows a placeholder when there are no saved trips", async () => {
     vi.mocked(trips.listTrips).mockResolvedValue([]);
 
@@ -127,6 +148,24 @@ describe("MyTripsButton", () => {
     expect(onLoadTrip).not.toHaveBeenCalled();
 
     Object.defineProperty(window, "location", { configurable: true, value: originalLocation });
+  });
+
+  it('auto-opens the trip list when navigated here with "myTrips=1", then strips it from the URL', async () => {
+    vi.mocked(trips.listTrips).mockResolvedValue([
+      { id: "trip-1", name: "My Trip", modifiedTime: "2024-01-01", stage: null },
+    ]);
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, "", "/?myTrips=1");
+
+    renderSignedIn();
+
+    await waitFor(() => {
+      expect(screen.getByText("My Trip")).toBeInTheDocument();
+    });
+    expect(trips.listTrips).toHaveBeenCalledWith("uid-123");
+    expect(window.location.search).toBe("");
+
+    window.history.replaceState(null, "", originalUrl);
   });
 
   it("requires a second click before deleting a trip", async () => {
