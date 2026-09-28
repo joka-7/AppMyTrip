@@ -65,15 +65,30 @@ export default function MyTripsButton({
     setTrips(await listTrips(id));
   }, []);
 
-  const handleOpen = () => {
+  const handleOpen = useCallback(
+    (id: string) => {
+      setIsOpen(true);
+      setNotice(null);
+      refreshTrips(id).catch((err) => {
+        console.error(err);
+        setNotice(t("cloud.loadFailed"));
+      });
+    },
+    [refreshTrips, t],
+  );
+
+  // The final/shared app's "My Trips" link navigates back here with
+  // "myTrips=1" (see SharedAppPage's homeHref) so landing on the builder
+  // also reopens the trips list, instead of requiring an extra manual click.
+  useEffect(() => {
     if (!uid) return;
-    setIsOpen(true);
-    setNotice(null);
-    refreshTrips(uid).catch((err) => {
-      console.error(err);
-      setNotice(t("cloud.loadFailed"));
-    });
-  };
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("myTrips") !== "1") return;
+    handleOpen(uid);
+    params.delete("myTrips");
+    const query = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+  }, [uid, handleOpen]);
 
   const handleLoad = async (trip: CloudTripSummary) => {
     if (!uid) return;
@@ -131,7 +146,7 @@ export default function MyTripsButton({
   return (
     <div className="relative" ref={panelRef}>
       <button
-        onClick={handleOpen}
+        onClick={() => handleOpen(uid)}
         aria-expanded={isOpen}
         aria-haspopup="menu"
         title={t("cloud.myTrips")}
