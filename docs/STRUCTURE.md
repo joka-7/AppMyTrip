@@ -121,6 +121,7 @@ AppMyTrip/
 │   │   │   ├── PodcastPlayer.tsx
 │   │   │   ├── PriceSummary.test.tsx
 │   │   │   ├── PriceSummary.tsx
+│   │   │   ├── ProgressBar.test.tsx
 │   │   │   ├── ProgressBar.tsx
 │   │   │   ├── SettingsMenu.test.tsx
 │   │   │   ├── SettingsMenu.tsx

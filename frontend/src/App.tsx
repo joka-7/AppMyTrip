@@ -208,6 +208,14 @@ function AppLogo() {
 function TripBuilder() {
   const { t, dir, lang } = useI18n();
   const [step, setStep] = useState(1);
+  // Furthest step reached this session — lets ProgressBar's numbered circles
+  // link back to a step the user already visited (its content still exists,
+  // since going back doesn't clear later steps' state) without also letting
+  // them skip ahead into a step they haven't unlocked yet.
+  const [maxStepReached, setMaxStepReached] = useState(1);
+  useEffect(() => {
+    setMaxStepReached((prev) => Math.max(prev, step));
+  }, [step]);
   const [rawText, setRawText] = useState(() => translate("step1.exampleRawText"));
   // The example text is a placeholder, not real user input — if the user
   // hasn't touched it yet, keep it in sync when they switch UI language
@@ -532,25 +540,8 @@ function TripBuilder() {
           <h1 className="text-lg sm:text-xl font-bold text-ink truncate">{t("nav.title")}</h1>
         </div>
         <div className="flex flex-nowrap items-center gap-2 sm:gap-3 min-w-0 overflow-x-auto hide-scrollbar sm:overflow-visible">
-          <div className="shrink-0 text-sm font-medium text-ink-muted bg-surface-container px-3 py-1 rounded-full">
-            {t("nav.step", { step })}
-          </div>
           <div className="shrink-0">
             <InstallAppButton />
-          </div>
-          <div className="shrink-0">
-            <SettingsMenu
-              tripData={tripData}
-              appDesign={appDesign}
-              printTargetRef={pdfTargetRef}
-              onImportTrip={(trip, importedAppDesign) => {
-                setTripData(trip);
-                setTripId(null);
-                setAppDesign(importedAppDesign);
-                setAgentMessages([{ role: "agent", text: t("agent.imported") }]);
-                goToStep(3);
-              }}
-            />
           </div>
           {tripData.days.length > 0 && (
             <button
@@ -590,6 +581,20 @@ function TripBuilder() {
               onUpdateTrip={handleUpdateTrip}
             />
           </div>
+          <div className="shrink-0">
+            <SettingsMenu
+              tripData={tripData}
+              appDesign={appDesign}
+              printTargetRef={pdfTargetRef}
+              onImportTrip={(trip, importedAppDesign) => {
+                setTripData(trip);
+                setTripId(null);
+                setAppDesign(importedAppDesign);
+                setAgentMessages([{ role: "agent", text: t("agent.imported") }]);
+                goToStep(3);
+              }}
+            />
+          </div>
         </div>
       </nav>
 
@@ -615,7 +620,11 @@ function TripBuilder() {
       <div className="max-w-7xl mx-auto p-4 sm:p-6 flex flex-col lg:flex-row gap-8 print:block print:max-w-none print:p-0">
         {/* Left Side: Builder Interface */}
         <div className="no-print flex-1 min-w-0 bg-white rounded-2xl shadow-card border border-outline/20 p-4 sm:p-8 flex flex-col">
-          <ProgressBar step={step} />
+          <ProgressBar step={step} maxStepReached={maxStepReached} onStepClick={goToStep} />
+
+          <div className="text-sm font-medium text-ink-muted bg-surface-container self-start px-3 py-1 rounded-full mb-4">
+            {t("nav.step", { step })}
+          </div>
 
           {/* Dynamic Content based on Step */}
           <div className="flex-1">
