@@ -398,15 +398,9 @@ export const en: Record<TranslationKey, string> = {
   "errorBoundary.details": "Technical details (for reporting)",
 
   // Shared trip page
-  "sharedPage.settings": "Settings",
-  "sharedPage.settingsAria": "Trip settings",
+  "sharedPage.saveShare": "Save & Share",
+  "sharedPage.saveShareAria": "Save and share this trip",
   "sharedPage.myTripsAria": "Go to My Trips",
-  "sharedPage.export": "Export to file",
-  "sharedPage.exportIcs": "Export calendar (.ics)",
-  "sharedPage.print": "Print itinerary",
-  "sharedPage.exportPdf": "Download PDF",
-  "sharedPage.exportPdfFailed": "Creating the PDF failed.",
-  "sharedPage.import": "Import from file",
   "sharedPage.saving": "Saving...",
   "sharedPage.saveToAccount": "Save to my account",
   "sharedPage.savedNotice": 'Saved to your account! You can find it under "My trips".',

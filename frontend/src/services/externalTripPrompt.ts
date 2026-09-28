@@ -27,12 +27,38 @@
 import type { EnhanceOptions, TripData } from "../api";
 import agentResponseSchema from "../data/agentResponseSchema.json";
 import tripDataSchema from "../data/tripDataSchema.json";
+import type { Lang } from "../i18n/store";
+
+/** Full name for each app UI language, for embedding into an external-chat
+ * prompt instruction (the prompt text itself is always written in English,
+ * regardless of which language it asks the model to reply in). */
+const LANG_NAMES: Record<Lang, string> = {
+  he: "Hebrew",
+  en: "English",
+  fr: "French",
+};
+
+/** Instruction fragment telling an external AI chat app which language to
+ * write its output in: the app's currently selected UI language, not
+ * whatever language the user's pasted/typed text happens to be in — the
+ * backend's own no-BYOK path used to (and, unlike this external-chat escape
+ * hatch, still does) infer it from the text instead, which produces a
+ * Hebrew-language trip for someone who pasted Hebrew source material while
+ * browsing the app in English. */
+function languageInstruction(appLang: Lang): string {
+  const name = LANG_NAMES[appLang];
+  return (
+    `The user's app is set to ${name} (ISO 639-1 code '${appLang}') — write the title, ` +
+    `activity titles/descriptions, any reply text, and set the 'language' field to ` +
+    `'${appLang}', regardless of what language the source text itself is written in.`
+  );
+}
 
 /** The full prompt to hand an external AI chat app for Stage 1: parse free
  * trip text into a structured itinerary. Mirrors the backend's system +
  * user prompt for `parse_trip_text`, combined into one message since a
  * one-off external chat has no separate system-prompt slot. */
-export function buildTripParsePrompt(rawText: string, preferences: string): string {
+export function buildTripParsePrompt(rawText: string, preferences: string, appLang: Lang): string {
   const preferencesFragment = preferences.trim() ? `IMPORTANT: ${preferences.trim()} ` : "";
   const instructions =
     "You are an expert travel planner AI. Your task is to parse the user's free text " +
@@ -42,10 +68,7 @@ export function buildTripParsePrompt(rawText: string, preferences: string): stri
     "Leave 'price', 'url', 'hasPodcast', 'podcast_brief', 'directions_car' and " +
     "'directions_transit' null/false for now — those are filled in later by an optional, " +
     "opt-in enhancement step, so don't spend effort estimating them here. " +
-    "Detect the dominant language of the user's free text (e.g. if most of the words/verbs are " +
-    "Hebrew, the dominant language is Hebrew) and set the 'language' field to its ISO 639-1 code " +
-    "('he' for Hebrew, 'en' for English, etc.). Write the title, activity titles/descriptions, and " +
-    "all other generated text in that same detected language.";
+    languageInstruction(appLang);
 
   return (
     `${instructions}\n\n` +
@@ -113,7 +136,11 @@ const MISSING_COORDINATES_INSTRUCTION =
  * file's header comment). Returns `null` when there is nothing to ask for
  * (no option selected and every activity already has coordinates), matching
  * `enhance_trip`'s own short-circuit. */
-export function buildTripEnhancePrompt(trip: TripData, options: EnhanceOptions): string | null {
+export function buildTripEnhancePrompt(
+  trip: TripData,
+  options: EnhanceOptions,
+  appLang: Lang,
+): string | null {
   const instructions = (Object.keys(options) as (keyof EnhanceOptions)[])
     .filter((key) => options[key])
     .map((key) => ENHANCE_OPTION_INSTRUCTIONS[key]);
@@ -129,9 +156,7 @@ export function buildTripEnhancePrompt(trip: TripData, options: EnhanceOptions):
     "source of truth — copy every day and activity through to your output UNCHANGED, " +
     "including each day's 'dayNum' and every activity's id, time, title, desc, type and " +
     "any already-set fields; only fill in the specific new field(s) requested below. " +
-    `The itinerary's language (ISO 639-1, currently '${trip.language ?? "he"}') indicates ` +
-    "which language to write any new text in — do not switch to English or any other " +
-    "language. " +
+    `${languageInstruction(appLang)} ` +
     instructions.join(" ");
 
   return (
@@ -151,6 +176,7 @@ export function buildAgentTurnPrompt(
   trip: TripData,
   userMessage: string,
   preferences: string | null,
+  appLang: Lang,
 ): string {
   const preferencesFragment = preferences?.trim() ? `IMPORTANT: ${preferences.trim()} ` : "";
   const instructions =
@@ -165,11 +191,11 @@ export function buildAgentTurnPrompt(
     "'directions_car', 'directions_transit', 'podcast_brief', 'map_url' and 'travel_mode'. " +
     "Copy each day's 'checklist' and the trip-level 'checklist' through unchanged too, " +
     "unless the user asks about what to bring. " +
-    `The itinerary's 'language' field (ISO 639-1 code, currently '${trip.language ?? "he"}') ` +
-    "indicates which language to reply in — write 'agent_reply' in that same language. If the " +
-    "user's message is clearly written in a different dominant language (most of its words/verbs " +
-    "are in another language), switch to that language instead and update 'updated_trip.language' " +
-    "to match; otherwise keep 'updated_trip.language' unchanged. " +
+    `Write 'agent_reply' in ${LANG_NAMES[appLang]} (the app's current UI language, ISO 639-1 ` +
+    `code '${appLang}') by default, regardless of the Current Itinerary's own 'language' field. ` +
+    "If the user's message below is clearly written in a different dominant language (most of " +
+    "its words/verbs are in another language), reply in that language instead and update " +
+    `'updated_trip.language' to match; otherwise set 'updated_trip.language' to '${appLang}'. ` +
     preferencesFragment +
     "Always include realistic 'map_coordinates' for new locations, but leave 'price', 'url', " +
     "'hasPodcast', 'podcast_brief', 'directions_car' and 'directions_transit' null/false on " +

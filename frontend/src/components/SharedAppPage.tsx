@@ -1,33 +1,18 @@
 import { useCallback, useRef, useState } from "react";
 import type { RefObject } from "react";
-import {
-  Download,
-  FileDown,
-  Home,
-  Printer,
-  Save,
-  Settings,
-  Share2,
-  Upload,
-  UserCog,
-  UserPlus,
-  Calendar,
-} from "lucide-react";
+import { Home, Save, Share2, UserCog, UserPlus, X } from "lucide-react";
 import type { Activity, TripData } from "../api";
 import { useDismissable } from "../hooks/useDismissable";
+import { useBackToClose } from "../hooks/useBackToClose";
 import { useI18n } from "../i18n/useI18n";
 import type { AppDesign } from "../services/appDesign";
-import { exportTripToIcs } from "../services/icsExport";
-import { exportTripToPdf } from "../services/pdfExport";
-import { exportTripToFile, importTripFromFile } from "../services/tripFile";
 import { getCurrentSession, saveTrip, shareTrip, signInWithGoogle } from "../services/tripsStore";
 import { useTripBranding } from "../hooks/useTripBranding";
-import ApiKeyMenu from "./ApiKeyMenu";
 import AppFrame from "./AppFrame";
 import type { ChecklistTarget } from "./ChecklistPanel";
 import InstallAppButton from "./InstallAppButton";
-import LanguageSwitcher from "./LanguageSwitcher";
 import LinkDisplay from "./LinkDisplay";
+import SettingsMenu from "./SettingsMenu";
 import { shareMessage } from "../services/shareLink";
 import type { AgentMessage } from "./ChatPanel";
 
@@ -108,14 +93,12 @@ export default function SharedAppPage({
 }) {
   const { t, dir } = useI18n();
   useTripBranding(appDesign, tripData.title);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const closeMenu = useCallback(() => setMenuOpen(false), []);
-  const menuRef = useDismissable(menuOpen, closeMenu);
+  const [saveShareOpen, setSaveShareOpen] = useState(false);
+  const closeSaveShare = useCallback(() => setSaveShareOpen(false), []);
+  const saveShareRef = useDismissable(saveShareOpen, closeSaveShare);
+  useBackToClose(saveShareOpen, closeSaveShare);
   const [saveStatus, setSaveStatus] = useState<"idle" | "working" | "done" | "error">("idle");
-  const [pdfStatus, setPdfStatus] = useState<"idle" | "working" | "error">("idle");
   const pdfTargetRef = useRef<HTMLDivElement>(null);
-  const [importError, setImportError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [saveChangesStatus, setSaveChangesStatus] = useState<"idle" | "working" | "done" | "error">(
     "idle",
   );
@@ -208,33 +191,6 @@ export default function SharedAppPage({
     }
   };
 
-  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setImportError(null);
-    try {
-      const { tripData: imported, appDesign: importedAppDesign } = await importTripFromFile(file);
-      onImportTrip(imported, importedAppDesign);
-    } catch (err) {
-      setImportError(err instanceof Error ? err.message : t("cloud.importFailed"));
-    }
-  };
-
-  const handleExportPdf = async () => {
-    if (!pdfTargetRef.current) {
-      throw new Error("pdfTargetRef is not attached to a rendered element");
-    }
-    setPdfStatus("working");
-    try {
-      await exportTripToPdf(pdfTargetRef.current, tripData.title);
-      setPdfStatus("idle");
-    } catch (err) {
-      console.error(err);
-      setPdfStatus("error");
-    }
-  };
-
   return (
     <div
       className="h-dvh overflow-hidden bg-surface-container flex justify-center print:h-auto print:overflow-visible print:bg-white pdf-shared-shell"
@@ -256,76 +212,38 @@ export default function SharedAppPage({
             <Home size={14} />
             {t("cloud.myTrips")}
           </a>
-          <LanguageSwitcher />
-          <ApiKeyMenu />
           <InstallAppButton />
-          <div className="relative" ref={menuRef}>
+          <div className="relative" ref={saveShareRef}>
             <button
-              onClick={() => setMenuOpen((v) => !v)}
-              aria-label={t("sharedPage.settingsAria")}
-              aria-expanded={menuOpen}
+              onClick={() => setSaveShareOpen((v) => !v)}
+              aria-label={t("sharedPage.saveShareAria")}
+              aria-expanded={saveShareOpen}
               aria-haspopup="menu"
               className="flex items-center gap-1 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg text-xs"
             >
-              <Settings size={14} />
-              {t("sharedPage.settings")}
+              <Save size={14} />
+              {t("sharedPage.saveShare")}
             </button>
 
-            {menuOpen && (
+            {saveShareOpen && (
               <div
                 role="menu"
                 className="fixed inset-x-4 top-4 max-h-[calc(100vh-2rem)] w-auto overflow-y-auto
                   sm:absolute sm:inset-x-auto sm:top-auto sm:end-0 sm:mt-2 sm:w-80
-                  sm:max-w-[calc(100vw-2rem)] sm:max-h-[70vh] bg-white rounded-xl shadow-lg
+                  sm:max-w-[calc(100vw-2rem)] sm:max-h-[70vh] sm:overflow-y-auto bg-white rounded-xl shadow-lg
                   border border-outline/20 p-3 z-40 text-start text-xs flex flex-col gap-1.5"
               >
-                <button
-                  onClick={() => exportTripToFile(tripData, appDesign)}
-                  className="flex items-center gap-1.5 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg"
-                >
-                  <Download size={14} />
-                  {t("sharedPage.export")}
-                </button>
-                <button
-                  onClick={() => exportTripToIcs(tripData)}
-                  className="flex items-center gap-1.5 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg"
-                >
-                  <Calendar size={14} />
-                  {t("sharedPage.exportIcs")}
-                </button>
-                <button
-                  onClick={() => window.print()}
-                  className="flex items-center gap-1.5 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg"
-                >
-                  <Printer size={14} />
-                  {t("sharedPage.print")}
-                </button>
-                <button
-                  onClick={handleExportPdf}
-                  disabled={pdfStatus === "working"}
-                  className="flex items-center gap-1.5 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high disabled:opacity-60 px-2.5 py-1.5 rounded-lg"
-                >
-                  <FileDown size={14} />
-                  {t("sharedPage.exportPdf")}
-                </button>
-                {pdfStatus === "error" && (
-                  <p className="text-red-700 px-1">{t("sharedPage.exportPdfFailed")}</p>
-                )}
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-1.5 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high px-2.5 py-1.5 rounded-lg"
-                >
-                  <Upload size={14} />
-                  {t("sharedPage.import")}
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="application/json"
-                  onChange={handleImportFile}
-                  className="hidden"
-                />
-                {importError && <p className="text-red-700 px-1">{importError}</p>}
+                <div className="flex items-center justify-between gap-2 mb-0.5">
+                  <span className="font-semibold text-ink">{t("sharedPage.saveShare")}</span>
+                  <button
+                    type="button"
+                    onClick={closeSaveShare}
+                    aria-label={t("apiKey.close")}
+                    className="shrink-0 text-ink-muted hover:text-ink"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
 
                 <input
                   type="text"
@@ -445,6 +363,12 @@ export default function SharedAppPage({
               </div>
             )}
           </div>
+          <SettingsMenu
+            tripData={tripData}
+            appDesign={appDesign}
+            printTargetRef={pdfTargetRef}
+            onImportTrip={onImportTrip}
+          />
         </div>
         <div className="flex-1 min-h-0">
           <AppFrame

@@ -99,9 +99,9 @@ describe("App shared-trip viewer", () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByText("הגדרות")).toBeInTheDocument();
+      expect(screen.getByText("שמירה ושיתוף")).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText("הגדרות"));
+    fireEvent.click(screen.getByText("שמירה ושיתוף"));
 
     await waitFor(() => {
       expect(screen.getByText("שמירת שינויים")).toBeInTheDocument();
@@ -141,9 +141,9 @@ describe("App shared-trip viewer", () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByText("הגדרות")).toBeInTheDocument();
+      expect(screen.getByText("שמירה ושיתוף")).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText("הגדרות"));
+    fireEvent.click(screen.getByText("שמירה ושיתוף"));
     fireEvent.click(screen.getByText("שמירה לחשבון שלי"));
 
     await waitFor(() => {
@@ -210,9 +210,9 @@ describe("App shared-trip viewer", () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByText("הגדרות")).toBeInTheDocument();
+      expect(screen.getByText("שמירה ושיתוף")).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText("הגדרות"));
+    fireEvent.click(screen.getByText("שמירה ושיתוף"));
 
     const input = await screen.findByPlaceholderText("הוספת מנהל לפי אימייל...");
     fireEvent.change(input, { target: { value: "Friend@Example.com" } });
