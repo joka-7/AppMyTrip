@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, Eye, EyeOff, Globe, KeyRound, Plus, Trash2 } from "lucide-react";
+import { Check, Eye, EyeOff, FolderGit2, Globe, KeyRound, Plus, Trash2 } from "lucide-react";
 import { useI18n } from "../i18n/useI18n";
 import GithubIcon from "./GithubIcon";
 import {
@@ -234,6 +234,15 @@ export default function ApiKeyMenu() {
               className="text-ink-muted hover:text-ink transition-colors"
             >
               <Globe size={16} />
+            </a>
+            <a
+              href="https://github.com/joka-7/AppMyTrip"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="View repository"
+              className="text-ink-muted hover:text-ink transition-colors"
+            >
+              <FolderGit2 size={16} />
             </a>
           </div>
         </div>
