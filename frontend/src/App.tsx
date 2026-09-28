@@ -539,7 +539,7 @@ function TripBuilder() {
           <AppLogo />
           <h1 className="text-lg sm:text-xl font-bold text-ink truncate">{t("nav.title")}</h1>
         </div>
-        <div className="flex flex-nowrap items-center gap-2 sm:gap-3 min-w-0 overflow-x-auto hide-scrollbar sm:overflow-visible">
+        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3 min-w-0">
           <div className="shrink-0">
             <InstallAppButton />
           </div>
@@ -548,10 +548,10 @@ function TripBuilder() {
               onClick={() => setPreviewOpen(true)}
               aria-label={t("nav.preview")}
               title={t("nav.preview")}
-              className="shrink-0 flex items-center gap-1.5 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-full transition-colors"
+              className="shrink-0 flex items-center gap-1.5 text-sm font-medium text-primary bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-full transition-colors"
             >
               <Smartphone size={16} />
-              <span className="hidden sm:inline">{t("nav.preview")}</span>
+              {t("nav.preview")}
             </button>
           )}
           <div className="shrink-0">
