@@ -43,6 +43,7 @@ export default function MyTripsButton({
   const [uid, setUid] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [trips, setTrips] = useState<CloudTripSummary[]>([]);
+  const [tripsLoading, setTripsLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -69,10 +70,13 @@ export default function MyTripsButton({
     (id: string) => {
       setIsOpen(true);
       setNotice(null);
-      refreshTrips(id).catch((err) => {
-        console.error(err);
-        setNotice(t("cloud.loadFailed"));
-      });
+      setTripsLoading(true);
+      refreshTrips(id)
+        .catch((err) => {
+          console.error(err);
+          setNotice(t("cloud.loadFailed"));
+        })
+        .finally(() => setTripsLoading(false));
     },
     [refreshTrips, t],
   );
@@ -182,8 +186,12 @@ export default function MyTripsButton({
           {notice && <p className="text-xs text-amber-700 mb-2">{notice}</p>}
 
           <ul className="max-h-64 overflow-y-auto space-y-1">
-            {trips.length === 0 && (
-              <li className="text-xs text-ink-muted py-2">{t("cloud.noTrips")}</li>
+            {tripsLoading ? (
+              <li className="text-xs text-ink-muted py-2">{t("cloud.loadingTrips")}</li>
+            ) : (
+              trips.length === 0 && (
+                <li className="text-xs text-ink-muted py-2">{t("cloud.noTrips")}</li>
+              )
             )}
             {trips.map((trip) => (
               <li key={trip.id} className="flex items-center gap-1 group">

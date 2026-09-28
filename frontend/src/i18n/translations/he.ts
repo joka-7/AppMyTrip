@@ -377,6 +377,7 @@ export const he = {
   "cloud.stage.step4": "שלב 4",
   "cloud.stage.final": "אפליקציה סופית",
   "cloud.myTrips": "הטיולים שלי",
+  "cloud.loadingTrips": "טוען את הטיולים שלך…",
   "cloud.noTrips": "אין טיולים שמורים עדיין.",
   "cloud.signOut": "התנתקות",
 

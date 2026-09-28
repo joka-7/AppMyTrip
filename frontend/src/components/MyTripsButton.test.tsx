@@ -54,6 +54,27 @@ describe("MyTripsButton", () => {
     expect(trips.listTrips).toHaveBeenCalledWith("uid-123");
   });
 
+  it("shows a loading message instead of the empty placeholder while trips are still being fetched", async () => {
+    let resolveTrips: (value: never[]) => void = () => {};
+    vi.mocked(trips.listTrips).mockReturnValue(
+      new Promise((resolve) => {
+        resolveTrips = resolve;
+      }),
+    );
+
+    renderSignedIn();
+    fireEvent.click(await screen.findByRole("button", { name: "הטיולים שלי" }));
+
+    expect(await screen.findByText("טוען את הטיולים שלך…")).toBeInTheDocument();
+    expect(screen.queryByText("אין טיולים שמורים עדיין.")).not.toBeInTheDocument();
+
+    resolveTrips([]);
+    await waitFor(() => {
+      expect(screen.getByText("אין טיולים שמורים עדיין.")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("טוען את הטיולים שלך…")).not.toBeInTheDocument();
+  });
+
   it("shows a placeholder when there are no saved trips", async () => {
     vi.mocked(trips.listTrips).mockResolvedValue([]);
 
