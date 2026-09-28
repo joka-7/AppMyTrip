@@ -17,6 +17,13 @@ vi.mock("../hooks/useTripBranding", () => ({
   useTripBranding: vi.fn(),
 }));
 
+vi.mock("../services/icsExport", () => ({ exportTripToIcs: vi.fn() }));
+vi.mock("../services/pdfExport", () => ({ exportTripToPdf: vi.fn() }));
+vi.mock("../services/tripFile", () => ({
+  exportTripToFile: vi.fn(),
+  importTripFromFile: vi.fn(),
+}));
+
 vi.mock("./AppFrame", () => ({
   default: () => <div data-testid="app-frame">App frame</div>,
 }));
@@ -55,7 +62,7 @@ describe("SharedAppPage", () => {
       />,
     );
 
-    fireEvent.click(screen.getByText("הגדרות"));
+    fireEvent.click(screen.getByText("שמירה ושיתוף"));
     fireEvent.click(screen.getByText("שמירה לחשבון שלי"));
 
     await waitFor(() => {
@@ -90,7 +97,7 @@ describe("SharedAppPage", () => {
       />,
     );
 
-    fireEvent.click(screen.getByText("הגדרות"));
+    fireEvent.click(screen.getByText("שמירה ושיתוף"));
     fireEvent.click(screen.getByText("שמירת שינויים"));
     await waitFor(() => {
       expect(onSaveChanges).toHaveBeenCalled();
@@ -120,6 +127,9 @@ describe("SharedAppPage", () => {
       />,
     );
 
+    // Language now lives inside the ⋮ menu's nested Settings screen.
+    fireEvent.click(screen.getByRole("button", { name: "תפריט" }));
+    fireEvent.click(screen.getByRole("button", { name: "הגדרות" }));
     fireEvent.change(screen.getByLabelText("שפת הממשק"), { target: { value: "en" } });
     expect(getLang()).toBe("en");
   });

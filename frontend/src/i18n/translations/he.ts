@@ -394,15 +394,9 @@ export const he = {
   "errorBoundary.details": "פרטים טכניים (לדיווח)",
 
   // Shared trip page
-  "sharedPage.settings": "הגדרות",
-  "sharedPage.settingsAria": "הגדרות הטיול",
+  "sharedPage.saveShare": "שמירה ושיתוף",
+  "sharedPage.saveShareAria": "שמירה ושיתוף הטיול",
   "sharedPage.myTripsAria": "מעבר לטיולים שלי",
-  "sharedPage.export": "ייצוא לקובץ",
-  "sharedPage.exportIcs": "ייצוא ליומן (.ics)",
-  "sharedPage.print": "הדפסת הלו״ז",
-  "sharedPage.exportPdf": "הורדת PDF",
-  "sharedPage.exportPdfFailed": "יצירת ה-PDF נכשלה.",
-  "sharedPage.import": "ייבוא מקובץ",
   "sharedPage.saving": "שומר...",
   "sharedPage.saveToAccount": "שמירה לחשבון שלי",
   "sharedPage.savedNotice": 'נשמר לחשבון שלך! אפשר למצוא אותו ב"הטיולים שלי".',
