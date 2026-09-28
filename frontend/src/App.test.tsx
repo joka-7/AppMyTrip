@@ -29,6 +29,7 @@ vi.mock("./services/tripsStore", () => ({
   saveTrip: vi.fn(),
   loadTrip: vi.fn(),
   deleteTrip: vi.fn(),
+  deleteSharedTrip: vi.fn(),
   shareTrip: vi.fn(),
   loadSharedTrip: vi.fn().mockRejectedValue(new Error("not shared")),
 }));
@@ -475,7 +476,8 @@ describe("App builder flow", () => {
       const englishExample = /Hi, we're flying to Rome/;
       expect(screen.getByDisplayValue(hebrewExample)).toBeInTheDocument();
 
-      // The language picker now lives inside the ⋮ settings dropdown.
+      // The language picker lives inside the ⋮ menu's nested Settings screen.
+      fireEvent.click(screen.getByRole("button", { name: "תפריט" }));
       fireEvent.click(screen.getByRole("button", { name: "הגדרות" }));
 
       // Untouched: switching language updates the example text in place.

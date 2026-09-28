@@ -335,7 +335,8 @@ export const he = {
     "נעבור ישר לאפליקציה הזו בלחיצה אחת בשלב 1; שאר האפשרויות תמיד יישארו זמינות.",
 
   // Settings menu (⋮ overflow button)
-  "settingsMenu.button": "הגדרות",
+  "settingsMenu.button": "תפריט",
+  "settingsMenu.settings": "הגדרות",
   "settingsMenu.language": "שפה",
   "settingsMenu.fileActions": "קובץ",
 

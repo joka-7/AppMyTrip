@@ -1,19 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Cloud, CloudOff, LogOut, Save, Share2, FolderOpen, X } from "lucide-react";
+import { Cloud, CloudOff, LogOut, Save, Share2, X } from "lucide-react";
 import type { TripData } from "../api";
 import { useDismissable } from "../hooks/useDismissable";
+import { useBackToClose } from "../hooks/useBackToClose";
 import { useI18n, type TranslationKey } from "../i18n/useI18n";
 import LinkDisplay from "./LinkDisplay";
 import { appendErrorDetail } from "../services/errorMessage";
 import { shareMessage } from "../services/shareLink";
 import {
-  type CloudTripSummary,
   type TripStage,
   completeRedirectSignIn,
-  deleteSharedTrip,
-  deleteTrip,
-  listTrips,
-  loadTrip,
   onAuthChange,
   saveTrip,
   shareTrip,
@@ -39,27 +35,19 @@ const SAVE_STAGES: { labelKey: TranslationKey; stage: TripStage }[] = [
   { labelKey: "cloud.stage.final", stage: "final" },
 ];
 
-const STAGE_LABEL_KEYS: Record<TripStage, TranslationKey> = {
-  step1: "cloud.stage.step1",
-  step2: "cloud.stage.step2",
-  step3: "cloud.stage.step3",
-  step4: "cloud.stage.step4",
-  final: "cloud.stage.final",
-};
-
 function stageForStep(step: number): TripStage {
   return step >= 1 && step <= 4 ? (`step${step}` as TripStage) : "final";
 }
 import type { AppDesign } from "../services/appDesign";
 
-/** Sign-in + "My Trips" + Save/Share controls backed by Firestore. */
+/** Sign-in + Save/Share controls backed by Firestore — see MyTripsButton for
+ * viewing/loading/deleting past trips, split out into its own nav entry. */
 export default function CloudMenu({
   tripData,
   appDesign,
   tripId,
   currentStep,
   onTripIdChange,
-  onLoadTrip,
   onUpdateTrip,
 }: {
   tripData: TripData;
@@ -69,7 +57,6 @@ export default function CloudMenu({
   /** Current builder step (1-4) — used as the default "save as" stage. */
   currentStep: number;
   onTripIdChange: (tripId: string | null) => void;
-  onLoadTrip: (trip: TripData, tripId: string, appDesign: AppDesign) => void;
   /** Applies a renamed title back to the trip being edited, so a name typed
    * into the save box (see BuilderStep4's own name field for the same idea)
    * sticks around instead of only living in the saved Firestore doc. */
@@ -79,16 +66,12 @@ export default function CloudMenu({
   const [email, setEmail] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(null);
-  const [trips, setTrips] = useState<CloudTripSummary[]>([]);
   const [isOpen, setIsOpen] = useState(false);
-  const closeMenu = useCallback(() => {
-    setIsOpen(false);
-    setConfirmDeleteId(null);
-  }, []);
+  const closeMenu = useCallback(() => setIsOpen(false), []);
   const menuRef = useDismissable(isOpen, closeMenu);
+  useBackToClose(isOpen, closeMenu);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [shareDays, setShareDays] = useState(0);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [saveStage, setSaveStage] = useState<TripStage>(() => stageForStep(currentStep));
@@ -107,22 +90,16 @@ export default function CloudMenu({
   useEffect(() => {
     if (!saveNameTouchedRef.current) setSaveName(tripData.title);
   }, [tripData.title]);
-  const refreshTrips = async (id: string) => {
-    setTrips(await listTrips(id));
-  };
-
   useEffect(() => {
     return onAuthChange((user) => {
       if (user) {
         setEmail(user.email);
         setUid(user.uid);
         setDisplayName(user.displayName);
-        refreshTrips(user.uid);
       } else {
         setEmail(null);
         setUid(null);
         setDisplayName(null);
-        setTrips([]);
       }
     });
   }, []);
@@ -192,7 +169,6 @@ export default function CloudMenu({
       setEmail(session.email);
       setUid(session.uid);
       setDisplayName(session.displayName);
-      await refreshTrips(session.uid);
     } catch (err) {
       console.error(err);
       setNotice(describeSignInError(err));
@@ -206,7 +182,6 @@ export default function CloudMenu({
     setEmail(null);
     setUid(null);
     setDisplayName(null);
-    setTrips([]);
     onTripIdChange(null);
     setIsOpen(false);
   };
@@ -232,7 +207,6 @@ export default function CloudMenu({
         const link = await shareTrip(uid, savedId, namedTrip, appDesign, shareDays || undefined);
         setShareUrl(link);
       }
-      await refreshTrips(uid);
       setNotice(t("cloud.saved"));
     } catch (err) {
       console.error(err);
@@ -266,57 +240,6 @@ export default function CloudMenu({
     } catch (err) {
       console.error(err);
       setNotice(t("cloud.shareFailed"));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleLoad = async (trip: CloudTripSummary) => {
-    if (!uid) return;
-    // A trip saved as "Final app" was actually published (see handleSave) —
-    // open the real "?shared=" link instead of loading it back into the
-    // builder, so "final" really means the finished app, not a look-alike
-    // preview you can still navigate away from into planning.
-    if (trip.stage === "final") {
-      const url = new URL(window.location.href);
-      url.searchParams.set("shared", trip.id);
-      window.location.assign(url.toString());
-      return;
-    }
-    setBusy(true);
-    setNotice(null);
-    try {
-      const { trip: loaded, appDesign: loadedAppDesign } = await loadTrip(uid, trip.id);
-      onLoadTrip(loaded, trip.id, loadedAppDesign);
-      setIsOpen(false);
-    } catch (err) {
-      console.error(err);
-      setNotice(t("cloud.loadFailed"));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleDelete = async (trip: CloudTripSummary) => {
-    if (!uid) return;
-    // Two-step confirm: first click arms the button, second click deletes.
-    // Accidental hover-clicks used to wipe both the private trip and its
-    // public share link with no undo.
-    if (confirmDeleteId !== trip.id) {
-      setConfirmDeleteId(trip.id);
-      return;
-    }
-    setBusy(true);
-    setConfirmDeleteId(null);
-    try {
-      await deleteTrip(uid, trip.id);
-      // Best-effort: also revoke any public share link so it doesn't outlive the trip.
-      await deleteSharedTrip(trip.id).catch((err) => console.error(err));
-      await refreshTrips(uid);
-      if (tripId === trip.id) onTripIdChange(null);
-    } catch (err) {
-      console.error(err);
-      setNotice(t("cloud.deleteFailed"));
     } finally {
       setBusy(false);
     }
@@ -385,10 +308,24 @@ export default function CloudMenu({
         <div
           role="menu"
           className="fixed inset-x-4 top-4 max-h-[calc(100vh-2rem)] w-auto overflow-y-auto
-              sm:absolute sm:inset-x-auto sm:top-auto sm:end-0 sm:mt-2 sm:max-h-none sm:w-96
-              sm:max-w-[calc(100vw-2rem)] sm:overflow-visible bg-white rounded-xl shadow-lg
+              sm:absolute sm:inset-x-auto sm:top-auto sm:end-0 sm:mt-2 sm:max-h-[70vh] sm:w-96
+              sm:max-w-[calc(100vw-2rem)] sm:overflow-y-auto bg-white rounded-xl shadow-lg
               border border-outline/20 p-4 z-40 text-start"
         >
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <span className="text-xs font-semibold text-ink-muted truncate">
+              {displayName ?? email}
+            </span>
+            <button
+              type="button"
+              onClick={closeMenu}
+              aria-label={t("apiKey.close")}
+              className="shrink-0 text-ink-muted hover:text-ink"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
           {notice && <p className="text-xs text-amber-700 mb-2">{notice}</p>}
           {shareUrl && (
             <div className="mb-3">
@@ -454,49 +391,6 @@ export default function CloudMenu({
               ))}
             </select>
           </label>
-
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-ink-muted mb-2">
-            <FolderOpen size={14} />
-            {t("cloud.myTrips")}
-          </div>
-          <ul className="max-h-48 overflow-y-auto space-y-1 mb-3">
-            {trips.length === 0 && (
-              <li className="text-xs text-ink-muted py-2">{t("cloud.noTrips")}</li>
-            )}
-            {trips.map((trip) => (
-              <li key={trip.id} className="flex items-center gap-1 group">
-                <button
-                  onClick={() => handleLoad(trip)}
-                  disabled={busy}
-                  title={trip.name}
-                  className="flex-1 min-w-0 flex items-center gap-1.5 text-sm text-ink text-start hover:text-primary px-2 py-1.5 rounded-lg hover:bg-surface-container"
-                >
-                  <span className="truncate">{trip.name}</span>
-                  {trip.stage && (
-                    <span className="shrink-0 text-[10px] font-medium text-ink-muted bg-surface-container-high px-1.5 py-0.5 rounded-full">
-                      {t(STAGE_LABEL_KEYS[trip.stage])}
-                    </span>
-                  )}
-                </button>
-                <button
-                  onClick={() => handleDelete(trip)}
-                  disabled={busy}
-                  aria-label={
-                    confirmDeleteId === trip.id
-                      ? t("cloud.deleteConfirmAria", { name: trip.name })
-                      : t("cloud.deleteAria", { name: trip.name })
-                  }
-                  className={`p-1 ${
-                    confirmDeleteId === trip.id
-                      ? "opacity-100 text-red-600 font-semibold text-[10px] px-1.5"
-                      : "opacity-0 group-hover:opacity-100 focus:opacity-100 text-ink-muted hover:text-red-500"
-                  }`}
-                >
-                  {confirmDeleteId === trip.id ? t("cloud.deleteConfirm") : <X size={14} />}
-                </button>
-              </li>
-            ))}
-          </ul>
 
           <button
             onClick={handleSignOut}

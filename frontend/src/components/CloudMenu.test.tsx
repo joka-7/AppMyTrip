@@ -10,11 +10,7 @@ vi.mock("../services/tripsStore", () => ({
   completeRedirectSignIn: vi.fn(),
   signInWithGoogle: vi.fn(),
   signOutOfGoogle: vi.fn(),
-  listTrips: vi.fn(),
   saveTrip: vi.fn(),
-  loadTrip: vi.fn(),
-  deleteTrip: vi.fn(),
-  deleteSharedTrip: vi.fn(),
   shareTrip: vi.fn(),
   loadSharedTrip: vi.fn(),
 }));
@@ -30,8 +26,8 @@ describe("CloudMenu", () => {
     vi.mocked(trips.completeRedirectSignIn).mockResolvedValue(null);
   });
 
-  it("shows a sign-in button when signed out", () => {
-    render(
+  function renderCloudMenu(overrides: Partial<Parameters<typeof CloudMenu>[0]> = {}) {
+    return render(
       <CloudMenu
         tripData={sampleTrip}
         appDesign={DEFAULT_APP_DESIGN}
@@ -39,9 +35,13 @@ describe("CloudMenu", () => {
         currentStep={1}
         onTripIdChange={vi.fn()}
         onUpdateTrip={vi.fn()}
-        onLoadTrip={vi.fn()}
+        {...overrides}
       />,
     );
+  }
+
+  it("shows a sign-in button when signed out", () => {
+    renderCloudMenu();
     expect(screen.getByRole("button", { name: /התחברות עם Google/ })).toBeInTheDocument();
   });
 
@@ -50,25 +50,11 @@ describe("CloudMenu", () => {
   // branch was just the button, and `notice` was only ever shown inside the
   // signed-in dropdown.
   describe("sign-in failure notice", () => {
-    function renderSignedOut() {
-      return render(
-        <CloudMenu
-          tripData={sampleTrip}
-          appDesign={DEFAULT_APP_DESIGN}
-          tripId={null}
-          currentStep={1}
-          onTripIdChange={vi.fn()}
-          onUpdateTrip={vi.fn()}
-          onLoadTrip={vi.fn()}
-        />,
-      );
-    }
-
     it("shows and can dismiss a notice for an unclassified failure, with the actual error appended", async () => {
       vi.mocked(trips.signInWithGoogle).mockRejectedValue(new Error("something odd"));
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-      renderSignedOut();
+      renderCloudMenu();
       fireEvent.click(screen.getByRole("button", { name: /התחברות עם Google/ }));
       await waitFor(() => {
         expect(screen.getByText(/ההתחברות ל-Google נכשלה\. נסו שוב\./)).toBeInTheDocument();
@@ -91,7 +77,7 @@ describe("CloudMenu", () => {
       vi.mocked(trips.signInWithGoogle).mockRejectedValue(new Error("something odd"));
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-      renderSignedOut();
+      renderCloudMenu();
       fireEvent.click(screen.getByRole("button", { name: /התחברות עם Google/ }));
       const closeButton = await screen.findByRole("button", { name: "סגירה" });
       const panel = closeButton.closest('[class*="rounded-xl"]');
@@ -107,7 +93,7 @@ describe("CloudMenu", () => {
       );
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-      renderSignedOut();
+      renderCloudMenu();
       fireEvent.click(screen.getByRole("button", { name: /התחברות עם Google/ }));
       await waitFor(() => {
         expect(
@@ -126,7 +112,7 @@ describe("CloudMenu", () => {
       );
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-      renderSignedOut();
+      renderCloudMenu();
       fireEvent.click(screen.getByRole("button", { name: /התחברות עם Google/ }));
       await waitFor(() => {
         // jsdom's default location is localhost — this asserts the actual
@@ -145,7 +131,7 @@ describe("CloudMenu", () => {
       );
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-      renderSignedOut();
+      renderCloudMenu();
       fireEvent.click(screen.getByRole("button", { name: /התחברות עם Google/ }));
       await waitFor(() => {
         expect(screen.getByText(/בעיית רשת מנעה את ההתחברות/)).toBeInTheDocument();
@@ -160,7 +146,7 @@ describe("CloudMenu", () => {
       );
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-      renderSignedOut();
+      renderCloudMenu();
       fireEvent.click(screen.getByRole("button", { name: /התחברות עם Google/ }));
       await waitFor(() => {
         expect(trips.signInWithGoogle).toHaveBeenCalled();
@@ -171,49 +157,19 @@ describe("CloudMenu", () => {
     });
   });
 
-  it("signs in, lists trips, and loads a selected trip", async () => {
+  it("signs in and shows the account's display name", async () => {
     vi.mocked(trips.signInWithGoogle).mockResolvedValue({
       uid: "uid-123",
       email: "user@example.com",
       displayName: "User",
     });
-    vi.mocked(trips.listTrips).mockResolvedValue([
-      { id: "trip-1", name: "My Trip", modifiedTime: "2024-01-01", stage: null },
-    ]);
-    vi.mocked(trips.loadTrip).mockResolvedValue({
-      trip: sampleTrip,
-      appDesign: { ...DEFAULT_APP_DESIGN, theme: "green" },
-    });
 
-    const onLoadTrip = vi.fn();
-    render(
-      <CloudMenu
-        tripData={sampleTrip}
-        appDesign={DEFAULT_APP_DESIGN}
-        tripId={null}
-        currentStep={1}
-        onTripIdChange={vi.fn()}
-        onUpdateTrip={vi.fn()}
-        onLoadTrip={onLoadTrip}
-      />,
-    );
-
+    renderCloudMenu();
     fireEvent.click(screen.getByRole("button", { name: /התחברות עם Google/ }));
 
     await waitFor(() => {
       expect(screen.getByText("User")).toBeInTheDocument();
     });
-
-    fireEvent.click(screen.getByText("User"));
-    fireEvent.click(screen.getByText("My Trip"));
-
-    await waitFor(() => {
-      expect(onLoadTrip).toHaveBeenCalledWith(sampleTrip, "trip-1", {
-        ...DEFAULT_APP_DESIGN,
-        theme: "green",
-      });
-    });
-    expect(trips.loadTrip).toHaveBeenCalledWith("uid-123", "trip-1");
   });
 
   // Regression guard: when no display name is available (an older account, or
@@ -229,19 +185,8 @@ describe("CloudMenu", () => {
       } as never);
       return () => {};
     });
-    vi.mocked(trips.listTrips).mockResolvedValue([]);
 
-    render(
-      <CloudMenu
-        tripData={sampleTrip}
-        appDesign={DEFAULT_APP_DESIGN}
-        tripId={null}
-        currentStep={1}
-        onTripIdChange={vi.fn()}
-        onUpdateTrip={vi.fn()}
-        onLoadTrip={vi.fn()}
-      />,
-    );
+    renderCloudMenu();
 
     const email = await screen.findByText("averylongaddress@example.com");
     expect(email).toHaveClass("truncate");
@@ -251,30 +196,32 @@ describe("CloudMenu", () => {
     );
   });
 
-  it("saves with the selected stage and shows it as a tag once the list refreshes", async () => {
+  it("closes the dropdown via its close button", async () => {
     vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
       callback({ uid: "uid-123", email: "user@example.com", displayName: "User" } as never);
       return () => {};
     });
-    vi.mocked(trips.listTrips)
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        { id: "trip-1", name: "Trip", modifiedTime: "2024-01-01", stage: "step3" },
-      ]);
+
+    renderCloudMenu();
+    await waitFor(() => {
+      expect(screen.getByText("User")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("User"));
+
+    fireEvent.click(screen.getByRole("button", { name: "סגירה" }));
+
+    expect(screen.queryByRole("button", { name: /שמירה/ })).not.toBeInTheDocument();
+  });
+
+  it("saves with the selected stage", async () => {
+    vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
+      callback({ uid: "uid-123", email: "user@example.com", displayName: "User" } as never);
+      return () => {};
+    });
     vi.mocked(trips.saveTrip).mockResolvedValue("trip-1");
     const onTripIdChange = vi.fn();
 
-    render(
-      <CloudMenu
-        tripData={sampleTrip}
-        appDesign={DEFAULT_APP_DESIGN}
-        tripId={null}
-        currentStep={2}
-        onTripIdChange={onTripIdChange}
-        onUpdateTrip={vi.fn()}
-        onLoadTrip={vi.fn()}
-      />,
-    );
+    renderCloudMenu({ currentStep: 2, onTripIdChange });
 
     await waitFor(() => {
       expect(screen.getByText("User")).toBeInTheDocument();
@@ -298,12 +245,8 @@ describe("CloudMenu", () => {
       });
     });
     expect(onTripIdChange).toHaveBeenCalledWith("trip-1");
-
-    // The refreshed trip list carries the stage back from Firestore, shown as a tag
-    // (scoped to a <span>, since the still-open "save as" <select> also has an
-    // option with this same text).
     await waitFor(() => {
-      expect(screen.getByText("שלב 3", { selector: "span" })).toBeInTheDocument();
+      expect(screen.getByText("הטיול נשמר בחשבונכם.")).toBeInTheDocument();
     });
   });
 
@@ -312,21 +255,10 @@ describe("CloudMenu", () => {
       callback({ uid: "uid-123", email: "user@example.com", displayName: "User" } as never);
       return () => {};
     });
-    vi.mocked(trips.listTrips).mockResolvedValue([]);
     vi.mocked(trips.saveTrip).mockResolvedValue("trip-1");
     const onUpdateTrip = vi.fn();
 
-    render(
-      <CloudMenu
-        tripData={sampleTrip}
-        appDesign={DEFAULT_APP_DESIGN}
-        tripId={null}
-        currentStep={1}
-        onTripIdChange={vi.fn()}
-        onUpdateTrip={onUpdateTrip}
-        onLoadTrip={vi.fn()}
-      />,
-    );
+    renderCloudMenu({ onUpdateTrip });
 
     await waitFor(() => {
       expect(screen.getByText("User")).toBeInTheDocument();
@@ -357,21 +289,10 @@ describe("CloudMenu", () => {
       callback({ uid: "uid-123", email: "user@example.com", displayName: "User" } as never);
       return () => {};
     });
-    vi.mocked(trips.listTrips).mockResolvedValue([]);
     vi.mocked(trips.saveTrip).mockResolvedValue("trip-1");
     vi.mocked(trips.shareTrip).mockResolvedValue("https://example.com/?shared=trip-1");
 
-    render(
-      <CloudMenu
-        tripData={sampleTrip}
-        appDesign={DEFAULT_APP_DESIGN}
-        tripId={null}
-        currentStep={4}
-        onTripIdChange={vi.fn()}
-        onUpdateTrip={vi.fn()}
-        onLoadTrip={vi.fn()}
-      />,
-    );
+    renderCloudMenu({ currentStep: 4 });
 
     await waitFor(() => {
       expect(screen.getByText("User")).toBeInTheDocument();
@@ -408,7 +329,6 @@ describe("CloudMenu", () => {
       callback({ uid: "uid-123", email: "user@example.com", displayName: "User" } as never);
       return () => {};
     });
-    vi.mocked(trips.listTrips).mockResolvedValue([]);
     vi.mocked(trips.shareTrip).mockResolvedValue("https://example.com/?shared=trip-1");
     const originalClipboard = navigator.clipboard;
     Object.defineProperty(navigator, "clipboard", {
@@ -417,17 +337,7 @@ describe("CloudMenu", () => {
     });
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    render(
-      <CloudMenu
-        tripData={sampleTrip}
-        appDesign={DEFAULT_APP_DESIGN}
-        tripId="trip-1"
-        currentStep={4}
-        onTripIdChange={vi.fn()}
-        onUpdateTrip={vi.fn()}
-        onLoadTrip={vi.fn()}
-      />,
-    );
+    renderCloudMenu({ tripId: "trip-1", currentStep: 4 });
 
     await waitFor(() => {
       expect(screen.getByText("User")).toBeInTheDocument();
@@ -449,125 +359,5 @@ describe("CloudMenu", () => {
       configurable: true,
     });
     consoleErrorSpy.mockRestore();
-  });
-
-  it('opening a trip saved as "Final app" goes to its real shared link, not the builder', async () => {
-    vi.mocked(trips.listTrips).mockResolvedValue([
-      { id: "trip-9", name: "Finished Trip", modifiedTime: "2024-01-01", stage: "final" },
-    ]);
-    vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
-      callback({ uid: "uid-123", email: "user@example.com", displayName: "User" } as never);
-      return () => {};
-    });
-    const onLoadTrip = vi.fn();
-    const assignSpy = vi.fn();
-    const originalLocation = window.location;
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: { ...originalLocation, assign: assignSpy },
-    });
-
-    render(
-      <CloudMenu
-        tripData={sampleTrip}
-        appDesign={DEFAULT_APP_DESIGN}
-        tripId={null}
-        currentStep={1}
-        onTripIdChange={vi.fn()}
-        onUpdateTrip={vi.fn()}
-        onLoadTrip={onLoadTrip}
-      />,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText("User")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByText("User"));
-    fireEvent.click(screen.getByText("Finished Trip"));
-
-    await waitFor(() => {
-      expect(assignSpy).toHaveBeenCalled();
-    });
-    const navigatedTo = new URL(assignSpy.mock.calls[0][0] as string);
-    expect(navigatedTo.searchParams.get("shared")).toBe("trip-9");
-    // Must not fall back to loading it into the builder as well.
-    expect(trips.loadTrip).not.toHaveBeenCalled();
-    expect(onLoadTrip).not.toHaveBeenCalled();
-
-    Object.defineProperty(window, "location", { configurable: true, value: originalLocation });
-  });
-
-  it("loads the trip list for an already-signed-in session without requiring a manual sign-in click", async () => {
-    vi.mocked(trips.listTrips).mockResolvedValue([
-      { id: "trip-1", name: "My Trip", modifiedTime: "2024-01-01", stage: null },
-    ]);
-    vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
-      callback({ uid: "uid-123", email: "user@example.com", displayName: "User" } as never);
-      return () => {};
-    });
-
-    render(
-      <CloudMenu
-        tripData={sampleTrip}
-        appDesign={DEFAULT_APP_DESIGN}
-        tripId={null}
-        currentStep={1}
-        onTripIdChange={vi.fn()}
-        onUpdateTrip={vi.fn()}
-        onLoadTrip={vi.fn()}
-      />,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText("User")).toBeInTheDocument();
-    });
-    expect(trips.listTrips).toHaveBeenCalledWith("uid-123");
-
-    fireEvent.click(screen.getByText("User"));
-    await waitFor(() => {
-      expect(screen.getByText("My Trip")).toBeInTheDocument();
-    });
-  });
-
-  it("requires a second click before deleting a trip", async () => {
-    vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
-      callback({ uid: "uid-123", email: "user@example.com", displayName: "User" } as never);
-      return () => {};
-    });
-    vi.mocked(trips.listTrips).mockResolvedValue([
-      { id: "trip-1", name: "My Trip", modifiedTime: "2024-01-01", stage: null },
-    ]);
-    vi.mocked(trips.deleteTrip).mockResolvedValue(undefined);
-    vi.mocked(trips.deleteSharedTrip).mockResolvedValue(undefined);
-
-    render(
-      <CloudMenu
-        tripData={sampleTrip}
-        appDesign={DEFAULT_APP_DESIGN}
-        tripId={null}
-        currentStep={1}
-        onTripIdChange={vi.fn()}
-        onUpdateTrip={vi.fn()}
-        onLoadTrip={vi.fn()}
-      />,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText("User")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByText("User"));
-    await waitFor(() => {
-      expect(screen.getByText("My Trip")).toBeInTheDocument();
-    });
-
-    const deleteBtn = screen.getByRole("button", { name: /מחיקת הטיול My Trip/ });
-    fireEvent.click(deleteBtn);
-    expect(trips.deleteTrip).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: /אישור מחיקת הטיול My Trip/ }));
-    await waitFor(() => {
-      expect(trips.deleteTrip).toHaveBeenCalledWith("uid-123", "trip-1");
-    });
-    expect(trips.deleteSharedTrip).toHaveBeenCalledWith("trip-1");
   });
 });

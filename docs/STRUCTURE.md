@@ -115,6 +115,8 @@ AppMyTrip/
 │   │   │   ├── LocationPicker.tsx
 │   │   │   ├── MapView.test.tsx
 │   │   │   ├── MapView.tsx
+│   │   │   ├── MyTripsButton.test.tsx
+│   │   │   ├── MyTripsButton.tsx
 │   │   │   ├── PhonePreview.tsx
 │   │   │   ├── PodcastPlayer.tsx
 │   │   │   ├── PriceSummary.test.tsx
@@ -130,6 +132,8 @@ AppMyTrip/
 │   │   │   ├── agentResponseSchema.json
 │   │   │   └── tripDataSchema.json
 │   │   ├── hooks/                    # Podcast player, install prompt, trip branding, checklist, editing
+│   │   │   ├── useBackToClose.test.ts
+│   │   │   ├── useBackToClose.ts
 │   │   │   ├── useChecklistSuggest.ts
 │   │   │   ├── useChecklistTicks.ts
 │   │   │   ├── useDismissable.test.ts

@@ -337,7 +337,8 @@ export const en: Record<TranslationKey, string> = {
     "We'll jump straight to this app with one click in Step 1; the other options stay available too.",
 
   // Settings menu (⋮ overflow button)
-  "settingsMenu.button": "Settings",
+  "settingsMenu.button": "Menu",
+  "settingsMenu.settings": "Settings",
   "settingsMenu.language": "Language",
   "settingsMenu.fileActions": "File",
 
