@@ -48,11 +48,11 @@ export default function SettingsMenu({
         onClick={() => setIsOpen((v) => !v)}
         aria-expanded={isOpen}
         aria-haspopup="menu"
-        aria-label={t("settingsMenu.button")}
         title={t("settingsMenu.button")}
-        className="flex items-center justify-center w-9 h-9 rounded-full text-ink-muted hover:bg-surface-container-high transition-colors"
+        className="shrink-0 flex items-center gap-1.5 text-sm font-medium text-ink-muted bg-surface-container hover:bg-surface-container-high px-3 py-1.5 rounded-full transition-colors"
       >
         <MoreVertical size={18} />
+        {t("settingsMenu.button")}
       </button>
 
       {isOpen && (
