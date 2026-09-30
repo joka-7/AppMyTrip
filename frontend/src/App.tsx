@@ -7,7 +7,15 @@ import React, {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { ChevronLeft, FolderGit2, Globe, Mail, MessageSquare, Smartphone, Wand2 } from "lucide-react";
+import {
+  ChevronLeft,
+  FolderGit2,
+  Globe,
+  Mail,
+  MessageSquare,
+  Smartphone,
+  Wand2,
+} from "lucide-react";
 import { parseTrip, agentInteract, generateMedia, enhanceTrip, ApiError } from "./api";
 import type { EnhanceOptions, TripData } from "./api";
 import ApiNotice from "./components/ApiNotice";
@@ -213,19 +221,48 @@ function AppCreditFooter() {
     <footer className="no-print flex flex-col items-center gap-1.5 py-6 text-ink-muted">
       <span className="text-xs">{t("apiKey.credit")}</span>
       <div className="flex items-center justify-center gap-4">
-        <a href="https://github.com/joka-7" target="_blank" rel="noreferrer" aria-label="GitHub" className="hover:text-ink transition-colors">
+        <a
+          href="https://github.com/joka-7"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="GitHub"
+          className="hover:text-ink transition-colors"
+        >
           <GithubIcon size={16} />
         </a>
-        <a href="https://jk-dev-7.vercel.app" target="_blank" rel="noreferrer" aria-label="jk.dev portfolio" className="hover:text-ink transition-colors">
+        <a
+          href="https://jk-dev-7.vercel.app"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="jk.dev portfolio"
+          className="hover:text-ink transition-colors"
+        >
           <Globe size={16} />
         </a>
-        <a href="https://github.com/joka-7/AppMyTrip" target="_blank" rel="noreferrer" aria-label="View repository" className="hover:text-ink transition-colors">
+        <a
+          href="https://github.com/joka-7/AppMyTrip"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="View repository"
+          className="hover:text-ink transition-colors"
+        >
           <FolderGit2 size={16} />
         </a>
-        <a href="mailto:joka.dev.7@gmail.com" rel="noreferrer" aria-label="Send feedback by email" className="hover:text-ink transition-colors">
+        <a
+          href="mailto:joka.dev.7@gmail.com"
+          rel="noreferrer"
+          aria-label="Send feedback by email"
+          className="hover:text-ink transition-colors"
+        >
           <Mail size={16} />
         </a>
-        <a href="https://github.com/joka-7/AppMyTrip/issues/new" target="_blank" rel="noreferrer" aria-label="Report an issue" className="hover:text-ink transition-colors">
+        <a
+          href="https://github.com/joka-7/AppMyTrip/issues/new"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Report an issue"
+          className="hover:text-ink transition-colors"
+        >
           <MessageSquare size={16} />
         </a>
       </div>

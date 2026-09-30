@@ -1,5 +1,16 @@
 import { useState } from "react";
-import { Check, Eye, EyeOff, FolderGit2, Globe, KeyRound, Mail, MessageSquare, Plus, Trash2 } from "lucide-react";
+import {
+  Check,
+  Eye,
+  EyeOff,
+  FolderGit2,
+  Globe,
+  KeyRound,
+  Mail,
+  MessageSquare,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useI18n } from "../i18n/useI18n";
 import GithubIcon from "./GithubIcon";
 import {
