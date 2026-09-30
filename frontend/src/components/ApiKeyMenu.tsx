@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, Eye, EyeOff, FolderGit2, Globe, KeyRound, Plus, Trash2 } from "lucide-react";
+import { Check, Eye, EyeOff, FolderGit2, Globe, KeyRound, Mail, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { useI18n } from "../i18n/useI18n";
 import GithubIcon from "./GithubIcon";
 import {
@@ -245,6 +245,23 @@ export default function ApiKeyMenu() {
                 className="text-ink-muted hover:text-ink transition-colors"
               >
                 <FolderGit2 size={16} />
+              </a>
+              <a
+                href="mailto:joka.dev.7@gmail.com"
+                rel="noreferrer"
+                aria-label="Send feedback by email"
+                className="text-ink-muted hover:text-ink transition-colors"
+              >
+                <Mail size={16} />
+              </a>
+              <a
+                href="https://github.com/joka-7/AppMyTrip/issues/new"
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Report an issue"
+                className="text-ink-muted hover:text-ink transition-colors"
+              >
+                <MessageSquare size={16} />
               </a>
             </div>
           </div>
