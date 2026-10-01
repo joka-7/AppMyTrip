@@ -229,13 +229,14 @@ export default function ApiKeyMenu() {
 
           <div className="flex flex-col items-center gap-1.5 pt-3 mt-1 border-t border-outline/10">
             <span className="text-[11px] text-ink-muted">{t("apiKey.credit")}</span>
-            <div className="flex items-center justify-center gap-4">
+            <div className="flex items-center justify-center gap-1">
               <a
                 href="https://github.com/joka-7"
                 target="_blank"
                 rel="noreferrer"
                 aria-label="GitHub"
-                className="text-ink-muted hover:text-ink transition-colors"
+                title="GitHub"
+                className="text-ink-muted hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all"
               >
                 <GithubIcon size={16} />
               </a>
@@ -244,7 +245,8 @@ export default function ApiKeyMenu() {
                 target="_blank"
                 rel="noreferrer"
                 aria-label="jk.dev portfolio"
-                className="text-ink-muted hover:text-ink transition-colors"
+                title="jk.dev portfolio"
+                className="text-ink-muted hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all"
               >
                 <Globe size={16} />
               </a>
@@ -253,7 +255,8 @@ export default function ApiKeyMenu() {
                 target="_blank"
                 rel="noreferrer"
                 aria-label="View repository"
-                className="text-ink-muted hover:text-ink transition-colors"
+                title="View repository"
+                className="text-ink-muted hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all"
               >
                 <FolderGit2 size={16} />
               </a>
@@ -261,7 +264,8 @@ export default function ApiKeyMenu() {
                 href="mailto:joka.dev.7@gmail.com"
                 rel="noreferrer"
                 aria-label="Send feedback by email"
-                className="text-ink-muted hover:text-ink transition-colors"
+                title="Send feedback by email"
+                className="text-ink-muted hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all"
               >
                 <Mail size={16} />
               </a>
@@ -270,7 +274,8 @@ export default function ApiKeyMenu() {
                 target="_blank"
                 rel="noreferrer"
                 aria-label="Report an issue"
-                className="text-ink-muted hover:text-ink transition-colors"
+                title="Report an issue"
+                className="text-ink-muted hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all"
               >
                 <MessageSquare size={16} />
               </a>
