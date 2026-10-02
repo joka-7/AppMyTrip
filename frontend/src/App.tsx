@@ -227,7 +227,7 @@ function AppCreditFooter() {
           rel="noreferrer"
           aria-label="GitHub"
           title="GitHub"
-          className="hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all"
+          className="tap-fx hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all"
         >
           <GithubIcon size={16} />
         </a>
@@ -237,7 +237,7 @@ function AppCreditFooter() {
           rel="noreferrer"
           aria-label="jk.dev portfolio"
           title="jk.dev portfolio"
-          className="hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all"
+          className="tap-fx hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all"
         >
           <Globe size={16} />
         </a>
@@ -247,7 +247,7 @@ function AppCreditFooter() {
           rel="noreferrer"
           aria-label="View repository"
           title="View repository"
-          className="hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all"
+          className="tap-fx hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all"
         >
           <FolderGit2 size={16} />
         </a>
@@ -256,7 +256,7 @@ function AppCreditFooter() {
           rel="noreferrer"
           aria-label="Send feedback by email"
           title="Send feedback by email"
-          className="hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all"
+          className="tap-fx hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all"
         >
           <Mail size={16} />
         </a>
@@ -266,7 +266,7 @@ function AppCreditFooter() {
           rel="noreferrer"
           aria-label="Report an issue"
           title="Report an issue"
-          className="hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all"
+          className="tap-fx hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all"
         >
           <MessageSquare size={16} />
         </a>
