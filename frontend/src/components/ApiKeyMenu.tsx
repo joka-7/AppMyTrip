@@ -236,9 +236,10 @@ export default function ApiKeyMenu() {
                 rel="noreferrer"
                 aria-label="GitHub"
                 title="GitHub"
-                className="tap-fx text-ink-muted hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all"
+                className="tap-fx text-ink-muted hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all inline-flex flex-col items-center justify-center gap-0.5"
               >
                 <GithubIcon size={16} />
+                <span className="text-[9px] leading-none">GitHub</span>
               </a>
               <a
                 href="https://jk-dev-7.vercel.app"
@@ -246,9 +247,10 @@ export default function ApiKeyMenu() {
                 rel="noreferrer"
                 aria-label="jk.dev portfolio"
                 title="jk.dev portfolio"
-                className="tap-fx text-ink-muted hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all"
+                className="tap-fx text-ink-muted hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all inline-flex flex-col items-center justify-center gap-0.5"
               >
                 <Globe size={16} />
+                <span className="text-[9px] leading-none">Site</span>
               </a>
               <a
                 href="https://github.com/joka-7/AppMyTrip"
@@ -256,18 +258,20 @@ export default function ApiKeyMenu() {
                 rel="noreferrer"
                 aria-label="View repository"
                 title="View repository"
-                className="tap-fx text-ink-muted hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all"
+                className="tap-fx text-ink-muted hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all inline-flex flex-col items-center justify-center gap-0.5"
               >
                 <FolderGit2 size={16} />
+                <span className="text-[9px] leading-none">Code</span>
               </a>
               <a
                 href="mailto:joka.dev.7@gmail.com"
                 rel="noreferrer"
                 aria-label="Send feedback by email"
                 title="Send feedback by email"
-                className="tap-fx text-ink-muted hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all"
+                className="tap-fx text-ink-muted hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all inline-flex flex-col items-center justify-center gap-0.5"
               >
                 <Mail size={16} />
+                <span className="text-[9px] leading-none">Email</span>
               </a>
               <a
                 href="https://github.com/joka-7/AppMyTrip/issues/new"
@@ -275,9 +279,10 @@ export default function ApiKeyMenu() {
                 rel="noreferrer"
                 aria-label="Report an issue"
                 title="Report an issue"
-                className="tap-fx text-ink-muted hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all"
+                className="tap-fx text-ink-muted hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all inline-flex flex-col items-center justify-center gap-0.5"
               >
                 <MessageSquare size={16} />
+                <span className="text-[9px] leading-none">Feedback</span>
               </a>
             </div>
           </div>
