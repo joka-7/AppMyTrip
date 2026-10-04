@@ -65,7 +65,7 @@ describe("AiSettingsPanel — apiKey mode", () => {
   });
 });
 
-describe("AiSettingsPanel — mode toggle and external favorite", () => {
+describe("AiSettingsPanel — mode toggle", () => {
   beforeEach(() => {
     localStorage.clear();
   });
@@ -77,25 +77,5 @@ describe("AiSettingsPanel — mode toggle and external favorite", () => {
     fireEvent.click(screen.getByRole("tab", { name: "AI חיצוני" }));
     expect(localStorage.getItem("tripweaver_ai_mode")).toBe("external");
     expect(screen.queryByPlaceholderText("API Key...")).toBeNull();
-    expect(screen.getByRole("radiogroup", { name: "אפליקציית AI מועדפת" })).toBeInTheDocument();
-  });
-
-  it("saves the chosen favorite and reselects it across remounts", () => {
-    const { unmount } = render(<AiSettingsPanel />);
-    fireEvent.click(screen.getByRole("tab", { name: "AI חיצוני" }));
-    fireEvent.click(screen.getByRole("radio", { name: "Claude" }));
-
-    expect(localStorage.getItem("tripweaver_ai_external_favorite")).toBe("claude");
-    unmount();
-
-    render(<AiSettingsPanel />);
-    fireEvent.click(screen.getByRole("tab", { name: "AI חיצוני" }));
-    expect(screen.getByRole("radio", { name: "Claude" })).toBeChecked();
-  });
-
-  it('defaults the favorite to "ask me each time"', () => {
-    render(<AiSettingsPanel />);
-    fireEvent.click(screen.getByRole("tab", { name: "AI חיצוני" }));
-    expect(screen.getByRole("radio", { name: "בכל פעם תבחרו בעצמכם" })).toBeChecked();
   });
 });

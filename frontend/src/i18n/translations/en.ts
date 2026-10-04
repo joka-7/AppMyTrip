@@ -40,9 +40,6 @@ export const en: Record<TranslationKey, string> = {
   "step1.external.heading": "Send to external AI",
   "step1.external.intro":
     "Ask a free AI app directly, paste its reply below, and we'll continue from there.",
-  "step1.external.sendButton": "Send to external AI",
-  "step1.external.sendToFavorite": "Send to {favorite}",
-  "step1.external.tryAnother": "Try a different AI app",
   "step1.external.pasteLabel": "Paste the AI's reply here",
   "step1.external.pastePlaceholder": "Paste the JSON response here…",
   "step1.external.pasteApply": "Use this reply",
@@ -72,9 +69,6 @@ export const en: Record<TranslationKey, string> = {
   "step2.external.heading": "Send to external AI",
   "step2.external.intro":
     "Ask a free AI app directly, paste its reply below, and we'll continue from there.",
-  "step2.external.sendButton": "Send to external AI",
-  "step2.external.sendToFavorite": "Send to {favorite}",
-  "step2.external.tryAnother": "Try a different AI app",
   "step2.external.pasteLabel": "Paste the AI's reply here",
   "step2.external.pastePlaceholder": "Paste the JSON response here…",
   "step2.external.pasteApply": "Use this reply",
@@ -92,8 +86,6 @@ export const en: Record<TranslationKey, string> = {
   "step3.external.intro":
     "Write your request above, send it to a free AI app, and paste its reply below.",
   "step3.external.needsText": "Type a message above to send it to an external AI.",
-  "step3.external.sendToFavorite": "Send to {favorite}",
-  "step3.external.tryAnother": "Try a different AI app",
   "step3.external.pasteLabel": "Paste the AI's reply here",
   "step3.external.pastePlaceholder": "Paste the JSON response here…",
   "step3.external.pasteApply": "Use this reply",
@@ -106,6 +98,8 @@ export const en: Record<TranslationKey, string> = {
   "chat.askElsewhere": "Or ask directly:",
   "chat.askExternallyToggle": "Ask an external AI directly",
   "chat.askExternallyNeedsText": "Type a message first to send it to an external AI.",
+  "chat.getFreeKey": "New here? Get a free API key for automatic parsing instead:",
+  "chat.getFreeKeyAria": "Get a free {provider} API key",
 
   // Step 4 — design & deploy
   "step4.heading": "Final step: design your app",
@@ -332,10 +326,6 @@ export const en: Record<TranslationKey, string> = {
   "apiKey.modeExternal": "External AI",
   "apiKey.externalDescription":
     "Skip API keys entirely — Step 1 gives you a link to a free AI app with your text ready to paste in, and you paste its reply back.",
-  "apiKey.favoriteHeading": "Favorite AI app",
-  "apiKey.favoriteNone": "Ask me each time",
-  "apiKey.favoriteHint":
-    "We'll jump straight to this app with one click in Step 1; the other options stay available too.",
 
   // Settings menu (⋮ overflow button)
   "settingsMenu.button": "Menu",

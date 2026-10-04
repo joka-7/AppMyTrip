@@ -24,8 +24,6 @@
 
 import {
   EXTERNAL_CHAT_PROVIDERS as PACKAGE_EXTERNAL_CHAT_PROVIDERS,
-  loadExternalChatFavorite,
-  saveExternalChatFavorite,
   type ExternalChatProviderId,
 } from "modeldispatcher-browser-agent";
 
@@ -69,17 +67,4 @@ export function getAiMode(): AiMode {
 
 export function setAiMode(mode: AiMode): void {
   localStorage.setItem(AI_MODE_STORAGE_KEY, mode);
-}
-
-const FAVORITE_STORAGE_KEY = "tripweaver_ai_external_favorite";
-
-/** The chat app to lead with in external mode, or `null` until one is
- * chosen — reuses modeldispatcher-browser-agent's own persistence so the
- * stored value's ids always match EXTERNAL_CHAT_PROVIDERS above. */
-export function loadFavoriteExternalChat(): ExternalChatProviderId | null {
-  return loadExternalChatFavorite(undefined, FAVORITE_STORAGE_KEY);
-}
-
-export function saveFavoriteExternalChat(favorite: ExternalChatProviderId | null): void {
-  saveExternalChatFavorite(favorite, undefined, FAVORITE_STORAGE_KEY);
 }

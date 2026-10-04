@@ -39,9 +39,6 @@ export const fr: Record<TranslationKey, string> = {
   "step1.external.heading": "Envoyer à une IA externe",
   "step1.external.intro":
     "Posez la question directement à une appli IA gratuite, collez sa réponse ci-dessous, et on continue à partir de là.",
-  "step1.external.sendButton": "Envoyer à une IA externe",
-  "step1.external.sendToFavorite": "Envoyer à {favorite}",
-  "step1.external.tryAnother": "Essayer une autre appli IA",
   "step1.external.pasteLabel": "Collez ici la réponse de l'IA",
   "step1.external.pastePlaceholder": "Collez ici la réponse JSON…",
   "step1.external.pasteApply": "Utiliser cette réponse",
@@ -71,9 +68,6 @@ export const fr: Record<TranslationKey, string> = {
   "step2.external.heading": "Envoyer à une IA externe",
   "step2.external.intro":
     "Posez la question directement à une appli IA gratuite, collez sa réponse ci-dessous, et on continue à partir de là.",
-  "step2.external.sendButton": "Envoyer à une IA externe",
-  "step2.external.sendToFavorite": "Envoyer à {favorite}",
-  "step2.external.tryAnother": "Essayer une autre appli IA",
   "step2.external.pasteLabel": "Collez ici la réponse de l'IA",
   "step2.external.pastePlaceholder": "Collez ici la réponse JSON…",
   "step2.external.pasteApply": "Utiliser cette réponse",
@@ -91,8 +85,6 @@ export const fr: Record<TranslationKey, string> = {
   "step3.external.intro":
     "Écrivez votre demande ci-dessus, envoyez-la à une appli IA gratuite, et collez sa réponse ci-dessous.",
   "step3.external.needsText": "Tapez un message ci-dessus pour l'envoyer à une IA externe.",
-  "step3.external.sendToFavorite": "Envoyer à {favorite}",
-  "step3.external.tryAnother": "Essayer une autre appli IA",
   "step3.external.pasteLabel": "Collez ici la réponse de l'IA",
   "step3.external.pastePlaceholder": "Collez ici la réponse JSON…",
   "step3.external.pasteApply": "Utiliser cette réponse",
@@ -105,6 +97,9 @@ export const fr: Record<TranslationKey, string> = {
   "chat.askElsewhere": "Ou demandez directement :",
   "chat.askExternallyToggle": "Demander directement à une IA externe",
   "chat.askExternallyNeedsText": "Écrivez d'abord un message pour l'envoyer à une IA externe.",
+  "chat.getFreeKey":
+    "Nouveau ici ? Obtenez plutôt une clé API gratuite pour l'analyse automatique :",
+  "chat.getFreeKeyAria": "Obtenir une clé API {provider} gratuite",
 
   // Step 4 — design & deploy
   "step4.heading": "Dernière étape : concevez votre app",
@@ -340,10 +335,6 @@ export const fr: Record<TranslationKey, string> = {
   "apiKey.modeExternal": "IA externe",
   "apiKey.externalDescription":
     "Passez complètement les clés API — l'étape 1 vous donne un lien vers une appli IA gratuite avec votre texte prêt à coller, et vous collez sa réponse en retour.",
-  "apiKey.favoriteHeading": "Appli IA favorite",
-  "apiKey.favoriteNone": "Me demander à chaque fois",
-  "apiKey.favoriteHint":
-    "On passera directement à cette appli en un clic à l'étape 1 ; les autres options restent aussi disponibles.",
 
   // Settings menu (⋮ overflow button)
   "settingsMenu.button": "Menu",

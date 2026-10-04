@@ -25,15 +25,7 @@ import {
   type Backend,
   type LLMProvider,
 } from "../services/apiKey";
-import {
-  EXTERNAL_CHAT_PROVIDERS,
-  getAiMode,
-  loadFavoriteExternalChat,
-  saveFavoriteExternalChat,
-  setAiMode,
-  type AiMode,
-  type ExternalChatProviderId,
-} from "../services/externalChat";
+import { getAiMode, setAiMode, type AiMode } from "../services/externalChat";
 
 /** Masks a key for display so it's recognizable without exposing the whole secret. */
 function maskKey(key: string): string {
@@ -70,10 +62,10 @@ function KeyRow({ value, onRemove }: { value: string; onRemove: () => void }) {
  * Leads with a mode choice, same idea as shas-radar's <ModelPicker>: "apiKey"
  * lets the visitor pick a provider (Gemini, OpenAI, Claude, or Groq) and
  * store one or more of their own keys, sent to the backend and rotated
- * through on a rate limit; "external" skips keys entirely and picks a free
- * chat app to hand Step 1's parse prompt to instead (see BuilderStep1 and
- * services/externalChat.ts's AiMode). Every key and the favorite choice are
- * stored only in localStorage and never touch our backend's env vars.
+ * through on a rate limit; "external" skips keys entirely and hands Step 1's
+ * parse prompt to a free chat app instead (see BuilderStep1 and
+ * services/externalChat.ts's AiMode). Every key is stored only in
+ * localStorage and never touches our backend's env vars.
  */
 export default function AiSettingsPanel() {
   const { t } = useI18n();
@@ -84,18 +76,10 @@ export default function AiSettingsPanel() {
   const [llmDraft, setLlmDraft] = useState("");
   const [showLlmDraft, setShowLlmDraft] = useState(false);
   const [backend, setBackendState] = useState<Backend>(getBackend());
-  const [favorite, setFavorite] = useState<ExternalChatProviderId | null>(() =>
-    loadFavoriteExternalChat(),
-  );
 
   const handleModeChange = (next: AiMode) => {
     setAiMode(next);
     setMode(next);
-  };
-
-  const handleFavoriteChange = (next: ExternalChatProviderId | null) => {
-    saveFavoriteExternalChat(next);
-    setFavorite(next);
   };
 
   const handleBackendChange = (next: Backend) => {
@@ -254,36 +238,7 @@ export default function AiSettingsPanel() {
           </div>
         </>
       ) : (
-        <div role="radiogroup" aria-label={t("apiKey.favoriteHeading")}>
-          <p className="text-xs text-ink-muted mb-3">{t("apiKey.externalDescription")}</p>
-          <p className="text-xs font-medium text-ink-muted mb-1.5">{t("apiKey.favoriteHeading")}</p>
-          <div className="flex flex-col gap-1 mb-1">
-            <label className="flex items-center gap-2 text-sm text-ink px-1 py-1 cursor-pointer">
-              <input
-                type="radio"
-                name="ai-external-favorite"
-                checked={favorite === null}
-                onChange={() => handleFavoriteChange(null)}
-              />
-              {t("apiKey.favoriteNone")}
-            </label>
-            {EXTERNAL_CHAT_PROVIDERS.map((p) => (
-              <label
-                key={p.id}
-                className="flex items-center gap-2 text-sm text-ink px-1 py-1 cursor-pointer"
-              >
-                <input
-                  type="radio"
-                  name="ai-external-favorite"
-                  checked={favorite === p.id}
-                  onChange={() => handleFavoriteChange(p.id)}
-                />
-                {p.name}
-              </label>
-            ))}
-          </div>
-          <p className="text-[11px] text-ink-muted/80 mt-2">{t("apiKey.favoriteHint")}</p>
-        </div>
+        <p className="text-xs text-ink-muted mb-3">{t("apiKey.externalDescription")}</p>
       )}
 
       <div className="flex flex-col items-center gap-1.5 pt-3 mt-3 border-t border-outline/10">

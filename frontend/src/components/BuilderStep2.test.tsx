@@ -70,7 +70,6 @@ describe("BuilderStep2 — external AI mode", () => {
     expect(screen.queryByRole("link", { name: "Claude" })).toBeNull();
 
     fireEvent.click(screen.getByText("הוספת מחירים משוערים"));
-    fireEvent.click(screen.getByRole("button", { name: "שליחה ל-AI חיצוני" }));
 
     const claudeLink = screen.getByRole("link", { name: "Claude" });
     const url = new URL(claudeLink.getAttribute("href")!);
@@ -105,16 +104,12 @@ describe("BuilderStep2 — external AI mode", () => {
     expect(screen.getByText(/זה לא נראה כמו טיול תקין עדיין/)).toBeInTheDocument();
   });
 
-  it("leads with a one-click send to the saved favorite, with other apps a click away", () => {
-    localStorage.setItem("tripweaver_ai_external_favorite", "claude");
+  it("also offers a free API key as an alternative to pasting into a chat app", () => {
     render(<BuilderStep2 {...baseProps({ aiMode: "external" })} />);
     fireEvent.click(screen.getByText("הוספת מחירים משוערים"));
 
-    expect(screen.getByRole("button", { name: /שליחה ל-Claude/ })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Claude" })).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: "נסו אפליקציית AI אחרת" }));
-    expect(screen.getByRole("link", { name: "Claude" })).toBeInTheDocument();
+    const geminiKeyLink = screen.getByRole("link", { name: "קבלת מפתח API חינמי של Gemini" });
+    expect(geminiKeyLink.getAttribute("href")).toBe("https://aistudio.google.com/apikey");
   });
 
   it("still skips straight through when nothing is selected", () => {

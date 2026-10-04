@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Send } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { PasteExternalReply } from "modeldispatcher-react-ui";
 import "modeldispatcher-react-ui/styles.css";
 import { useI18n, type TranslationKey } from "../i18n/useI18n";
@@ -7,13 +7,7 @@ import { useRotatingHint } from "../hooks/useRotatingHint";
 import ExternalChatLinks from "./ExternalChatLinks";
 import { buildTripParsePrompt } from "../services/externalTripPrompt";
 import { parseExternalTripReply } from "../services/externalTripReply";
-import {
-  buildExternalChatUrl,
-  copyToClipboard,
-  EXTERNAL_CHAT_PROVIDERS,
-  loadFavoriteExternalChat,
-  type AiMode,
-} from "../services/externalChat";
+import type { AiMode } from "../services/externalChat";
 import type { TripData } from "../api";
 
 const PARSE_HINTS: readonly TranslationKey[] = [
@@ -56,9 +50,6 @@ export default function BuilderStep1({
   const { t, lang } = useI18n();
   const waitHint = useRotatingHint(isProcessing, PARSE_HINTS);
   const [replyError, setReplyError] = useState(false);
-  const [showOtherProviders, setShowOtherProviders] = useState(false);
-  const favoriteId = aiMode === "external" ? loadFavoriteExternalChat() : null;
-  const favoriteProvider = EXTERNAL_CHAT_PROVIDERS.find((p) => p.id === favoriteId);
   const question = buildTripParsePrompt(rawText, preferences, lang);
 
   function handleExternalReply(rawReply: string): void {
@@ -68,12 +59,6 @@ export default function BuilderStep1({
     } catch {
       setReplyError(true);
     }
-  }
-
-  function handleSendToFavorite(): void {
-    if (!favoriteProvider) return;
-    copyToClipboard(question);
-    window.open(buildExternalChatUrl(favoriteProvider, question), "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -107,7 +92,7 @@ export default function BuilderStep1({
             {t("step1.continueWithoutReprocessing")}
           </button>
         )}
-        {aiMode === "apiKey" ? (
+        {aiMode === "apiKey" && (
           <button
             onClick={onSubmit}
             disabled={isProcessing}
@@ -121,17 +106,6 @@ export default function BuilderStep1({
                 : t("step1.submit")}
             {!isProcessing && <ChevronRight size={20} />}
           </button>
-        ) : (
-          <button
-            onClick={favoriteProvider ? handleSendToFavorite : () => setShowOtherProviders(true)}
-            disabled={!rawText.trim()}
-            className="bg-primary hover:bg-primary-dark disabled:opacity-60 text-white px-8 py-3 rounded-xl font-medium flex items-center gap-2 flex-1 justify-center transition-colors shadow-md"
-          >
-            <Send size={20} />
-            {favoriteProvider
-              ? t("step1.external.sendToFavorite", { favorite: favoriteProvider.name })
-              : t("step1.external.sendButton")}
-          </button>
         )}
       </div>
       {waitHint && (
@@ -144,16 +118,7 @@ export default function BuilderStep1({
         <div className="mt-6 pt-6 border-t border-outline/20">
           <h3 className="text-sm font-semibold mb-1">{t("step1.external.heading")}</h3>
           <p className="text-xs text-ink-muted mb-2">{t("step1.external.intro")}</p>
-          {rawText.trim() && favoriteProvider && !showOtherProviders && (
-            <button
-              type="button"
-              onClick={() => setShowOtherProviders(true)}
-              className="text-xs text-primary hover:text-primary-dark underline mb-3"
-            >
-              {t("step1.external.tryAnother")}
-            </button>
-          )}
-          {rawText.trim() && (!favoriteProvider || showOtherProviders) && (
+          {rawText.trim() && (
             <div className="mb-3">
               <ExternalChatLinks question={question} />
             </div>
