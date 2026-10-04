@@ -7,7 +7,7 @@ import React, {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { ChevronLeft, Smartphone, Wand2 } from "lucide-react";
+import { ChevronLeft, Globe, Smartphone, Wand2 } from "lucide-react";
 import { parseTrip, agentInteract, generateMedia, enhanceTrip, ApiError } from "./api";
 import type { EnhanceOptions, TripData } from "./api";
 import ApiNotice from "./components/ApiNotice";
@@ -203,20 +203,24 @@ function AppLogo() {
   );
 }
 
-// Small always-visible credit row — same links as the one inside
-// ApiKeyMenu's dropdown, but surfaced on the main screen since a menu
-// tucked inside settings is easy to never open.
+// Small always-visible credit row — the same links live in AiSettingsPanel
+// (reached via SettingsMenu), but surfaced here too since a menu tucked
+// inside settings is easy to never open. The site link lives on its own
+// icon, not on the credit text, so the text stays plain and readable.
 function AppCreditFooter() {
   const { t } = useI18n();
   return (
-    <footer className="no-print py-6 text-center text-xs text-ink-muted">
+    <footer className="no-print py-6 flex items-center justify-center gap-1.5 text-center text-xs text-ink-muted">
+      <span>{t("apiKey.credit")}</span>
       <a
         href="https://jk-dev-7.vercel.app"
         target="_blank"
         rel="noreferrer"
-        className="tap-fx underline-offset-2 hover:underline"
+        aria-label="jk.dev portfolio"
+        title="jk.dev portfolio"
+        className="tap-fx text-ink-muted hover:text-ink"
       >
-        {t("apiKey.credit")}
+        <Globe size={14} aria-hidden />
       </a>
     </footer>
   );

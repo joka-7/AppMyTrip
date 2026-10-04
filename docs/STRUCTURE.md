@@ -79,8 +79,6 @@ AppMyTrip/
 │   │   ├── components/               # Builder steps (1-4), AppFrame, MapView, CloudMenu, and shared UI
 │   │   │   ├── AiSettingsPanel.test.tsx
 │   │   │   ├── AiSettingsPanel.tsx
-│   │   │   ├── ApiKeyMenu.test.tsx
-│   │   │   ├── ApiKeyMenu.tsx
 │   │   │   ├── ApiNotice.tsx
 │   │   │   ├── AppFrame.test.tsx
 │   │   │   ├── AppFrame.tsx

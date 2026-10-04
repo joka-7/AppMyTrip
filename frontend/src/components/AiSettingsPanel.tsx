@@ -1,6 +1,18 @@
 import { useState } from "react";
-import { Eye, EyeOff, KeyRound, Plus, Send, Trash2 } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  FolderGit2,
+  Globe,
+  KeyRound,
+  Mail,
+  MessageSquare,
+  Plus,
+  Send,
+  Trash2,
+} from "lucide-react";
 import { useI18n } from "../i18n/useI18n";
+import GithubIcon from "./GithubIcon";
 import {
   addApiKey,
   getApiKeysForProvider,
@@ -273,6 +285,66 @@ export default function AiSettingsPanel() {
           <p className="text-[11px] text-ink-muted/80 mt-2">{t("apiKey.favoriteHint")}</p>
         </div>
       )}
+
+      <div className="flex flex-col items-center gap-1.5 pt-3 mt-3 border-t border-outline/10">
+        <span className="text-[11px] text-ink-muted">{t("apiKey.credit")}</span>
+        <div className="flex items-center justify-center gap-1">
+          <a
+            href="https://github.com/joka-7"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="GitHub"
+            title="GitHub"
+            className="tap-fx text-ink-muted hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all inline-flex flex-col items-center justify-center gap-0.5"
+          >
+            <GithubIcon size={16} />
+            <span className="text-[9px] leading-none">GitHub</span>
+          </a>
+          <a
+            href="https://jk-dev-7.vercel.app"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="jk.dev portfolio"
+            title="jk.dev portfolio"
+            className="tap-fx text-ink-muted hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all inline-flex flex-col items-center justify-center gap-0.5"
+          >
+            <Globe size={16} />
+            <span className="text-[9px] leading-none">Site</span>
+          </a>
+          <a
+            href="https://github.com/joka-7/AppMyTrip"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="View repository"
+            title="View repository"
+            className="tap-fx text-ink-muted hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all inline-flex flex-col items-center justify-center gap-0.5"
+          >
+            <FolderGit2 size={16} />
+            <span className="text-[9px] leading-none">Code</span>
+          </a>
+          <a
+            href="mailto:joka.dev.7@gmail.com"
+            rel="noreferrer"
+            aria-label="Send feedback by email"
+            title="Send feedback by email"
+            className="tap-fx text-ink-muted hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all inline-flex flex-col items-center justify-center gap-0.5"
+          >
+            <Mail size={16} />
+            <span className="text-[9px] leading-none">Email</span>
+          </a>
+          <a
+            href="https://github.com/joka-7/AppMyTrip/issues/new"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Report an issue"
+            title="Report an issue"
+            className="tap-fx text-ink-muted hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all inline-flex flex-col items-center justify-center gap-0.5"
+          >
+            <MessageSquare size={16} />
+            <span className="text-[9px] leading-none">Feedback</span>
+          </a>
+        </div>
+      </div>
     </div>
   );
 }
