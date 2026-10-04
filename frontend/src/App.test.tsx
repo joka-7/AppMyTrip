@@ -146,7 +146,6 @@ describe("App builder flow", () => {
         [],
         "gemini",
         [],
-        "legacy",
       );
     });
   });
@@ -189,7 +188,6 @@ describe("App builder flow", () => {
         [],
         "gemini",
         [],
-        "legacy",
       );
     });
     await waitFor(() => {

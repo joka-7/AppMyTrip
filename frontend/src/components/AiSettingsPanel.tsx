@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  ExternalLink,
   Eye,
   EyeOff,
   FolderGit2,
@@ -17,15 +18,19 @@ import {
   addApiKey,
   getApiKeysForProvider,
   getApiProvider,
-  getBackend,
   PROVIDERS,
   removeApiKey,
   setApiProvider,
-  setBackend,
-  type Backend,
   type LLMProvider,
 } from "../services/apiKey";
-import { getAiMode, setAiMode, type AiMode } from "../services/externalChat";
+import {
+  EXTERNAL_CHAT_PROVIDERS,
+  getAiMode,
+  setAiMode,
+  type AiMode,
+} from "../services/externalChat";
+
+const FREE_KEY_PROVIDERS = PROVIDERS.filter((p) => p.free);
 
 /** Masks a key for display so it's recognizable without exposing the whole secret. */
 function maskKey(key: string): string {
@@ -75,16 +80,10 @@ export default function AiSettingsPanel() {
   const [llmKeys, setLlmKeys] = useState<string[]>(() => getApiKeysForProvider(provider));
   const [llmDraft, setLlmDraft] = useState("");
   const [showLlmDraft, setShowLlmDraft] = useState(false);
-  const [backend, setBackendState] = useState<Backend>(getBackend());
 
   const handleModeChange = (next: AiMode) => {
     setAiMode(next);
     setMode(next);
-  };
-
-  const handleBackendChange = (next: Backend) => {
-    setBackend(next);
-    setBackendState(next);
   };
 
   // Browsing to a different provider here (to view/add its keys) must not by
@@ -220,29 +219,57 @@ export default function AiSettingsPanel() {
             <Plus size={14} />
             {t("apiKey.addKey")}
           </button>
-
-          <div className="mt-3 pt-3 border-t border-outline/10">
-            <label className="block text-xs font-medium text-ink-muted mb-1">
-              {t("apiKey.backendLabel")}
-            </label>
-            <select
-              value={backend}
-              onChange={(e) => handleBackendChange(e.target.value as Backend)}
-              aria-label={t("apiKey.backendLabel")}
-              className="w-full border border-outline/40 rounded-lg px-3 py-2 text-sm mb-1 focus:outline-none focus:ring-2 focus:ring-primary/50"
-            >
-              <option value="legacy">{t("apiKey.backendLegacy")}</option>
-              <option value="model_dispatcher">{t("apiKey.backendModelDispatcher")}</option>
-            </select>
-            <p className="text-[11px] text-ink-muted/80">{t("apiKey.backendNote")}</p>
-          </div>
         </>
       ) : (
-        <p className="text-xs text-ink-muted mb-3">{t("apiKey.externalDescription")}</p>
+        <div className="mb-3">
+          <p className="text-xs text-ink-muted mb-3">{t("apiKey.externalDescription")}</p>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs mb-2">
+            {EXTERNAL_CHAT_PROVIDERS.map((provider) => (
+              <a
+                key={provider.id}
+                href={provider.homeUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-primary hover:text-primary-dark underline"
+              >
+                {provider.name}
+              </a>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">
+            <span className="flex items-center gap-1">
+              <ExternalLink size={12} />
+              {t("chat.getFreeKey")}
+            </span>
+            {FREE_KEY_PROVIDERS.map((provider) => (
+              <a
+                key={provider.value}
+                href={provider.keyUrl}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={t("chat.getFreeKeyAria", { provider: provider.label })}
+                className="font-medium text-primary hover:text-primary-dark underline"
+              >
+                {provider.label}
+              </a>
+            ))}
+          </div>
+        </div>
       )}
 
-      <div className="flex flex-col items-center gap-1.5 pt-3 mt-3 border-t border-outline/10">
-        <span className="text-[11px] text-ink-muted">{t("apiKey.credit")}</span>
+      <a
+        href="https://joka-7.github.io/ModelDispatcher/ai-glossary.html"
+        target="_blank"
+        rel="noreferrer"
+        className="block text-xs text-primary hover:text-primary-dark underline text-center pt-3 mt-3 border-t border-outline/10"
+      >
+        {t("apiKey.glossaryLink")}
+      </a>
+
+      <div className="pt-3 mt-3">
+        <h3 className="text-xs font-bold text-ink text-center mb-1.5">
+          {t("apiKey.linksHeading")}
+        </h3>
         <div className="flex items-center justify-center gap-1">
           <a
             href="https://github.com/joka-7"

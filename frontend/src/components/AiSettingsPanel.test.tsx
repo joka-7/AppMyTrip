@@ -43,16 +43,6 @@ describe("AiSettingsPanel — apiKey mode", () => {
     expect(JSON.parse(localStorage.getItem("tripweaver_api_keys") ?? "{}")).toEqual({});
   });
 
-  it("defaults the backend selector to legacy and persists a change", () => {
-    render(<AiSettingsPanel />);
-    const backendSelect = screen.getByRole("combobox", { name: "מנוע השרת" });
-    expect(backendSelect).toHaveValue("legacy");
-
-    fireEvent.change(backendSelect, { target: { value: "model_dispatcher" } });
-    expect(backendSelect).toHaveValue("model_dispatcher");
-    expect(localStorage.getItem("tripweaver_backend")).toBe("model_dispatcher");
-  });
-
   it("toggles LLM key visibility", () => {
     render(<AiSettingsPanel />);
     const input = screen.getByPlaceholderText("API Key...");
@@ -62,6 +52,17 @@ describe("AiSettingsPanel — apiKey mode", () => {
     expect(input).toHaveAttribute("type", "text");
     fireEvent.click(screen.getByRole("button", { name: /הסתרת המפתח/ }));
     expect(input).toHaveAttribute("type", "password");
+  });
+
+  it("links newcomers to the AI glossary", () => {
+    render(<AiSettingsPanel />);
+    const link = screen.getByRole("link", {
+      name: "חדשים בעולם סוכני ה-AI? מה זה פרומפט, מודל או מפתח API?",
+    });
+    expect(link).toHaveAttribute(
+      "href",
+      "https://joka-7.github.io/ModelDispatcher/ai-glossary.html",
+    );
   });
 });
 
@@ -77,5 +78,23 @@ describe("AiSettingsPanel — mode toggle", () => {
     fireEvent.click(screen.getByRole("tab", { name: "AI חיצוני" }));
     expect(localStorage.getItem("tripweaver_ai_mode")).toBe("external");
     expect(screen.queryByPlaceholderText("API Key...")).toBeNull();
+  });
+
+  it("offers links to the free external AI chat apps in external mode", () => {
+    render(<AiSettingsPanel />);
+    fireEvent.click(screen.getByRole("tab", { name: "AI חיצוני" }));
+
+    const claudeLink = screen.getByRole("link", { name: "Claude" });
+    expect(claudeLink).toHaveAttribute("href", "https://claude.ai/new");
+    expect(claudeLink).toHaveAttribute("target", "_blank");
+    expect(screen.getByRole("link", { name: "ChatGPT" })).toBeInTheDocument();
+  });
+
+  it("also offers a free API key as an alternative, for a new AI user", () => {
+    render(<AiSettingsPanel />);
+    fireEvent.click(screen.getByRole("tab", { name: "AI חיצוני" }));
+
+    const geminiKeyLink = screen.getByRole("link", { name: "קבלת מפתח API חינמי של Gemini" });
+    expect(geminiKeyLink).toHaveAttribute("href", "https://aistudio.google.com/apikey");
   });
 });

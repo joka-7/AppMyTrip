@@ -322,15 +322,13 @@ export const fr: Record<TranslationKey, string> = {
   "apiKey.hideAria": "Masquer la clé",
   "apiKey.addKey": "Ajouter une clé",
   "apiKey.close": "Fermer",
+  "apiKey.glossaryLink":
+    "Nouveau dans les agents IA ? Qu'est-ce qu'un prompt, un modèle ou une clé API ?",
+  "apiKey.linksHeading": "Liens",
   "apiKey.credit": "Créé par joka-7",
   "apiKey.inputPlaceholder": "Clé API...",
   "apiKey.primaryNote": "Ce fournisseur est essayé en premier à chaque requête.",
   "apiKey.makePrimary": "Définir comme fournisseur principal",
-  "apiKey.backendLabel": "Moteur du serveur",
-  "apiKey.backendLegacy": "Standard",
-  "apiKey.backendModelDispatcher": "Model Dispatcher (partagé)",
-  "apiKey.backendNote":
-    "Réglage avancé/de test — si le serveur n'a pas configuré Model Dispatcher, la requête revient simplement au comportement standard.",
   "apiKey.modeApiKey": "Clé API",
   "apiKey.modeExternal": "IA externe",
   "apiKey.externalDescription":

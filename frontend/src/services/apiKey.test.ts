@@ -7,8 +7,6 @@ import {
   getAllCredentials,
   getApiProvider,
   setApiProvider,
-  getBackend,
-  setBackend,
 } from "./apiKey";
 
 describe("apiKey storage (multiple keys per provider)", () => {
@@ -98,23 +96,5 @@ describe("getAllCredentials", () => {
     addApiKey("gem", "gemini");
     setApiProvider("gemini");
     expect(getAllCredentials()).toEqual([{ provider: "gemini", api_keys: ["gem"] }]);
-  });
-});
-
-describe("backend selection", () => {
-  beforeEach(() => localStorage.clear());
-
-  it("defaults to legacy when nothing is stored", () => {
-    expect(getBackend()).toBe("legacy");
-  });
-
-  it("remembers an explicit choice", () => {
-    setBackend("model_dispatcher");
-    expect(getBackend()).toBe("model_dispatcher");
-  });
-
-  it("falls back to legacy for a corrupted/unknown stored value", () => {
-    localStorage.setItem("tripweaver_backend", "not-a-real-backend");
-    expect(getBackend()).toBe("legacy");
   });
 });

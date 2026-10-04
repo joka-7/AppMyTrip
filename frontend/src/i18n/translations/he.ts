@@ -311,15 +311,12 @@ export const he = {
   "apiKey.hideAria": "הסתרת המפתח",
   "apiKey.addKey": "הוספת מפתח",
   "apiKey.close": "סגירה",
+  "apiKey.glossaryLink": "חדשים בעולם סוכני ה-AI? מה זה פרומפט, מודל או מפתח API?",
+  "apiKey.linksHeading": "קישורים",
   "apiKey.credit": "נבנה על ידי joka-7",
   "apiKey.inputPlaceholder": "API Key...",
   "apiKey.primaryNote": "הספק הזה מנוסה ראשון בכל בקשה.",
   "apiKey.makePrimary": "הפוך לספק הראשי",
-  "apiKey.backendLabel": "מנוע השרת",
-  "apiKey.backendLegacy": "רגיל",
-  "apiKey.backendModelDispatcher": "Model Dispatcher (משותף)",
-  "apiKey.backendNote":
-    "הגדרה מתקדמת לבדיקות — אם השרת לא הגדיר את Model Dispatcher, הבקשה תיפול חזרה להתנהגות הרגילה.",
   "apiKey.modeApiKey": "מפתח API",
   "apiKey.modeExternal": "AI חיצוני",
   "apiKey.externalDescription":
