@@ -106,6 +106,7 @@ export const he = {
   "chat.askElsewhere": "אפשר גם לשאול ישירות:",
   "chat.askExternallyToggle": "שאלו AI חיצוני ישירות",
   "chat.askExternallyNeedsText": "כתבו הודעה קודם כדי לשלוח אותה ל-AI חיצוני.",
+  "chat.newUser": "חדשים ב-{provider}? הירשמו בחינם",
 
   // Step 4 — design & deploy
   "step4.heading": "שלב אחרון: עיצוב האפליקציה שלך",

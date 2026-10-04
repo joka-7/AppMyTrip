@@ -36,6 +36,27 @@ export const EXTERNAL_CHAT_PROVIDERS: ExternalChatProvider[] = Object.values(
   PACKAGE_EXTERNAL_CHAT_PROVIDERS,
 );
 
+// The package's own ExternalChatProviderInfo has no "where do I sign up"
+// field (unlike this app's other BYOK apps, which pair each API-key
+// provider with a "get a free key" link) — these chat products need a
+// *product account*, not a key, so the same idea becomes "don't have an
+// account yet? sign up". Kept local rather than widening the shared
+// package's type for one app's UI copy. Omitted for a provider with no
+// well-known, stable login/signup URL (Groq's consumer chat product has
+// none) rather than guessing one.
+const SIGN_UP_URLS: Partial<Record<ExternalChatProviderId, string>> = {
+  chatgpt: "https://chatgpt.com/auth/login",
+  claude: "https://claude.ai/login",
+  gemini: "https://accounts.google.com/signup",
+  geminiApp: "https://accounts.google.com/signup",
+};
+
+/** Where a visitor with no account on `provider` yet can create one, or
+ * `null` when no stable URL for that is known. */
+export function externalChatSignUpUrl(provider: ExternalChatProvider): string | null {
+  return SIGN_UP_URLS[provider.id] ?? null;
+}
+
 /** The URL to open for `provider` given `question` — pre-filled where a
  * prefill parameter is known, the plain homepage otherwise. */
 export function buildExternalChatUrl(provider: ExternalChatProvider, question: string): string {

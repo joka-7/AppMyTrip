@@ -105,6 +105,7 @@ export const fr: Record<TranslationKey, string> = {
   "chat.askElsewhere": "Ou demandez directement :",
   "chat.askExternallyToggle": "Demander directement à une IA externe",
   "chat.askExternallyNeedsText": "Écrivez d'abord un message pour l'envoyer à une IA externe.",
+  "chat.newUser": "Nouveau sur {provider} ? Inscrivez-vous gratuitement",
 
   // Step 4 — design & deploy
   "step4.heading": "Dernière étape : concevez votre app",
