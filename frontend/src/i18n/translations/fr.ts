@@ -328,6 +328,7 @@ export const fr: Record<TranslationKey, string> = {
   "apiKey.hideAria": "Masquer la clé",
   "apiKey.addKey": "Ajouter une clé",
   "apiKey.close": "Fermer",
+  "apiKey.credit": "Créé par joka-7",
   "apiKey.inputPlaceholder": "Clé API...",
   "apiKey.primaryNote": "Ce fournisseur est essayé en premier à chaque requête.",
   "apiKey.makePrimary": "Définir comme fournisseur principal",
