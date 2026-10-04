@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  ExternalLink,
   Eye,
   EyeOff,
   FolderGit2,
@@ -28,6 +29,8 @@ import {
   setAiMode,
   type AiMode,
 } from "../services/externalChat";
+
+const FREE_KEY_PROVIDERS = PROVIDERS.filter((p) => p.free);
 
 /** Masks a key for display so it's recognizable without exposing the whole secret. */
 function maskKey(key: string): string {
@@ -220,7 +223,7 @@ export default function AiSettingsPanel() {
       ) : (
         <div className="mb-3">
           <p className="text-xs text-ink-muted mb-3">{t("apiKey.externalDescription")}</p>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs mb-2">
             {EXTERNAL_CHAT_PROVIDERS.map((provider) => (
               <a
                 key={provider.id}
@@ -230,6 +233,24 @@ export default function AiSettingsPanel() {
                 className="font-medium text-primary hover:text-primary-dark underline"
               >
                 {provider.name}
+              </a>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">
+            <span className="flex items-center gap-1">
+              <ExternalLink size={12} />
+              {t("chat.getFreeKey")}
+            </span>
+            {FREE_KEY_PROVIDERS.map((provider) => (
+              <a
+                key={provider.value}
+                href={provider.keyUrl}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={t("chat.getFreeKeyAria", { provider: provider.label })}
+                className="font-medium text-primary hover:text-primary-dark underline"
+              >
+                {provider.label}
               </a>
             ))}
           </div>

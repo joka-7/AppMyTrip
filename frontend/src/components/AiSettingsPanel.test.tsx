@@ -78,4 +78,12 @@ describe("AiSettingsPanel — mode toggle", () => {
     expect(claudeLink).toHaveAttribute("target", "_blank");
     expect(screen.getByRole("link", { name: "ChatGPT" })).toBeInTheDocument();
   });
+
+  it("also offers a free API key as an alternative, for a new AI user", () => {
+    render(<AiSettingsPanel />);
+    fireEvent.click(screen.getByRole("tab", { name: "AI חיצוני" }));
+
+    const geminiKeyLink = screen.getByRole("link", { name: "קבלת מפתח API חינמי של Gemini" });
+    expect(geminiKeyLink).toHaveAttribute("href", "https://aistudio.google.com/apikey");
+  });
 });
