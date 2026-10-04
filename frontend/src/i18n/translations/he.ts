@@ -38,9 +38,6 @@ export const he = {
   "step1.submit": "צור מבנה אפליקציה ראשוני",
   "step1.external.heading": "שליחה ל-AI חיצוני",
   "step1.external.intro": "שאלו אפליקציית AI חינמית ישירות, הדביקו את התשובה שלה למטה, ונמשיך משם.",
-  "step1.external.sendButton": "שליחה ל-AI חיצוני",
-  "step1.external.sendToFavorite": "שליחה ל-{favorite}",
-  "step1.external.tryAnother": "נסו אפליקציית AI אחרת",
   "step1.external.pasteLabel": "הדביקו כאן את תשובת ה-AI",
   "step1.external.pastePlaceholder": "הדביקו כאן את תגובת ה-JSON…",
   "step1.external.pasteApply": "השתמש בתשובה הזו",
@@ -69,9 +66,6 @@ export const he = {
   "step2.opt.travel_mode": "זיהוי אופן ההגעה בין העצירות",
   "step2.external.heading": "שליחה ל-AI חיצוני",
   "step2.external.intro": "שאלו אפליקציית AI חינמית ישירות, הדביקו את התשובה שלה למטה, ונמשיך משם.",
-  "step2.external.sendButton": "שליחה ל-AI חיצוני",
-  "step2.external.sendToFavorite": "שליחה ל-{favorite}",
-  "step2.external.tryAnother": "נסו אפליקציית AI אחרת",
   "step2.external.pasteLabel": "הדביקו כאן את תשובת ה-AI",
   "step2.external.pastePlaceholder": "הדביקו כאן את תגובת ה-JSON…",
   "step2.external.pasteApply": "השתמש בתשובה הזו",
@@ -89,8 +83,6 @@ export const he = {
   "step3.external.intro":
     "כתבו את הבקשה שלכם למעלה, שלחו אותה לאפליקציית AI חינמית, והדביקו את התשובה למטה.",
   "step3.external.needsText": "הקלידו הודעה למעלה כדי לשלוח אותה ל-AI חיצוני.",
-  "step3.external.sendToFavorite": "שליחה ל-{favorite}",
-  "step3.external.tryAnother": "נסו אפליקציית AI אחרת",
   "step3.external.pasteLabel": "הדביקו כאן את תשובת ה-AI",
   "step3.external.pastePlaceholder": "הדביקו כאן את תגובת ה-JSON…",
   "step3.external.pasteApply": "השתמש בתשובה הזו",
@@ -106,7 +98,8 @@ export const he = {
   "chat.askElsewhere": "אפשר גם לשאול ישירות:",
   "chat.askExternallyToggle": "שאלו AI חיצוני ישירות",
   "chat.askExternallyNeedsText": "כתבו הודעה קודם כדי לשלוח אותה ל-AI חיצוני.",
-  "chat.newUser": "חדשים ב-{provider}? הירשמו בחינם",
+  "chat.getFreeKey": "חדשים כאן? אפשר גם לקבל מפתח API חינמי לניתוח אוטומטי:",
+  "chat.getFreeKeyAria": "קבלת מפתח API חינמי של {provider}",
 
   // Step 4 — design & deploy
   "step4.heading": "שלב אחרון: עיצוב האפליקציה שלך",
@@ -331,10 +324,6 @@ export const he = {
   "apiKey.modeExternal": "AI חיצוני",
   "apiKey.externalDescription":
     "דלגו על מפתחות API לגמרי — בשלב 1 נשלח לכם קישור לאפליקציית AI חינמית עם הטקסט שלכם מוכן להדבקה, ואתם מדביקים את התשובה בחזרה.",
-  "apiKey.favoriteHeading": "אפליקציית AI מועדפת",
-  "apiKey.favoriteNone": "בכל פעם תבחרו בעצמכם",
-  "apiKey.favoriteHint":
-    "נעבור ישר לאפליקציה הזו בלחיצה אחת בשלב 1; שאר האפשרויות תמיד יישארו זמינות.",
 
   // Settings menu (⋮ overflow button)
   "settingsMenu.button": "תפריט",

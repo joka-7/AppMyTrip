@@ -6,7 +6,6 @@ import {
   ChevronRight,
   Link as LinkIcon,
   Route,
-  Send,
   Train,
   Volume2,
   Wallet,
@@ -17,13 +16,7 @@ import type { EnhanceOptions, TripData } from "../api";
 import { useRotatingHint } from "../hooks/useRotatingHint";
 import { useI18n, type TranslationKey } from "../i18n/useI18n";
 import ExternalChatLinks from "./ExternalChatLinks";
-import {
-  buildExternalChatUrl,
-  copyToClipboard,
-  EXTERNAL_CHAT_PROVIDERS,
-  loadFavoriteExternalChat,
-  type AiMode,
-} from "../services/externalChat";
+import type { AiMode } from "../services/externalChat";
 import { buildTripEnhancePrompt } from "../services/externalTripPrompt";
 import { parseExternalTripReply } from "../services/externalTripReply";
 
@@ -73,7 +66,6 @@ export default function BuilderStep2({
   const { t, lang } = useI18n();
   const [options, setOptions] = useState<EnhanceOptions>({});
   const [replyError, setReplyError] = useState(false);
-  const [showOtherProviders, setShowOtherProviders] = useState(false);
   const waitHint = useRotatingHint(isEnhancing, ENHANCE_HINTS);
 
   const toggle = (key: keyof EnhanceOptions) =>
@@ -88,8 +80,6 @@ export default function BuilderStep2({
         : OPTIONS.reduce((acc, { key }) => ({ ...acc, [key]: true }), {} as EnhanceOptions),
     );
 
-  const favoriteId = aiMode === "external" ? loadFavoriteExternalChat() : null;
-  const favoriteProvider = EXTERNAL_CHAT_PROVIDERS.find((p) => p.id === favoriteId);
   const question = buildTripEnhancePrompt(tripData, options, lang);
 
   function handleExternalReply(rawReply: string): void {
@@ -99,12 +89,6 @@ export default function BuilderStep2({
     } catch {
       setReplyError(true);
     }
-  }
-
-  function handleSendToFavorite(): void {
-    if (!favoriteProvider || !question) return;
-    copyToClipboard(question);
-    window.open(buildExternalChatUrl(favoriteProvider, question), "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -170,17 +154,7 @@ export default function BuilderStep2({
             {isEnhancing ? t("step2.submitting") : t("step2.submit")}
             {!isEnhancing && <ChevronRight size={20} />}
           </button>
-        ) : (
-          <button
-            onClick={favoriteProvider ? handleSendToFavorite : () => setShowOtherProviders(true)}
-            className="bg-primary hover:bg-primary-dark text-white px-8 py-3 rounded-xl font-medium flex items-center gap-2 flex-1 justify-center transition-colors shadow-md"
-          >
-            <Send size={20} />
-            {favoriteProvider
-              ? t("step2.external.sendToFavorite", { favorite: favoriteProvider.name })
-              : t("step2.external.sendButton")}
-          </button>
-        )}
+        ) : null}
       </div>
       {waitHint && (
         <p className="mt-3 text-sm text-ink-muted text-center animate-fade-in" aria-live="polite">
@@ -192,20 +166,9 @@ export default function BuilderStep2({
         <div className="mt-6 pt-6 border-t border-outline/20">
           <h3 className="text-sm font-semibold mb-1">{t("step2.external.heading")}</h3>
           <p className="text-xs text-ink-muted mb-2">{t("step2.external.intro")}</p>
-          {favoriteProvider && !showOtherProviders && (
-            <button
-              type="button"
-              onClick={() => setShowOtherProviders(true)}
-              className="text-xs text-primary hover:text-primary-dark underline mb-3"
-            >
-              {t("step2.external.tryAnother")}
-            </button>
-          )}
-          {(!favoriteProvider || showOtherProviders) && (
-            <div className="mb-3">
-              <ExternalChatLinks question={question} />
-            </div>
-          )}
+          <div className="mb-3">
+            <ExternalChatLinks question={question} />
+          </div>
           <PasteExternalReply
             label={t("step2.external.pasteLabel")}
             placeholder={t("step2.external.pastePlaceholder")}

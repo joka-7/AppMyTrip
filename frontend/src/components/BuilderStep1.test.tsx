@@ -81,14 +81,10 @@ describe("BuilderStep1 — external AI mode", () => {
     expect(screen.getByText(/זה לא נראה כמו טיול תקין עדיין/)).toBeInTheDocument();
   });
 
-  it("leads with a one-click send to the saved favorite, with other apps a click away", () => {
-    localStorage.setItem("tripweaver_ai_external_favorite", "claude");
+  it("also offers a free API key as an alternative to pasting into a chat app", () => {
     render(<BuilderStep1 {...baseProps({ aiMode: "external" })} />);
 
-    expect(screen.getByRole("button", { name: /שליחה ל-Claude/ })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Claude" })).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: "נסו אפליקציית AI אחרת" }));
-    expect(screen.getByRole("link", { name: "Claude" })).toBeInTheDocument();
+    const geminiKeyLink = screen.getByRole("link", { name: "קבלת מפתח API חינמי של Gemini" });
+    expect(geminiKeyLink.getAttribute("href")).toBe("https://aistudio.google.com/apikey");
   });
 });

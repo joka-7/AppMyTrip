@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Send } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState, type RefObject } from "react";
 import { PasteExternalReply } from "modeldispatcher-react-ui";
 import "modeldispatcher-react-ui/styles.css";
@@ -6,13 +6,7 @@ import type { TripData } from "../api";
 import { useI18n } from "../i18n/useI18n";
 import ChatPanel, { type AgentMessage } from "./ChatPanel";
 import ExternalChatLinks from "./ExternalChatLinks";
-import {
-  buildExternalChatUrl,
-  copyToClipboard,
-  EXTERNAL_CHAT_PROVIDERS,
-  loadFavoriteExternalChat,
-  type AiMode,
-} from "../services/externalChat";
+import type { AiMode } from "../services/externalChat";
 import { buildAgentTurnPrompt } from "../services/externalTripPrompt";
 import { parseExternalAgentReply, type ExternalAgentTurn } from "../services/externalTripReply";
 
@@ -70,10 +64,7 @@ export default function BuilderStep3({
 }) {
   const { t, lang } = useI18n();
   const [replyError, setReplyError] = useState(false);
-  const [showOtherProviders, setShowOtherProviders] = useState(false);
 
-  const favoriteId = aiMode === "external" ? loadFavoriteExternalChat() : null;
-  const favoriteProvider = EXTERNAL_CHAT_PROVIDERS.find((p) => p.id === favoriteId);
   const trimmedInput = chatInput.trim();
   const question = trimmedInput
     ? buildAgentTurnPrompt(tripData, trimmedInput, preferences, lang)
@@ -88,12 +79,6 @@ export default function BuilderStep3({
     } catch {
       setReplyError(true);
     }
-  }
-
-  function handleSendToFavorite(): void {
-    if (!favoriteProvider || !question) return;
-    copyToClipboard(question);
-    window.open(buildExternalChatUrl(favoriteProvider, question), "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -132,36 +117,9 @@ export default function BuilderStep3({
           <h3 className="text-sm font-semibold mb-1">{t("step3.external.heading")}</h3>
           <p className="text-xs text-ink-muted mb-2">{t("step3.external.intro")}</p>
           {question ? (
-            favoriteProvider ? (
-              <>
-                <button
-                  type="button"
-                  onClick={handleSendToFavorite}
-                  className="mb-2 flex items-center gap-1.5 bg-primary hover:bg-primary-dark text-white text-sm px-4 py-2 rounded-xl font-medium transition-colors shadow-sm"
-                >
-                  <Send size={16} />
-                  {t("step3.external.sendToFavorite", { favorite: favoriteProvider.name })}
-                </button>
-                {!showOtherProviders && (
-                  <button
-                    type="button"
-                    onClick={() => setShowOtherProviders(true)}
-                    className="block text-xs text-primary hover:text-primary-dark underline mb-3"
-                  >
-                    {t("step3.external.tryAnother")}
-                  </button>
-                )}
-                {showOtherProviders && (
-                  <div className="mb-3">
-                    <ExternalChatLinks question={question} />
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="mb-3">
-                <ExternalChatLinks question={question} />
-              </div>
-            )
+            <div className="mb-3">
+              <ExternalChatLinks question={question} />
+            </div>
           ) : (
             <p className="text-xs text-ink-muted mb-3">{t("step3.external.needsText")}</p>
           )}

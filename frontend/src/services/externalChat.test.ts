@@ -1,10 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import {
-  buildExternalChatUrl,
-  copyToClipboard,
-  EXTERNAL_CHAT_PROVIDERS,
-  externalChatSignUpUrl,
-} from "./externalChat";
+import { buildExternalChatUrl, copyToClipboard, EXTERNAL_CHAT_PROVIDERS } from "./externalChat";
 
 function provider(id: string) {
   const p = EXTERNAL_CHAT_PROVIDERS.find((p) => p.id === id);
@@ -52,17 +47,6 @@ describe("buildExternalChatUrl", () => {
     const url = buildExternalChatUrl(provider("chatgpt"), "3 days & 2 nights?");
     expect(url).not.toContain("3 days & 2 nights?");
     expect(new URL(url).searchParams.get("q")).toBe("3 days & 2 nights?");
-  });
-});
-
-describe("externalChatSignUpUrl", () => {
-  it("returns a real https sign-up URL for a provider with a known one", () => {
-    const url = externalChatSignUpUrl(provider("claude"));
-    expect(url).toMatch(/^https:\/\//);
-  });
-
-  it("returns null for a provider with no known sign-up URL", () => {
-    expect(externalChatSignUpUrl(provider("groq"))).toBeNull();
   });
 });
 
