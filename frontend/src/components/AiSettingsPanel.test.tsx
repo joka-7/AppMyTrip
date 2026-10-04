@@ -43,16 +43,6 @@ describe("AiSettingsPanel — apiKey mode", () => {
     expect(JSON.parse(localStorage.getItem("tripweaver_api_keys") ?? "{}")).toEqual({});
   });
 
-  it("defaults the backend selector to legacy and persists a change", () => {
-    render(<AiSettingsPanel />);
-    const backendSelect = screen.getByRole("combobox", { name: "מנוע השרת" });
-    expect(backendSelect).toHaveValue("legacy");
-
-    fireEvent.change(backendSelect, { target: { value: "model_dispatcher" } });
-    expect(backendSelect).toHaveValue("model_dispatcher");
-    expect(localStorage.getItem("tripweaver_backend")).toBe("model_dispatcher");
-  });
-
   it("toggles LLM key visibility", () => {
     render(<AiSettingsPanel />);
     const input = screen.getByPlaceholderText("API Key...");
@@ -77,5 +67,15 @@ describe("AiSettingsPanel — mode toggle", () => {
     fireEvent.click(screen.getByRole("tab", { name: "AI חיצוני" }));
     expect(localStorage.getItem("tripweaver_ai_mode")).toBe("external");
     expect(screen.queryByPlaceholderText("API Key...")).toBeNull();
+  });
+
+  it("offers links to the free external AI chat apps in external mode", () => {
+    render(<AiSettingsPanel />);
+    fireEvent.click(screen.getByRole("tab", { name: "AI חיצוני" }));
+
+    const claudeLink = screen.getByRole("link", { name: "Claude" });
+    expect(claudeLink).toHaveAttribute("href", "https://claude.ai/new");
+    expect(claudeLink).toHaveAttribute("target", "_blank");
+    expect(screen.getByRole("link", { name: "ChatGPT" })).toBeInTheDocument();
   });
 });

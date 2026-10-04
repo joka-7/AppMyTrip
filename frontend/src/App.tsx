@@ -22,7 +22,7 @@ import { useBackToClose } from "./hooks/useBackToClose";
 import { useChecklistSuggest } from "./hooks/useChecklistSuggest";
 import { useTripEditing } from "./hooks/useTripEditing";
 import { DEFAULT_APP_DESIGN, type AppDesign } from "./services/appDesign";
-import { getApiKeys, getApiProvider, getAllCredentials, getBackend } from "./services/apiKey";
+import { getApiKeys, getApiProvider, getAllCredentials } from "./services/apiKey";
 import { getAiMode } from "./services/externalChat";
 import type { ExternalAgentTurn } from "./services/externalTripReply";
 import { appendErrorDetail } from "./services/errorMessage";
@@ -327,7 +327,6 @@ function TripBuilder() {
         getApiKeys(),
         getApiProvider(),
         getAllCredentials(),
-        getBackend(),
       );
       setTripData(normalizeTripForLoad(res.trip_data));
       setTripId(null);
@@ -419,7 +418,6 @@ function TripBuilder() {
         getApiKeys(),
         getApiProvider(),
         getAllCredentials(),
-        getBackend(),
       );
       setTripData(normalizeTripForLoad(res.trip_data));
       setFailedEnhanceOptions(null);
@@ -461,7 +459,6 @@ function TripBuilder() {
         getApiKeys(),
         getApiProvider(),
         getAllCredentials(),
-        getBackend(),
       );
       // Applied right away — the agent's edit is the authoritative new state,
       // not something to hold back while the (slower) enhancement pass below
@@ -927,7 +924,6 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
         getApiKeys(),
         getApiProvider(),
         getAllCredentials(),
-        getBackend(),
       );
       // See TripBuilder's own handleSendMessage for why this is normalized and
       // applied immediately, with new activities enhanced (and merged in) as a

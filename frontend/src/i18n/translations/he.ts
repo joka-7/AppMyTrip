@@ -315,11 +315,6 @@ export const he = {
   "apiKey.inputPlaceholder": "API Key...",
   "apiKey.primaryNote": "הספק הזה מנוסה ראשון בכל בקשה.",
   "apiKey.makePrimary": "הפוך לספק הראשי",
-  "apiKey.backendLabel": "מנוע השרת",
-  "apiKey.backendLegacy": "רגיל",
-  "apiKey.backendModelDispatcher": "Model Dispatcher (משותף)",
-  "apiKey.backendNote":
-    "הגדרה מתקדמת לבדיקות — אם השרת לא הגדיר את Model Dispatcher, הבקשה תיפול חזרה להתנהגות הרגילה.",
   "apiKey.modeApiKey": "מפתח API",
   "apiKey.modeExternal": "AI חיצוני",
   "apiKey.externalDescription":

@@ -317,11 +317,6 @@ export const en: Record<TranslationKey, string> = {
   "apiKey.inputPlaceholder": "API Key...",
   "apiKey.primaryNote": "This provider is tried first on every request.",
   "apiKey.makePrimary": "Make this the primary provider",
-  "apiKey.backendLabel": "Server engine",
-  "apiKey.backendLegacy": "Standard",
-  "apiKey.backendModelDispatcher": "Model Dispatcher (shared)",
-  "apiKey.backendNote":
-    "Advanced/testing setting — if the server hasn't set up Model Dispatcher, the request just falls back to the standard behavior.",
   "apiKey.modeApiKey": "API key",
   "apiKey.modeExternal": "External AI",
   "apiKey.externalDescription":
