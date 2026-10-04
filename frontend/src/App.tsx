@@ -7,22 +7,13 @@ import React, {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import {
-  ChevronLeft,
-  FolderGit2,
-  Globe,
-  Mail,
-  MessageSquare,
-  Smartphone,
-  Wand2,
-} from "lucide-react";
+import { ChevronLeft, Smartphone, Wand2 } from "lucide-react";
 import { parseTrip, agentInteract, generateMedia, enhanceTrip, ApiError } from "./api";
 import type { EnhanceOptions, TripData } from "./api";
 import ApiNotice from "./components/ApiNotice";
 import BuilderStep1 from "./components/BuilderStep1";
 import type { AgentMessage } from "./components/BuilderStep3";
 import CloudMenu from "./components/CloudMenu";
-import GithubIcon from "./components/GithubIcon";
 import InstallAppButton from "./components/InstallAppButton";
 import MyTripsButton from "./components/MyTripsButton";
 import ProgressBar from "./components/ProgressBar";
@@ -218,64 +209,15 @@ function AppLogo() {
 function AppCreditFooter() {
   const { t } = useI18n();
   return (
-    <footer className="no-print flex flex-col items-center gap-1.5 py-6 text-ink-muted">
-      <span className="text-xs">{t("apiKey.credit")}</span>
-      <div className="flex items-center justify-center gap-1">
-        <a
-          href="https://github.com/joka-7"
-          target="_blank"
-          rel="noreferrer"
-          aria-label="GitHub"
-          title="GitHub"
-          className="tap-fx hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all inline-flex flex-col items-center justify-center gap-0.5"
-        >
-          <GithubIcon size={16} />
-          <span className="text-[9px] leading-none">GitHub</span>
-        </a>
-        <a
-          href="https://jk-dev-7.vercel.app"
-          target="_blank"
-          rel="noreferrer"
-          aria-label="jk.dev portfolio"
-          title="jk.dev portfolio"
-          className="tap-fx hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all inline-flex flex-col items-center justify-center gap-0.5"
-        >
-          <Globe size={16} />
-          <span className="text-[9px] leading-none">Site</span>
-        </a>
-        <a
-          href="https://github.com/joka-7/AppMyTrip"
-          target="_blank"
-          rel="noreferrer"
-          aria-label="View repository"
-          title="View repository"
-          className="tap-fx hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all inline-flex flex-col items-center justify-center gap-0.5"
-        >
-          <FolderGit2 size={16} />
-          <span className="text-[9px] leading-none">Code</span>
-        </a>
-        <a
-          href="mailto:joka.dev.7@gmail.com"
-          rel="noreferrer"
-          aria-label="Send feedback by email"
-          title="Send feedback by email"
-          className="tap-fx hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all inline-flex flex-col items-center justify-center gap-0.5"
-        >
-          <Mail size={16} />
-          <span className="text-[9px] leading-none">Email</span>
-        </a>
-        <a
-          href="https://github.com/joka-7/AppMyTrip/issues/new"
-          target="_blank"
-          rel="noreferrer"
-          aria-label="Report an issue"
-          title="Report an issue"
-          className="tap-fx hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all inline-flex flex-col items-center justify-center gap-0.5"
-        >
-          <MessageSquare size={16} />
-          <span className="text-[9px] leading-none">Feedback</span>
-        </a>
-      </div>
+    <footer className="no-print py-6 text-center text-xs text-ink-muted">
+      <a
+        href="https://jk-dev-7.vercel.app"
+        target="_blank"
+        rel="noreferrer"
+        className="tap-fx underline-offset-2 hover:underline"
+      >
+        {t("apiKey.credit")}
+      </a>
     </footer>
   );
 }
