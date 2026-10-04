@@ -266,8 +266,10 @@ export default function AiSettingsPanel() {
         {t("apiKey.glossaryLink")}
       </a>
 
-      <div className="flex flex-col items-center gap-1.5 pt-3 mt-3">
-        <span className="text-[11px] text-ink-muted">{t("apiKey.credit")}</span>
+      <div className="pt-3 mt-3">
+        <h3 className="text-xs font-bold text-ink text-center mb-1.5">
+          {t("apiKey.linksHeading")}
+        </h3>
         <div className="flex items-center justify-center gap-1">
           <a
             href="https://github.com/joka-7"
