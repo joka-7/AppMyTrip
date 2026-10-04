@@ -313,6 +313,7 @@ export const en: Record<TranslationKey, string> = {
   "apiKey.hideAria": "Hide the key",
   "apiKey.addKey": "Add key",
   "apiKey.close": "Close",
+  "apiKey.glossaryLink": "New to AI agents? What's a prompt, model, or API key?",
   "apiKey.credit": "Built by joka-7",
   "apiKey.inputPlaceholder": "API Key...",
   "apiKey.primaryNote": "This provider is tried first on every request.",

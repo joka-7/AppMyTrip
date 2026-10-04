@@ -53,6 +53,17 @@ describe("AiSettingsPanel — apiKey mode", () => {
     fireEvent.click(screen.getByRole("button", { name: /הסתרת המפתח/ }));
     expect(input).toHaveAttribute("type", "password");
   });
+
+  it("links newcomers to the AI glossary", () => {
+    render(<AiSettingsPanel />);
+    const link = screen.getByRole("link", {
+      name: "חדשים בעולם סוכני ה-AI? מה זה פרומפט, מודל או מפתח API?",
+    });
+    expect(link).toHaveAttribute(
+      "href",
+      "https://joka-7.github.io/ModelDispatcher/ai-glossary.html",
+    );
+  });
 });
 
 describe("AiSettingsPanel — mode toggle", () => {

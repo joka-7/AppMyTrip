@@ -257,7 +257,16 @@ export default function AiSettingsPanel() {
         </div>
       )}
 
-      <div className="flex flex-col items-center gap-1.5 pt-3 mt-3 border-t border-outline/10">
+      <a
+        href="https://joka-7.github.io/ModelDispatcher/ai-glossary.html"
+        target="_blank"
+        rel="noreferrer"
+        className="block text-xs text-primary hover:text-primary-dark underline text-center pt-3 mt-3 border-t border-outline/10"
+      >
+        {t("apiKey.glossaryLink")}
+      </a>
+
+      <div className="flex flex-col items-center gap-1.5 pt-3 mt-3">
         <span className="text-[11px] text-ink-muted">{t("apiKey.credit")}</span>
         <div className="flex items-center justify-center gap-1">
           <a

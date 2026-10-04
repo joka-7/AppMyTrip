@@ -311,6 +311,7 @@ export const he = {
   "apiKey.hideAria": "הסתרת המפתח",
   "apiKey.addKey": "הוספת מפתח",
   "apiKey.close": "סגירה",
+  "apiKey.glossaryLink": "חדשים בעולם סוכני ה-AI? מה זה פרומפט, מודל או מפתח API?",
   "apiKey.credit": "נבנה על ידי joka-7",
   "apiKey.inputPlaceholder": "API Key...",
   "apiKey.primaryNote": "הספק הזה מנוסה ראשון בכל בקשה.",

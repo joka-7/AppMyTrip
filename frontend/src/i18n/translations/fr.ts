@@ -322,6 +322,8 @@ export const fr: Record<TranslationKey, string> = {
   "apiKey.hideAria": "Masquer la clé",
   "apiKey.addKey": "Ajouter une clé",
   "apiKey.close": "Fermer",
+  "apiKey.glossaryLink":
+    "Nouveau dans les agents IA ? Qu'est-ce qu'un prompt, un modèle ou une clé API ?",
   "apiKey.credit": "Créé par joka-7",
   "apiKey.inputPlaceholder": "Clé API...",
   "apiKey.primaryNote": "Ce fournisseur est essayé en premier à chaque requête.",
