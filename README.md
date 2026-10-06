@@ -470,6 +470,7 @@ frontend Node interpreter configured in the IDE's Node settings.
 
 - Design docs: [`docs/HLD.md`](docs/HLD.md) (architecture) and
   [`docs/LLD.md`](docs/LLD.md) (module-level detail).
+- Audit (skills/roles, security, scale, UX, mobile): [`docs/AUDIT.md`](docs/AUDIT.md).
 - The `parse` and `agent` endpoints need an LLM key — Gemini by default, or Groq (see
   "LLM provider" above). `generate-media` defaults to a mock TTS service (see
   "Text-to-speech provider" above for the free local Piper option).

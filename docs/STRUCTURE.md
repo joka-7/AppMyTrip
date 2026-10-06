@@ -58,6 +58,7 @@ AppMyTrip/
 │   │   ├── step4-preview-customized.png
 │   │   └── step4-preview-map.png
 │   ├── .structure-notes.toml
+│   ├── AUDIT.md                      # AppMyTrip audit: AI skills and roles, security, scale, UX, mobile
 │   ├── HLD.md                        # High-Level Design (architecture + flows)
 │   ├── LLD.md                        # Low-Level Design (modules, classes, contracts)
 │   └── STRUCTURE.md                  # Repository structure
