@@ -8,6 +8,9 @@ import { DEFAULT_APP_DESIGN } from "../services/appDesign";
 vi.mock("../services/tripsStore", () => ({
   onAuthChange: vi.fn(),
   deleteAllMyData: vi.fn(),
+  editLinkFor: vi.fn(),
+  createEditLink: vi.fn(),
+  disableEditLink: vi.fn(),
   signInWithGoogle: vi.fn(),
   signOutOfGoogle: vi.fn(),
   saveTrip: vi.fn(),
@@ -21,6 +24,7 @@ describe("CloudMenu", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(trips.onAuthChange).mockImplementation(() => () => {});
+    vi.mocked(trips.editLinkFor).mockResolvedValue(null);
   });
 
   function renderCloudMenu(overrides: Partial<Parameters<typeof CloudMenu>[0]> = {}) {
@@ -360,5 +364,50 @@ describe("CloudMenu", () => {
     });
     expect(trips.deleteAllMyData).toHaveBeenCalledTimes(1);
     expect(onTripIdChange).toHaveBeenCalledWith(null);
+  });
+
+  it("creates an edit link with a warning, and can turn it off again", async () => {
+    vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
+      callback({ uid: "uid-123", email: "user@example.com", displayName: "User" });
+      return () => {};
+    });
+    const editLink = "https://example.com/?shared=s#k=key&e=edit";
+    vi.mocked(trips.createEditLink).mockResolvedValue(editLink);
+    vi.mocked(trips.disableEditLink).mockResolvedValue();
+
+    renderCloudMenu({ tripId: "trip-1" });
+    await waitFor(() => {
+      expect(screen.getByText("User")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("User"));
+
+    fireEvent.click(await screen.findByRole("button", { name: /יצירת קישור עריכה/ }));
+    expect(await screen.findByText(editLink)).toBeInTheDocument();
+    expect(trips.createEditLink).toHaveBeenCalledWith("trip-1");
+    expect(screen.getByText(/כל מי שמחזיק בקישור הזה יכול לשנות/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "ביטול קישור העריכה" }));
+    await waitFor(() => {
+      expect(screen.queryByText(editLink)).not.toBeInTheDocument();
+    });
+    expect(trips.disableEditLink).toHaveBeenCalledWith("trip-1");
+  });
+
+  it("shows the trip's existing edit link when the menu opens", async () => {
+    vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
+      callback({ uid: "uid-123", email: "user@example.com", displayName: "User" });
+      return () => {};
+    });
+    vi.mocked(trips.editLinkFor).mockResolvedValue("https://example.com/?shared=s#k=key&e=old");
+
+    renderCloudMenu({ tripId: "trip-1" });
+    await waitFor(() => {
+      expect(screen.getByText("User")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("User"));
+
+    expect(
+      await screen.findByText("https://example.com/?shared=s#k=key&e=old"),
+    ).toBeInTheDocument();
   });
 });

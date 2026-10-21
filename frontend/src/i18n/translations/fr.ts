@@ -364,6 +364,21 @@ export const fr: Record<TranslationKey, string> = {
   "cloud.deleteMyDataConfirm": "Tout supprimer définitivement ?",
   "cloud.deleteMyDataFailed":
     "La suppression a échoué. Rien n'a été retiré de Google Drive ; veuillez réessayer.",
+  "cloud.editLink": "Lien de modification",
+  "cloud.createEditLink": "Créer un lien de modification",
+  "cloud.editLinkWarning":
+    "Toute personne disposant de ce lien peut modifier le voyage partagé. Partager à nouveau depuis Mes voyages remplace les modifications enregistrées par ce lien.",
+  "cloud.disableEditLink": "Désactiver le lien de modification",
+  "cloud.editLinkDisabled":
+    "Le lien de modification est désactivé. Le lien de consultation fonctionne toujours.",
+  "cloud.editLinkFailed":
+    "L'action sur le lien de modification a échoué. Vérifiez que le voyage est partagé, puis réessayez.",
+  "sharedPage.saveChanges": "Enregistrer les modifications",
+  "sharedPage.saveChangesDone": "Modifications enregistrées sur ce lien.",
+  "sharedPage.saveChangesFailed":
+    "L'enregistrement a échoué. Le lien de modification a peut-être été désactivé.",
+  "sharedPage.editorHint":
+    "Vous avez ouvert un lien de modification : vous pouvez enregistrer des modifications ici, et toute personne disposant du lien les verra.",
   "cloud.export": "Exporter",
   "cloud.exportIcs": "Exporter le calendrier",
   "cloud.print": "Imprimer",

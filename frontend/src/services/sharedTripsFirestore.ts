@@ -1,6 +1,7 @@
 // The one thing AppMyTrip still keeps in Firestore: encrypted shared trips.
 // Documents hold ciphertext only (see shareCrypto.ts and firestore.rules), and
-// there is no Firebase sign-in: ownership is proven with a hashed token.
+// there is no Firebase sign-in: ownership is proven with a hashed token, and
+// edit-link holders prove their edit token through a write-only receipt.
 //
 // The Firebase SDK is loaded on first use so it stays out of first paint.
 import type { Firestore } from "firebase/firestore";
@@ -11,10 +12,24 @@ export interface SharedTripWrite {
   ciphertext: string;
   iv: string;
   ownerTokenHash: string;
+  /** Hash of the edit link's token; null means the share has no edit link. */
+  editTokenHash: string | null;
   expiresAt: Date | null;
   revoked: boolean;
   proof?: string;
 }
+
+/** What an edit-link holder writes: new ciphertext, plus the edit token for the receipt. */
+export interface SharedTripEdit {
+  ciphertext: string;
+  iv: string;
+  editToken: string;
+  /** Fresh per edit (22 base64url chars); names the receipt the rules look for. */
+  nonce: string;
+}
+
+/** How long an edit receipt is kept before the TTL policy on shareEdits.expiresAt removes it. */
+const RECEIPT_LIFETIME_MS = 24 * 60 * 60 * 1000;
 
 export interface SharedTripDoc {
   ciphertext: string;
@@ -29,6 +44,8 @@ export interface SharedTripsBackend {
   update(shareId: string, data: SharedTripWrite): Promise<void>;
   /** Null when the share is missing, revoked or expired (the rules make those indistinguishable). */
   get(shareId: string): Promise<SharedTripDoc | null>;
+  /** Replaces the ciphertext with an edit link's token; never stores the token on the share. */
+  saveEdit(shareId: string, edit: SharedTripEdit): Promise<void>;
 }
 
 let dbPromise: Promise<Firestore | null> | null = null;
@@ -55,6 +72,7 @@ async function write(shareId: string, data: SharedTripWrite): Promise<void> {
     ownerTokenHash: data.ownerTokenHash,
     revoked: data.revoked,
     updatedAt: serverTimestamp(),
+    ...(data.editTokenHash ? { editTokenHash: data.editTokenHash } : {}),
     ...(data.expiresAt ? { expiresAt: Timestamp.fromDate(data.expiresAt) } : {}),
     ...(data.proof !== undefined ? { proof: data.proof } : {}),
   });
@@ -64,6 +82,25 @@ export const firestoreSharedTrips: SharedTripsBackend = {
   isConfigured: () => isFirebaseConfigured,
   create: write,
   update: write,
+  async saveEdit(shareId, edit) {
+    const db = await getDb();
+    const { doc, serverTimestamp, Timestamp, writeBatch } = await import("firebase/firestore");
+    // One atomic batch: the rules accept the new ciphertext only when this
+    // batch also creates the receipt named by its nonce.
+    const batch = writeBatch(db);
+    batch.set(doc(db, "shareEdits", `${shareId}_${edit.nonce}`), {
+      shareId,
+      token: edit.editToken,
+      expiresAt: Timestamp.fromMillis(Date.now() + RECEIPT_LIFETIME_MS),
+    });
+    batch.update(doc(db, "sharedTrips", shareId), {
+      ciphertext: edit.ciphertext,
+      iv: edit.iv,
+      writeNonce: edit.nonce,
+      updatedAt: serverTimestamp(),
+    });
+    await batch.commit();
+  },
   async get(shareId) {
     const db = await getDb();
     const { doc, getDoc } = await import("firebase/firestore");

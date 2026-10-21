@@ -343,8 +343,10 @@ Private trips live in the user's Google Drive appDataFolder (`driveSync.ts`, por
 from KanDOne): one file per device, newest edit per trip wins, deletes kept as
 tombstones. Sharing encrypts `{trip, appDesign}` with AES-256-GCM in the browser
 and stores only `{ciphertext, iv, ownerTokenHash, expiresAt}` in
-`sharedTrips/{shareId}`; the link is `?shared=<id>#k=<key>`. Shares are
-read-only. There is no Firebase sign-in: the owner proves ownership with a token
+`sharedTrips/{shareId}`; the link is `?shared=<id>#k=<key>`. View links are
+read-only; an optional edit link (`&e=<editToken>`) lets its holders replace the
+ciphertext through a batched write with a write-only `shareEdits` receipt, so the
+edit token is never stored where viewers can read it. There is no Firebase sign-in: the owner proves ownership with a token
 kept in their Drive, and every update must present it and rotate its hash
 (`firestore.rules`). Rules allow `get` but never `list`, and refuse expired or
 unpublished shares. Deleting a trip unpublishes its share first; "Delete all my
@@ -427,7 +429,7 @@ flowchart LR
 | Persistence | Lives in each user's Drive; no copy we control (by design) | Export/import already exists (`tripFile`) |
 | Media | Serverless can't run Piper; mock URLs there | Dedicated TTS host or a cloud TTS adapter |
 | Auth scope | Google sign-in only (Drive is the store) | — |
-| Shared editing | Share links are read-only | Per-editor key wrapping if co-editing is needed again |
+| Shared editing | One edit link per share: anyone holding it can edit; last save wins | Per-editor key wrapping for named editors |
 | Testing | Unit + e2e exist; no load/perf tests | Add contract tests between TS/Pydantic models |
 | Android | Capacitor shell, sideloaded APK from GitHub releases | Play Store listing |
 

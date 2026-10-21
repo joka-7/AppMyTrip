@@ -3,14 +3,20 @@ rules_version = '2';
 // AppMyTrip keeps no readable trip data in Firestore.
 //
 // Private trips live in each user's own Google Drive (src/services/driveSync.ts).
-// The only collection left is sharedTrips, and it holds ciphertext only: the
-// trip is encrypted in the browser and the key travels in the link's #fragment,
-// which browsers never send to a server (src/services/shareCrypto.ts).
+// The only collection with content is sharedTrips, and it holds ciphertext only:
+// the trip is encrypted in the browser and the key travels in the link's
+// #fragment, which browsers never send to a server (src/services/shareCrypto.ts).
 //
 // There is no Firebase sign-in. A share's owner proves ownership with a random
-// token whose SHA-256 (lower-case hex) is stored as ownerTokenHash. Every owner write sends the
-// current token as `proof` and a NEW ownerTokenHash, so the token left behind in
-// the stored `proof` field no longer matches anything (a hash chain).
+// token whose SHA-256 (lower-case hex) is stored as ownerTokenHash. Every owner
+// write sends the current token as `proof` and a NEW ownerTokenHash, so the
+// token left behind in the stored `proof` field no longer matches anything.
+//
+// An optional edit link lets its holders replace the ciphertext. Its token must
+// never be stored where viewers can read it, so an edit is a batched write of
+// two documents: a write-only receipt in shareEdits carrying the edit token
+// (checked against editTokenHash), and the new ciphertext, which is accepted
+// only if a receipt for its fresh writeNonce is created in the same batch.
 //
 // Paste this into Firebase console -> Firestore Database -> Rules.
 service cloud.firestore {
@@ -26,19 +32,29 @@ service cloud.firestore {
 
       allow create: if isValidShare(request.resource.data)
         && request.resource.data.keys().hasOnly(
-             ['v', 'ciphertext', 'iv', 'ownerTokenHash', 'expiresAt', 'updatedAt', 'revoked'])
+             ['v', 'ciphertext', 'iv', 'ownerTokenHash', 'editTokenHash', 'expiresAt',
+              'updatedAt', 'revoked'])
         && request.resource.data.revoked == false;
 
-      allow update: if isValidShare(request.resource.data)
-        && request.resource.data.keys().hasOnly(
-             ['v', 'ciphertext', 'iv', 'ownerTokenHash', 'expiresAt', 'updatedAt', 'revoked', 'proof'])
-        && request.resource.data.proof is string
-        && hashing.sha256(request.resource.data.proof).toHexString().lower() == resource.data.ownerTokenHash
-        && request.resource.data.ownerTokenHash != resource.data.ownerTokenHash;
+      allow update: if isOwnerWrite(shareId) || isEditorWrite(shareId);
 
       // Deletion is left to the TTL policy on expiresAt; unpublishing is an
       // update to revoked == true with the ciphertext emptied.
       allow delete: if false;
+    }
+
+    // Edit receipts: written once per edit, never readable by anyone.
+    match /shareEdits/{editId} {
+      allow create: if request.resource.data.keys().hasOnly(['shareId', 'token', 'expiresAt'])
+        && request.resource.data.shareId is string
+        && request.resource.data.shareId.matches('[A-Za-z0-9_-]{22}')
+        && editId.matches(request.resource.data.shareId + '_[A-Za-z0-9_-]{22}')
+        && request.resource.data.token is string
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt < request.time + duration.value(2, 'd')
+        && hashing.sha256(request.resource.data.token).toHexString().lower()
+             == get(/databases/$(database)/documents/sharedTrips/$(request.resource.data.shareId)).data.editTokenHash;
     }
 
     function isValidShare(data) {
@@ -46,10 +62,39 @@ service cloud.firestore {
         && data.ciphertext is string && data.ciphertext.size() <= 900000
         && data.iv is string && data.iv.size() <= 32
         && data.ownerTokenHash is string && data.ownerTokenHash.size() == 64
+        && (!('editTokenHash' in data) || (data.editTokenHash is string && data.editTokenHash.size() == 64))
         && data.revoked is bool
-        && (data.revoked == false || data.ciphertext == '')
+        && (data.revoked == false || (data.ciphertext == '' && !('editTokenHash' in data)))
         && data.updatedAt == request.time
         && (!('expiresAt' in data) || data.expiresAt is timestamp);
+    }
+
+    function isOwnerWrite(shareId) {
+      return isValidShare(request.resource.data)
+        && request.resource.data.keys().hasOnly(
+             ['v', 'ciphertext', 'iv', 'ownerTokenHash', 'editTokenHash', 'expiresAt',
+              'updatedAt', 'revoked', 'proof'])
+        && request.resource.data.proof is string
+        && hashing.sha256(request.resource.data.proof).toHexString().lower() == resource.data.ownerTokenHash
+        && request.resource.data.ownerTokenHash != resource.data.ownerTokenHash;
+    }
+
+    // An editor may replace only the ciphertext, on a live share with an edit
+    // link, and only together with a brand-new receipt for its writeNonce.
+    function isEditorWrite(shareId) {
+      return resource.data.revoked == false
+        && (!('expiresAt' in resource.data) || resource.data.expiresAt > request.time)
+        && 'editTokenHash' in resource.data
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['ciphertext', 'iv', 'writeNonce', 'updatedAt'])
+        && request.resource.data.ciphertext is string
+        && request.resource.data.ciphertext.size() <= 900000
+        && request.resource.data.iv is string && request.resource.data.iv.size() <= 32
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.writeNonce is string
+        && request.resource.data.writeNonce.matches('[A-Za-z0-9_-]{22}')
+        && !exists(/databases/$(database)/documents/shareEdits/$(shareId + '_' + request.resource.data.writeNonce))
+        && existsAfter(/databases/$(database)/documents/shareEdits/$(shareId + '_' + request.resource.data.writeNonce));
     }
 
     // Everything else, including the old users/{uid}/trips, is closed.

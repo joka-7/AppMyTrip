@@ -42,8 +42,8 @@ and signed by `.github/workflows/android.yml`. See "Android app" below.
 - **Never forget what to bring.** An AI-suggested or hand-edited checklist, split
   into trip-wide items and per-day items, with each viewer ticking their own copy.
 - **Save, load, and share trips — privately.** Sign in with Google and trips are
-  saved to *your own* Google Drive, not to a server we run. Share a read-only link
-  that is end-to-end encrypted: the key travels in the link itself, so not even the
+  saved to *your own* Google Drive, not to a server we run. Share a link — view-only,
+  plus an optional edit link — that is end-to-end encrypted: the key travels in the link itself, so not even the
   app's operator can read a shared trip. Pick an expiry (7/30/90 days, or forever).
 - **Bring your own AI key.** Each user supplies their own Gemini, OpenAI, Anthropic,
   or Groq API key from the navbar, so running the app costs its operator nothing.
@@ -292,15 +292,26 @@ device. **Sign out** clears the in-progress trip from the device, and **Delete a
 my data** (in the cloud menu) unpublishes every share link, deletes the Drive files
 and revokes the app's access.
 
-**Share links are end-to-end encrypted and read-only.** Sharing encrypts the trip
+**Share links are end-to-end encrypted.** Sharing encrypts the trip
 in the browser (AES-256-GCM, `frontend/src/services/shareCrypto.ts`) and stores
 only the ciphertext in Firestore's `sharedTrips` collection. The link looks like
 `/?shared=<id>#k=<key>`: the key is in the `#fragment`, which browsers never send
 to any server, so neither Firestore, Vercel's logs nor the operator ever see it.
 Nothing readable about the trip is in the URL; the native share sheet sends
 "trip name — dates" as message text next to the link. Re-sharing keeps the same
-link with fresh content. There is no co-editing: a recipient can edit locally,
+link with fresh content. A view link is read-only: a recipient can edit locally,
 then save a copy to their own account or share it as a new link.
+
+**Edit links (optional).** From the cloud menu the owner can create an edit link,
+`/?shared=<id>#k=<key>&e=<editToken>`: anyone holding it gets "Save changes" on the
+shared page and can replace the shared trip for everyone. The edit token is in the
+fragment too. Firestore stores only its hash on the share; each save is a batched
+write of the new ciphertext plus a write-only receipt (`shareEdits`) carrying the
+token, and the rules accept the ciphertext only alongside a fresh receipt, so the
+token is never readable by viewers. The owner can turn the edit link off at any
+time (the view link keeps working). Sharing again from "My trips" replaces what
+editors saved. Add a second TTL policy on `shareEdits.expiresAt` so receipts are
+cleaned up after a day.
 
 There is no Firebase sign-in. A share's owner proves ownership with a random token
 kept in their own Drive; Firestore stores only its SHA-256, and every update must

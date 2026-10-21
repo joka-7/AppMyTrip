@@ -350,6 +350,18 @@ export const he = {
   "cloud.deleteMyDataConfirm": "למחוק הכול לצמיתות?",
   "cloud.deleteMyDataFailed": "מחיקת הנתונים נכשלה. שום דבר לא נמחק מ-Google Drive; נסו שוב.",
   "cloud.export": "ייצוא",
+  "cloud.editLink": "קישור עריכה",
+  "cloud.createEditLink": "יצירת קישור עריכה",
+  "cloud.editLinkWarning":
+    'כל מי שמחזיק בקישור הזה יכול לשנות את הטיול המשותף. שיתוף מחדש מ"הטיולים שלי" מחליף את השינויים שנשמרו דרכו.',
+  "cloud.disableEditLink": "ביטול קישור העריכה",
+  "cloud.editLinkDisabled": "קישור העריכה בוטל. קישור הצפייה ממשיך לעבוד.",
+  "cloud.editLinkFailed": "הפעולה על קישור העריכה נכשלה. ודאו שהטיול שותף, ונסו שוב.",
+  "sharedPage.saveChanges": "שמירת שינויים",
+  "sharedPage.saveChangesDone": "השינויים נשמרו בקישור הזה.",
+  "sharedPage.saveChangesFailed": "שמירת השינויים נכשלה. ייתכן שקישור העריכה בוטל.",
+  "sharedPage.editorHint":
+    "פתחתם קישור עריכה — אפשר לשמור כאן שינויים, וכל מי שיש לו את הקישור יראה אותם.",
   "cloud.exportIcs": "ייצוא ליומן",
   "cloud.print": "הדפסה",
   "cloud.exportPdf": "הורדת PDF",

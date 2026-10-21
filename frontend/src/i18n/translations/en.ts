@@ -354,6 +354,19 @@ export const en: Record<TranslationKey, string> = {
   "cloud.deleteMyDataConfirm": "Delete everything for good?",
   "cloud.deleteMyDataFailed":
     "Deleting your data failed. Nothing was removed from Google Drive; please try again.",
+  "cloud.editLink": "Edit link",
+  "cloud.createEditLink": "Create edit link",
+  "cloud.editLinkWarning":
+    "Anyone with this link can change the shared trip. Sharing again from My trips replaces changes saved through it.",
+  "cloud.disableEditLink": "Turn off edit link",
+  "cloud.editLinkDisabled": "The edit link is off. The view link still works.",
+  "cloud.editLinkFailed":
+    "The edit link action failed. Make sure the trip is shared, then try again.",
+  "sharedPage.saveChanges": "Save changes",
+  "sharedPage.saveChangesDone": "Changes saved to this link.",
+  "sharedPage.saveChangesFailed": "Saving changes failed. The edit link may have been turned off.",
+  "sharedPage.editorHint":
+    "You opened an edit link — you can save changes here, and everyone with the link will see them.",
   "cloud.export": "Export",
   "cloud.exportIcs": "Export calendar",
   "cloud.print": "Print",

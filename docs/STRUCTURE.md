@@ -293,6 +293,7 @@ AppMyTrip/
 │   │   │   └── tripsStore.ts
 │   │   ├── test/
 │   │   │   └── setup.ts
+│   │   ├── App.editLink.test.tsx
 │   │   ├── App.shared.test.tsx
 │   │   ├── App.test.tsx
 │   │   ├── App.tsx                               # 4-step builder UI + live preview / shared-trip viewer

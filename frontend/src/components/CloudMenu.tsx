@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Cloud, CloudOff, LogOut, Save, Share2, Trash2, X } from "lucide-react";
+import { Cloud, CloudOff, LogOut, PencilLine, Save, Share2, Trash2, X } from "lucide-react";
 import type { TripData } from "../api";
 import { useDismissable } from "../hooks/useDismissable";
 import { useBackToClose } from "../hooks/useBackToClose";
@@ -9,7 +9,10 @@ import { appendErrorDetail } from "../services/errorMessage";
 import { shareMessage } from "../services/shareLink";
 import {
   type TripStage,
+  createEditLink,
   deleteAllMyData,
+  disableEditLink,
+  editLinkFor,
   onAuthChange,
   saveTrip,
   shareTrip,
@@ -74,6 +77,23 @@ export default function CloudMenu({
   const [notice, setNotice] = useState<string | null>(null);
   const [shareDays, setShareDays] = useState(0);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [editUrl, setEditUrl] = useState<string | null>(null);
+  // Show the trip's existing edit link, if any, whenever the menu opens.
+  useEffect(() => {
+    if (!isOpen || !uid || !tripId) {
+      setEditUrl(null);
+      return;
+    }
+    let cancelled = false;
+    editLinkFor(tripId)
+      .then((link) => {
+        if (!cancelled) setEditUrl(link);
+      })
+      .catch((err) => console.error(err));
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, uid, tripId]);
   const [saveStage, setSaveStage] = useState<TripStage>(() => stageForStep(currentStep));
   useEffect(() => {
     setSaveStage(stageForStep(currentStep));
@@ -213,6 +233,39 @@ export default function CloudMenu({
     }
   };
 
+  const handleCreateEditLink = async () => {
+    if (!uid || !tripId) {
+      setNotice(t("cloud.shareBeforeSave"));
+      return;
+    }
+    setBusy(true);
+    setNotice(null);
+    try {
+      setEditUrl(await createEditLink(tripId));
+    } catch (err) {
+      console.error(err);
+      setNotice(t("cloud.editLinkFailed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDisableEditLink = async () => {
+    if (!tripId) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      await disableEditLink(tripId);
+      setEditUrl(null);
+      setNotice(t("cloud.editLinkDisabled"));
+    } catch (err) {
+      console.error(err);
+      setNotice(t("cloud.editLinkFailed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleShare = async () => {
     if (!uid || !tripId) {
       setNotice(t("cloud.shareBeforeSave"));
@@ -329,6 +382,38 @@ export default function CloudMenu({
                 shareTitle={tripData.title}
                 shareText={shareMessage(tripData, shareUrl)}
               />
+            </div>
+          )}
+
+          {tripId && (
+            <div className="mb-3 border border-outline/20 rounded-lg p-2">
+              <p className="text-xs font-semibold text-ink-muted mb-1">{t("cloud.editLink")}</p>
+              {editUrl ? (
+                <>
+                  <p className="text-xs text-amber-700 mb-1">{t("cloud.editLinkWarning")}</p>
+                  <LinkDisplay
+                    url={editUrl}
+                    shareTitle={tripData.title}
+                    shareText={shareMessage(tripData, editUrl)}
+                  />
+                  <button
+                    onClick={handleDisableEditLink}
+                    disabled={busy}
+                    className="mt-1 text-xs text-red-700 hover:text-red-800"
+                  >
+                    {t("cloud.disableEditLink")}
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={handleCreateEditLink}
+                  disabled={busy}
+                  className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-primary"
+                >
+                  <PencilLine size={14} />
+                  {t("cloud.createEditLink")}
+                </button>
+              )}
             </div>
           )}
 

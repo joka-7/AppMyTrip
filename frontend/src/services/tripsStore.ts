@@ -65,6 +65,8 @@ interface ShareSecrets {
    * stored hash belongs to, so none is ever discarded unconfirmed.
    */
   pendingTokens: string[];
+  /** Token of the share's edit link, or null when it has none. Lives only here and in edit links. */
+  editToken: string | null;
 }
 
 interface StoredTrip {
@@ -87,7 +89,7 @@ const isSecret = (value: unknown): value is string =>
 
 function parseShare(value: unknown): ShareSecrets | null {
   if (!isObject(value)) return null;
-  const { id, key, ownerToken, pendingTokens } = value;
+  const { id, key, ownerToken, pendingTokens, editToken } = value;
   if (
     typeof id !== "string" ||
     !SHARE_ID_PATTERN.test(id) ||
@@ -101,6 +103,7 @@ function parseShare(value: unknown): ShareSecrets | null {
     key,
     ownerToken,
     pendingTokens: Array.isArray(pendingTokens) ? pendingTokens.filter(isSecret) : [],
+    editToken: isSecret(editToken) ? editToken : null,
   };
 }
 
@@ -192,32 +195,74 @@ export function createTripsStore({
         key,
         ownerToken: generateOwnerToken(),
         pendingTokens: [],
+        editToken: null,
       };
       // Secrets reach Drive before the share exists, so a published link is never orphaned.
       await drive.upsert(TRIPS, toRecord({ ...stored, share }));
       await shares.create(share.id, {
         ...encrypted,
         ownerTokenHash: await sha256Hex(share.ownerToken),
+        editTokenHash: null,
         expiresAt,
         revoked: false,
       });
       return share;
     }
-    const next = generateOwnerToken();
-    // Record the next token first, next to every earlier unconfirmed one: if
-    // the Firestore write or the Drive write after it fails, the owner still
-    // holds whichever token the stored hash belongs to.
-    const pendingTokens = [...existing.pendingTokens, next].slice(-MAX_PENDING_TOKENS);
-    await drive.upsert(TRIPS, toRecord({ ...stored, share: { ...existing, pendingTokens } }));
-    await updateWithAnyToken(existing, next, {
+    return ownerUpdate(stored, existing, {
       ...encrypted,
-      ownerTokenHash: await sha256Hex(next),
       expiresAt,
+      editToken: existing.editToken,
+    });
+  }
+
+  /**
+   * Every owner write to an existing share: rotates the owner token and sets
+   * the content, expiry and edit link. The next token is recorded in Drive
+   * first, next to every earlier unconfirmed one, so if the Firestore write or
+   * the Drive write after it fails, the owner still holds whichever token the
+   * stored hash belongs to.
+   */
+  async function ownerUpdate(
+    stored: StoredTrip,
+    share: ShareSecrets,
+    data: { ciphertext: string; iv: string; expiresAt: Date | null; editToken: string | null },
+  ): Promise<ShareSecrets> {
+    const next = generateOwnerToken();
+    const pendingTokens = [...share.pendingTokens, next].slice(-MAX_PENDING_TOKENS);
+    await drive.upsert(TRIPS, toRecord({ ...stored, share: { ...share, pendingTokens } }));
+    await updateWithAnyToken(share, next, {
+      ciphertext: data.ciphertext,
+      iv: data.iv,
+      ownerTokenHash: await sha256Hex(next),
+      editTokenHash: data.editToken ? await sha256Hex(data.editToken) : null,
+      expiresAt: data.expiresAt,
       revoked: false,
     });
-    const share: ShareSecrets = { ...existing, ownerToken: next, pendingTokens: [] };
-    await drive.upsert(TRIPS, toRecord({ ...stored, share }));
-    return share;
+    const updated: ShareSecrets = {
+      ...share,
+      ownerToken: next,
+      pendingTokens: [],
+      editToken: data.editToken,
+    };
+    await drive.upsert(TRIPS, toRecord({ ...stored, share: updated }));
+    return updated;
+  }
+
+  /** Sets or removes the edit link, keeping the share's current content and expiry. */
+  async function setEditToken(tripId: string, editToken: string | null): Promise<ShareSecrets> {
+    const stored = await loadStoredTrip(tripId);
+    if (!stored.share) throw new Error("Share the trip before creating an edit link.");
+    // Keep what is live now, which may include edits made through the link.
+    const current = await shares.get(stored.share.id);
+    if (!current) {
+      throw new SharedTripUnavailableError("This shared trip link has expired or was removed.");
+    }
+    return ownerUpdate(stored, stored.share, {
+      ciphertext: current.ciphertext,
+      iv: current.iv,
+      expiresAt: current.expiresAt,
+      editToken,
+    });
   }
 
   async function updateWithAnyToken(
@@ -259,6 +304,7 @@ export function createTripsStore({
         ciphertext: "",
         iv: "",
         ownerTokenHash: await sha256Hex(next),
+        editTokenHash: null,
         expiresAt: now(),
         revoked: true,
       });
@@ -372,6 +418,47 @@ export function createTripsStore({
       return stored.share ? buildShareUrl(stored.share.id, stored.share.key) : null;
     },
 
+    /** The trip's edit link, or null if it has none. */
+    async editLinkFor(tripId: string): Promise<string | null> {
+      const { share } = await loadStoredTrip(tripId);
+      return share?.editToken ? buildShareUrl(share.id, share.key, share.editToken) : null;
+    },
+
+    /**
+     * Creates the trip's edit link (or returns the existing one). Anyone who
+     * holds it can change the shared trip; the view link stays read-only.
+     */
+    async createEditLink(tripId: string): Promise<string> {
+      const { share: existing } = await loadStoredTrip(tripId);
+      if (existing?.editToken) return buildShareUrl(existing.id, existing.key, existing.editToken);
+      const share = await setEditToken(tripId, generateOwnerToken());
+      return buildShareUrl(share.id, share.key, share.editToken ?? undefined);
+    },
+
+    /** Turns the edit link off: every copy of it stops being able to save. */
+    async disableEditLink(tripId: string): Promise<void> {
+      const { share } = await loadStoredTrip(tripId);
+      if (!share?.editToken) return;
+      await setEditToken(tripId, null);
+    },
+
+    /** Saves a trip through an edit link. No sign-in: the link's key and edit token are the access. */
+    async saveSharedEdit(
+      shareId: string,
+      key: string,
+      editToken: string,
+      trip: TripData,
+      appDesign: AppDesign,
+    ): Promise<void> {
+      if (!SHARE_ID_PATTERN.test(shareId) || !isSecret(key) || !isSecret(editToken)) {
+        throw new SharedTripUnavailableError("This edit link is not valid.");
+      }
+      const payload: SharedPayload = { trip: ensureStartWeekday(trip), appDesign };
+      const encrypted = await encryptJson(payload, key);
+      const nonce = toBase64Url(crypto.getRandomValues(new Uint8Array(SHARE_ID_BYTES)));
+      await shares.saveEdit(shareId, { ...encrypted, editToken, nonce });
+    },
+
     async unpublishTrip(tripId: string): Promise<void> {
       const stored = await loadStoredTrip(tripId);
       await unpublish(stored);
@@ -425,6 +512,10 @@ export const {
   deleteTrip,
   shareTrip,
   shareLinkFor,
+  editLinkFor,
+  createEditLink,
+  disableEditLink,
+  saveSharedEdit,
   unpublishTrip,
   deleteAllMyData,
   loadSharedTrip,

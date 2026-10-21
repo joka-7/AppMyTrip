@@ -1,6 +1,7 @@
 // Building the link (and the message) a trip gets shared with.
 //
-// A link is `?shared=<shareId>#k=<key>`. The key sits in the #fragment, which
+// A link is `?shared=<shareId>#k=<key>`, and an edit link adds `&e=<editToken>`.
+// Both secrets sit in the #fragment, which
 // browsers never send to any server, so neither the host's logs nor the
 // database ever see it. Nothing readable about the trip goes in the URL: the
 // title is in the message text instead (see shareMessage), which the sender
@@ -16,10 +17,11 @@ import type { TripData } from "../api";
  * link from an already-open "?shared=..." page used to drag the old parameters
  * along with it.
  */
-export function buildShareUrl(shareId: string, key: string): string {
+export function buildShareUrl(shareId: string, key: string, editToken?: string): string {
   const url = new URL(window.location.pathname, window.location.origin);
   url.searchParams.set("shared", shareId);
-  url.hash = new URLSearchParams({ k: key }).toString();
+  // The edit token rides in the fragment too, so it never reaches a server log.
+  url.hash = new URLSearchParams(editToken ? { k: key, e: editToken } : { k: key }).toString();
   return url.toString();
 }
 

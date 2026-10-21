@@ -22,9 +22,9 @@ import type { AgentMessage } from "./ChatPanel";
  * look like the real mobile/web app trip participants would use. For most
  * visitors, edits made here (chat or manual) are local-only and never
  * written back to the owner's saved trip — the export/import/save-as-new-copy
- * toolbar exists so a recipient can still keep changes they like. Share
- * links are read-only: the link's content is encrypted with a key only the
- * link carries, and only the owner can re-publish it from their own account.
+ * toolbar exists so a recipient can still keep changes they like. A view
+ * link is read-only; an edit link (see tripsStore's createEditLink) also
+ * gets a "save changes" button that writes back to this same link.
  */
 export default function SharedAppPage({
   tripData,
@@ -54,6 +54,7 @@ export default function SharedAppPage({
   checklistSuggestError,
   onImportTrip,
   onCreateNewLink,
+  onSaveChanges,
 }: {
   tripData: TripData;
   appDesign: AppDesign;
@@ -82,6 +83,8 @@ export default function SharedAppPage({
   checklistSuggestError?: string | null;
   onImportTrip: (tripData: TripData, appDesign: AppDesign) => void;
   onCreateNewLink: () => Promise<string>;
+  /** Present only when the page was opened through an edit link. */
+  onSaveChanges?: () => Promise<void>;
 }) {
   const { t, dir } = useI18n();
   useTripBranding(appDesign, tripData.title);
@@ -94,6 +97,9 @@ export default function SharedAppPage({
   const [newLinkStatus, setNewLinkStatus] = useState<
     "idle" | "working" | "done" | "copy-failed" | "error"
   >("idle");
+  const [saveChangesStatus, setSaveChangesStatus] = useState<"idle" | "working" | "done" | "error">(
+    "idle",
+  );
   const [saveName, setSaveName] = useState(tripData.title);
   const [saveUrl, setSaveUrl] = useState<string | null>(null);
   const [newLinkUrl, setNewLinkUrl] = useState<string | null>(null);
@@ -128,6 +134,18 @@ export default function SharedAppPage({
     } catch (err) {
       console.error(err);
       setSaveStatus("error");
+    }
+  };
+
+  const handleSaveChanges = async () => {
+    if (!onSaveChanges) return;
+    setSaveChangesStatus("working");
+    try {
+      await onSaveChanges();
+      setSaveChangesStatus("done");
+    } catch (err) {
+      console.error(err);
+      setSaveChangesStatus("error");
     }
   };
 
@@ -275,6 +293,27 @@ export default function SharedAppPage({
                 {newLinkStatus === "error" && (
                   <p className="text-red-700 px-1">{t("sharedPage.newLinkFailed")}</p>
                 )}
+
+                {onSaveChanges && (
+                  <div className="border-t border-outline/20 mt-1 pt-1.5 flex flex-col gap-1.5">
+                    <button
+                      onClick={handleSaveChanges}
+                      disabled={saveChangesStatus === "working"}
+                      className="flex items-center gap-1.5 text-white bg-primary hover:bg-primary-dark disabled:opacity-60 px-2.5 py-1.5 rounded-lg"
+                    >
+                      <Save size={14} />
+                      {saveChangesStatus === "working"
+                        ? t("sharedPage.saving")
+                        : t("sharedPage.saveChanges")}
+                    </button>
+                    {saveChangesStatus === "done" && (
+                      <p className="text-green-700 px-1">{t("sharedPage.saveChangesDone")}</p>
+                    )}
+                    {saveChangesStatus === "error" && (
+                      <p className="text-red-700 px-1">{t("sharedPage.saveChangesFailed")}</p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -312,7 +351,9 @@ export default function SharedAppPage({
             isSuggestingChecklist={isSuggestingChecklist}
             checklistSuggestError={checklistSuggestError}
             isLocalOnly
-            localOnlyNoticeText={t("sharedPage.localOnlyNotice")}
+            localOnlyNoticeText={t(
+              onSaveChanges ? "sharedPage.editorHint" : "sharedPage.localOnlyNotice",
+            )}
             welcomeStorageKey={tripId}
           />
         </div>

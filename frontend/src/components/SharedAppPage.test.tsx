@@ -71,8 +71,37 @@ describe("SharedAppPage", () => {
     });
   });
 
-  // Share links are read-only: nobody, owner included, edits the link in place.
-  it("offers no way to write changes back to the shared link or add editors", () => {
+  it("an edit link gets a save-changes button that writes back to the link", async () => {
+    const onSaveChanges = vi.fn().mockResolvedValue(undefined);
+    render(
+      <SharedAppPage
+        tripData={trip}
+        appDesign={DEFAULT_APP_DESIGN}
+        tripId="trip-1"
+        agentMessages={[]}
+        chatInput=""
+        onChangeChatInput={vi.fn()}
+        onSendMessage={vi.fn()}
+        chatEndRef={createRef()}
+        onUpdateActivity={vi.fn()}
+        onAddActivity={vi.fn()}
+        onUpdateTrip={vi.fn()}
+        onImportTrip={vi.fn()}
+        onCreateNewLink={vi.fn()}
+        onSaveChanges={onSaveChanges}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("שמירה ושיתוף"));
+    fireEvent.click(screen.getByText("שמירת שינויים"));
+    await waitFor(() => {
+      expect(screen.getByText("השינויים נשמרו בקישור הזה.")).toBeInTheDocument();
+    });
+    expect(onSaveChanges).toHaveBeenCalledTimes(1);
+  });
+
+  // A view link is read-only: only an edit link can write back to it.
+  it("offers no way to write changes back from a view link", () => {
     render(
       <SharedAppPage
         tripData={trip}

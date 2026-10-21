@@ -24,6 +24,14 @@ describe("buildShareUrl", () => {
     expect(parsed.search).not.toContain("key_ABC-def");
   });
 
+  it("puts an edit link's token in the fragment as well", () => {
+    setLocation("https://appmytrip.example/");
+    const parsed = new URL(buildShareUrl("share-123", "key", "edit-token"));
+    const fragment = new URLSearchParams(parsed.hash.slice(1));
+    expect([fragment.get("k"), fragment.get("e")]).toEqual(["key", "edit-token"]);
+    expect(parsed.search).not.toContain("edit-token");
+  });
+
   it("carries nothing readable about the trip in the URL", () => {
     setLocation("https://appmytrip.example/");
     const parsed = new URL(buildShareUrl("share-123", "k"));

@@ -46,6 +46,7 @@ import {
   getCurrentSession,
   loadSharedTrip,
   onAuthChange,
+  saveSharedEdit,
   saveTrip,
   shareTrip,
   signInWithGoogle,
@@ -74,6 +75,8 @@ function StepFallback() {
 const SHARED_TRIP_ID = new URLSearchParams(window.location.search).get("shared");
 // The decryption key rides in the #fragment, which browsers never send to a server.
 const SHARED_TRIP_KEY = new URLSearchParams(window.location.hash.slice(1)).get("k");
+// Present only on an edit link; lets this visitor save changes back to the link.
+const SHARED_EDIT_TOKEN = new URLSearchParams(window.location.hash.slice(1)).get("e");
 
 // Empty starting point — the preview shows an empty state until a trip is parsed.
 const EMPTY_TRIP: TripData = { title: "", dates: "", days: [] };
@@ -852,7 +855,15 @@ function TripBuilder() {
 // Loads a "?shared=<tripId>" link's trip and renders only the generated
 // app — no builder chrome, no AI chat — so it looks like the real
 // mobile/web app trip participants would actually use.
-function SharedTripViewer({ tripId, shareKey }: { tripId: string; shareKey: string | null }) {
+function SharedTripViewer({
+  tripId,
+  shareKey,
+  editToken,
+}: {
+  tripId: string;
+  shareKey: string | null;
+  editToken: string | null;
+}) {
   const { t, dir } = useI18n();
   const [trip, setTrip] = useState<TripData | null>(null);
   const [appDesign, setAppDesign] = useState<AppDesign>(DEFAULT_APP_DESIGN);
@@ -896,6 +907,11 @@ function SharedTripViewer({ tripId, shareKey }: { tripId: string; shareKey: stri
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [agentMessages]);
+
+  const handleSaveChanges = async () => {
+    if (!trip || !shareKey || !editToken) throw new Error("Not an edit link.");
+    await saveSharedEdit(tripId, shareKey, editToken, trip, appDesign);
+  };
 
   const handleCreateNewLink = async (): Promise<string> => {
     if (!trip) throw new Error("Trip not loaded yet.");
@@ -1041,6 +1057,7 @@ function SharedTripViewer({ tripId, shareKey }: { tripId: string; shareKey: stri
           setAppDesign(importedAppDesign);
         }}
         onCreateNewLink={handleCreateNewLink}
+        onSaveChanges={editToken ? handleSaveChanges : undefined}
       />
     </Suspense>
   );
@@ -1050,7 +1067,11 @@ export default function App() {
   return (
     <>
       {SHARED_TRIP_ID ? (
-        <SharedTripViewer tripId={SHARED_TRIP_ID} shareKey={SHARED_TRIP_KEY} />
+        <SharedTripViewer
+          tripId={SHARED_TRIP_ID}
+          shareKey={SHARED_TRIP_KEY}
+          editToken={SHARED_EDIT_TOKEN}
+        />
       ) : (
         <TripBuilder />
       )}

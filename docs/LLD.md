@@ -415,12 +415,23 @@ Failures are logged and the unenhanced activity is kept.
 sharedTrips/{shareId}  get     if v == 1 && !revoked && not past expiresAt
                        create  if valid shape (ciphertext ≤ 900 KB, hash 64 hex)
                                && no extra fields && !revoked && updatedAt == now
-                       update  if valid shape
-                               && sha256(proof).hex == stored ownerTokenHash
-                               && new ownerTokenHash != stored one
+                       update  owner: valid shape
+                                 && sha256(proof).hex == stored ownerTokenHash
+                                 && new ownerTokenHash != stored one
+                               editor: live share with editTokenHash
+                                 && only ciphertext, iv, writeNonce, updatedAt change
+                                 && receipt shareEdits/{shareId}_{writeNonce}
+                                    did not exist before and exists after
                        delete  never (TTL on expiresAt; unpublish = revoked update)
+shareEdits/{id}        create  if sha256(token).hex == share's editTokenHash
+                               && id == shareId_<22-char nonce> && expires < 2 days
+                       read    never
 everything else        never   (including the old users/{uid}/trips)
 ```
+
+An edit stores the edit token only in its receipt, which nobody can read; the
+share itself carries just the token's hash and the (public) nonce, so a viewer
+cannot replay or forge an edit. A revoked share must drop `editTokenHash`.
 
 `get` without `list` means a share is reachable only by its id. The stored
 `proof` is the previous token, which no longer matches the rotated hash. The
@@ -441,7 +452,7 @@ our backend.
 | Agent update shape | Echo whole itinerary back | Return a diff/patch | Simpler prompt + validation now; diff is future work (token-limit risk mitigated by guard) |
 | Backend state | Fully stateless, client owns trip | Server session/DB | Free serverless deploy; no data for us to secure/back up |
 | Persistence | User's own Drive + encrypted shares | Firestore per-user docs; our own DB + API | The operator can read nothing; $0; no backups for us to keep |
-| Shared editing | Read-only links | Per-editor key wrapping; link-holder write token | Simplest and safest; owner re-shares to update |
+| Shared editing | One edit link (write token proven via a write-only receipt) | Per-editor key wrapping; read-only links | Simple to share; the token never sits where viewers can read it |
 | TTS default | Mock provider | Always real TTS | No cost/latency in dev/CI/serverless; Piper opt-in for real audio |
 | Podcast playback | Audio URL with Web Speech fallback | Audio only | Guarantees audible output even with mock URLs |
 

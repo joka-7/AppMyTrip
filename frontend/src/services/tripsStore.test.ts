@@ -50,6 +50,7 @@ function fakeDrive() {
 function fakeShares() {
   const docs = new Map<string, SharedTripWrite & { hash: string }>();
   let updatesToFail = 0;
+  const usedNonces = new Set<string>();
   let failNextCreate = false;
   const shares: SharedTripsBackend & {
     docs: typeof docs;
@@ -84,6 +85,21 @@ function fakeShares() {
       if ((await sha256Hex(data.proof)) !== current.hash) throw new Error("permission-denied");
       if (data.ownerTokenHash === current.hash) throw new Error("permission-denied");
       docs.set(id, { ...data, hash: data.ownerTokenHash });
+    },
+    async saveEdit(id, edit) {
+      const current = docs.get(id);
+      const live =
+        current &&
+        !current.revoked &&
+        !(current.expiresAt && current.expiresAt.getTime() < Date.now());
+      if (!live || !current.editTokenHash || usedNonces.has(`${id}_${edit.nonce}`)) {
+        throw new Error("permission-denied");
+      }
+      if ((await sha256Hex(edit.editToken)) !== current.editTokenHash) {
+        throw new Error("permission-denied");
+      }
+      usedNonces.add(`${id}_${edit.nonce}`);
+      docs.set(id, { ...current, ciphertext: edit.ciphertext, iv: edit.iv });
     },
     async get(id): Promise<SharedTripDoc | null> {
       const d = docs.get(id);
@@ -123,9 +139,11 @@ function build() {
 
 function linkParts(link: string) {
   const url = new URL(link);
+  const fragment = new URLSearchParams(url.hash.slice(1));
   return {
     id: url.searchParams.get("shared") ?? "",
-    key: new URLSearchParams(url.hash.slice(1)).get("k") ?? "",
+    key: fragment.get("k") ?? "",
+    editToken: fragment.get("e") ?? "",
   };
 }
 
@@ -250,6 +268,105 @@ describe("tripsStore", () => {
       await expect(store.shareTrip("missing", trip("Rome"))).rejects.toBeInstanceOf(
         TripNotFoundError,
       );
+    });
+  });
+
+  describe("edit links", () => {
+    async function sharedWithEditLink() {
+      const built = build();
+      const id = await built.store.saveTrip(trip("Rome"));
+      const view = linkParts(await built.store.shareTrip(id, trip("Rome")));
+      const edit = linkParts(await built.store.createEditLink(id));
+      return { ...built, id, view, edit };
+    }
+
+    it("lets an edit-link holder change what the view link shows", async () => {
+      const { store, view, edit } = await sharedWithEditLink();
+      expect(edit.id).toBe(view.id);
+      expect(edit.key).toBe(view.key);
+      await store.saveSharedEdit(
+        edit.id,
+        edit.key,
+        edit.editToken,
+        trip("Rome, edited"),
+        DEFAULT_APP_DESIGN,
+      );
+      expect((await store.loadSharedTrip(view.id, view.key)).trip.title).toBe("Rome, edited");
+    });
+
+    it("never puts the edit token in the stored share", async () => {
+      const { shares, edit } = await sharedWithEditLink();
+      expect(JSON.stringify([...shares.docs.values()])).not.toContain(edit.editToken);
+    });
+
+    it.each([
+      ["a made-up edit token", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"],
+      ["a malformed edit token", "short"],
+    ])("refuses %s", async (_name, token) => {
+      const { store, edit } = await sharedWithEditLink();
+      await expect(
+        store.saveSharedEdit(edit.id, edit.key, token, trip("Hacked"), DEFAULT_APP_DESIGN),
+      ).rejects.toThrow();
+    });
+
+    it("turning the edit link off stops edits but keeps the view link and its content", async () => {
+      const { store, id, view, edit } = await sharedWithEditLink();
+      await store.saveSharedEdit(
+        edit.id,
+        edit.key,
+        edit.editToken,
+        trip("Rome, edited"),
+        DEFAULT_APP_DESIGN,
+      );
+      await store.disableEditLink(id);
+      expect(await store.editLinkFor(id)).toBeNull();
+      await expect(
+        store.saveSharedEdit(edit.id, edit.key, edit.editToken, trip("Late"), DEFAULT_APP_DESIGN),
+      ).rejects.toThrow();
+      expect((await store.loadSharedTrip(view.id, view.key)).trip.title).toBe("Rome, edited");
+    });
+
+    it("creating the edit link keeps the live content instead of the owner's Drive copy", async () => {
+      const { store, id, view, edit } = await sharedWithEditLink();
+      await store.saveSharedEdit(
+        edit.id,
+        edit.key,
+        edit.editToken,
+        trip("Rome, edited"),
+        DEFAULT_APP_DESIGN,
+      );
+      await store.disableEditLink(id);
+      await store.createEditLink(id);
+      expect((await store.loadSharedTrip(view.id, view.key)).trip.title).toBe("Rome, edited");
+    });
+
+    it("re-sharing keeps the same edit link working", async () => {
+      const { store, id, edit } = await sharedWithEditLink();
+      await store.shareTrip(id, trip("Rome v2"));
+      expect(linkParts((await store.editLinkFor(id)) ?? "").editToken).toBe(edit.editToken);
+      await expect(
+        store.saveSharedEdit(
+          edit.id,
+          edit.key,
+          edit.editToken,
+          trip("Rome v3"),
+          DEFAULT_APP_DESIGN,
+        ),
+      ).resolves.toBeUndefined();
+    });
+
+    it("unpublishing also kills the edit link", async () => {
+      const { store, id, edit } = await sharedWithEditLink();
+      await store.unpublishTrip(id);
+      await expect(
+        store.saveSharedEdit(edit.id, edit.key, edit.editToken, trip("Late"), DEFAULT_APP_DESIGN),
+      ).rejects.toThrow();
+    });
+
+    it("refuses an edit link for a trip that was never shared", async () => {
+      const { store } = build();
+      const id = await store.saveTrip(trip("Rome"));
+      await expect(store.createEditLink(id)).rejects.toThrow(/Share the trip/);
     });
   });
 
