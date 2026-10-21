@@ -21,10 +21,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       # Only backend/vendor/model-dispatcher is fetched, not every submodule.
-      # `.ai` (ogen-ai) is also a submodule now, and it's a private repo the
-      # default GITHUB_TOKEN cannot read — `submodules: true` would fail the
-      # job trying. CI doesn't need `.ai` anyway: ai-sync runs in `copy` mode,
-      # so AGENTS.md and the skill trees are real committed files.
+      # The tests don't need `.ai` (ogen-ai): ai-sync runs in `copy` mode, so
+      # AGENTS.md is a real committed file. The generated skill trees are
+      # gitignored and only exist where `python .ai/bin/ai-sync` has been run.
       - name: Fetch the model-dispatcher submodule
         # This job defaults to `backend`; the submodule path is repo-relative.
         working-directory: ${{ github.workspace }}

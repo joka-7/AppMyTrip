@@ -28,7 +28,7 @@ AppMyTrip/
 │   │   ├── __init__.py
 │   │   ├── llm.py                    # Communication with the external LLM provider, with exponential-backoff…
 │   │   ├── llm_model_dispatcher.py   # LLM calls routed through the shared ModelDispatcher library
-│   │   ├── rate_limit.py             # Per-user rate limiting
+│   │   ├── rate_limit.py             # Opt-in per-IP rate limiting (in-memory; off unless RATE_LIMIT_PER_MINUTE is…
 │   │   └── tts.py                    # Text-to-speech provider abstraction.
 │   ├── static/
 │   │   └── podcasts/

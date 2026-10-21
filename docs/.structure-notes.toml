@@ -11,7 +11,7 @@
 "backend/trip_api_backend.py" = "Entrypoint: app creation, CORS, static mount, routers"
 "backend/api" = "Vercel serverless entrypoint (re-exports the ASGI app)"
 "backend/routers/builder.py" = "/api/trip/* endpoints"
-"backend/services/rate_limit.py" = "Per-user rate limiting"
+"backend/services/rate_limit.py" = "Opt-in per-IP rate limiting (in-memory; off unless RATE_LIMIT_PER_MINUTE is set)"
 "backend/services/llm_model_dispatcher.py" = "LLM calls routed through the shared ModelDispatcher library"
 "backend/vendor/model-dispatcher" = "Vendored copy of ModelDispatcher (see joka-7/ModelDispatcher)"
 "backend/test_trip_api.py" = "Offline tests (LLM mocked)"
