@@ -66,11 +66,11 @@ function KeyRow({ value, onRemove }: { value: string; onRemove: () => void }) {
  *
  * Leads with a mode choice, same idea as shas-radar's <ModelPicker>: "apiKey"
  * lets the visitor pick a provider (Gemini, OpenAI, Claude, or Groq) and
- * store one or more of their own keys, sent to the backend and rotated
- * through on a rate limit; "external" skips keys entirely and hands Step 1's
+ * store one or more of their own keys, sent only to that provider and
+ * rotated through on a rate limit; "external" skips keys entirely and hands Step 1's
  * parse prompt to a free chat app instead (see BuilderStep1 and
  * services/externalChat.ts's AiMode). Every key is stored only in
- * localStorage and never touches our backend's env vars.
+ * localStorage.
  */
 export default function AiSettingsPanel() {
   const { t } = useI18n();

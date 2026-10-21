@@ -1,21 +1,9 @@
 # Hand-written notes for docs/STRUCTURE.md's generated tree.
 # Carried forward from README.md's former hand-written "Structure" section
 # (verified against the real code) rather than lost when that section was
-# replaced by the generated, drift-checked tree below. Some backend .py
-# files (models.py, services/llm.py, services/tts.py) already have real
-# module docstrings gen_tree.py derives automatically — only the ones that
-# don't (trip_api_backend.py, routers/builder.py) needed an override.
+# replaced by the generated, drift-checked tree below.
 
 [notes]
-"backend" = "FastAPI service (LLM parse, AI agent, TTS podcasts) — stateless"
-"backend/trip_api_backend.py" = "Entrypoint: app creation, CORS, static mount, routers"
-"backend/api" = "Vercel serverless entrypoint (re-exports the ASGI app)"
-"backend/routers/builder.py" = "/api/trip/* endpoints"
-"backend/services/rate_limit.py" = "Opt-in per-IP rate limiting (in-memory; off unless RATE_LIMIT_PER_MINUTE is set)"
-"backend/services/llm_model_dispatcher.py" = "LLM calls routed through the shared ModelDispatcher library"
-"backend/vendor/model-dispatcher" = "Vendored copy of ModelDispatcher (see joka-7/ModelDispatcher)"
-"backend/test_trip_api.py" = "Offline tests (LLM mocked)"
-"backend/test_llm_model_dispatcher.py" = "Tests for the ModelDispatcher-backed LLM path"
 
 "frontend" = "Vite + React + TypeScript + Tailwind web app — the 4-step build flow and live phone preview"
 "frontend/src/App.tsx" = "4-step builder UI + live preview / shared-trip viewer"
@@ -25,7 +13,7 @@
 "frontend/src/services" = "tripsStore, appDesign, tripFile, apiKey, and other pure/service logic"
 "frontend/src/components" = "Builder steps (1-4), AppFrame, MapView, CloudMenu, and shared UI"
 "frontend/firestore.rules" = "Firestore security rules (per-user + public shares)"
-"frontend/e2e" = "Playwright end-to-end tests (real browser, backend mocked)"
+"frontend/e2e" = "Playwright end-to-end tests (real browser, AI provider mocked)"
 
 "docs" = "Design documentation"
 "docs/HLD.md" = "High-Level Design (architecture + flows)"

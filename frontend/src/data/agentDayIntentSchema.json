@@ -1,0 +1,21 @@
+{
+  "description": "Cheap classification of a chat message's scope, used to decide whether the\napp can send/regenerate only a subset of days instead of the whole trip\nfor this turn.",
+  "properties": {
+    "action": {
+      "enum": ["add_days", "edit_days", "general"],
+      "title": "Action",
+      "type": "string"
+    },
+    "day_numbers": {
+      "description": "For 'edit_days', the existing day numbers the message affects. Ignored for 'add_days' and 'general'.",
+      "items": {
+        "type": "integer"
+      },
+      "title": "Day Numbers",
+      "type": "array"
+    }
+  },
+  "required": ["action"],
+  "title": "AgentDayIntent",
+  "type": "object"
+}

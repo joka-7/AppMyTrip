@@ -80,7 +80,6 @@ export const en: Record<TranslationKey, string> = {
   "step3.subtitle": "Our AI reviews the itinerary and makes sure you didn't forget anything.",
   "step3.datesLabel": "Trip dates",
   "step3.datesPlaceholder": "For example: July 12–19",
-  "step3.generating": "Generating media (podcasts)...",
   "step3.continue": "Continue to app design",
   "step3.external.heading": "Send to external AI",
   "step3.external.intro":
@@ -307,7 +306,7 @@ export const en: Record<TranslationKey, string> = {
   "apiKey.descriptionAfter":
     ". You can add several keys; when one hits its rate limit we switch to the next automatically. Everything is stored only in your browser.",
   "apiKey.trustNote":
-    "Each key is sent with your requests to this app's own backend (never to a third party), only to be forwarded to the provider you picked — it's never stored on the server or logged in full.",
+    "Each key goes from this device straight to the provider you picked — never through an AppMyTrip server, and it's never logged.",
   "apiKey.removeAria": "Remove key {key}",
   "apiKey.showAria": "Show the key",
   "apiKey.hideAria": "Hide the key",
@@ -452,12 +451,11 @@ export const en: Record<TranslationKey, string> = {
   // App-level notices & agent messages
   "notice.rateLimitedDemo":
     "The AI provider is rate-limiting requests right now — try again in a minute. In the meantime, a sample trip was loaded.",
-  "notice.unreachableDemo": "We couldn't connect to the AI server — a sample trip was loaded.",
+  "notice.unreachableDemo": "We couldn't reach the AI provider — a sample trip was loaded.",
   "notice.enhanceFailed":
     "Adding the extra details failed — continuing with the current itinerary.",
   "notice.retry": "Retry",
   "notice.updateFailed": "The update failed — the itinerary didn't change.",
-  "notice.mediaFailed": "Generating media on the server failed — continuing without audio files.",
   "agent.initial": "I recognized the trip! Go over the itinerary and fix anything you need.",
   "agent.demo":
     "I loaded a sample trip so you can see how the app works. To parse real text, set your own Gemini API key (the 'Set API key' button above) — or keep editing manually.",
@@ -469,7 +467,7 @@ export const en: Record<TranslationKey, string> = {
   "shared.loadFailed": "Loading the shared trip failed. The link may be wrong or the trip removed.",
   "shared.loading": "Loading the trip...",
 
-  // Offline demo trip (shown when the backend is unreachable)
+  // Offline demo trip (shown when an AI call fails)
   "demo.title": "Sample trip ✨",
   "demo.dates": "Sun – Tue",
   "demo.d1a1.title": "Hotel check-in",

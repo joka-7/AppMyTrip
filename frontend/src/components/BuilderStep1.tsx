@@ -38,13 +38,13 @@ export default function BuilderStep1({
   hasExistingTrip: boolean;
   onContinueWithoutReprocessing: () => void;
   /** Which BYOK path this app uses (see services/externalChat.ts's AiMode,
-   * set from the ⋮ menu's AI settings): "apiKey" submits to this app's own
-   * backend with a saved key, same as always; "external" skips the backend
-   * call entirely (this app never has its own key to fall back to) and hands
+   * set from the ⋮ menu's AI settings): "apiKey" calls the AI provider
+   * from this device with a saved key; "external" skips the AI call
+   * entirely (this app never has its own key to fall back to) and hands
    * the parse prompt to the visitor's chosen free chat app instead. */
   aiMode: AiMode;
   /** Called with a trip parsed from a pasted external-AI reply — continues
-   * exactly as a successful backend parse would. */
+   * exactly as a successful keyed parse would. */
   onExternalReplyParsed: (tripData: TripData) => void;
 }) {
   const { t, lang } = useI18n();

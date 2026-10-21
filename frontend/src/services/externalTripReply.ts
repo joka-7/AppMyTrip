@@ -43,7 +43,7 @@ export interface ExternalAgentTurn {
 
 /** Parses and validates a pasted external-AI reply for Stage 3 (see
  * externalTripPrompt.ts's `buildAgentTurnPrompt`) — the schema embedded in
- * that prompt is a literal dump of the backend's own `AgentResponse` model,
+ * that prompt (data/agentResponseSchema.json) is the chat agent's reply shape,
  * so the reply's trip is keyed `updated_trip` there, not `trip_data`. Throws
  * `InvalidExternalReplyError` for anything that isn't valid JSON shaped like
  * `{ updated_trip, agent_reply }`. */

@@ -77,7 +77,6 @@ export const he = {
   "step3.subtitle": 'הבינה המלאכותית שלנו עוברת על הלו"ז ומוודאת שלא שכחתם כלום.',
   "step3.datesLabel": "תאריכי הטיול",
   "step3.datesPlaceholder": "לדוגמה: 12-19 ביולי",
-  "step3.generating": "מייצר מדיה (פודקאסטים)...",
   "step3.continue": "המשך לעיצוב האפליקציה",
   "step3.external.heading": "שליחה ל-AI חיצוני",
   "step3.external.intro":
@@ -305,7 +304,7 @@ export const he = {
   "apiKey.descriptionAfter":
     ". אפשר להוסיף כמה מפתחות; כשאחד מגיע למגבלת הקצב נעבור אוטומטית לבא. הכול נשמר רק בדפדפן שלכם.",
   "apiKey.trustNote":
-    "כל מפתח נשלח עם הבקשות שלכם לשרת של האפליקציה עצמה (לא לצד שלישי), ומועבר משם רק לספק שבחרתם — הוא לעולם לא נשמר בשרת ולא נרשם ביומן במלואו.",
+    "כל מפתח נשלח מהמכשיר הזה ישירות לספק שבחרתם — אף פעם לא דרך שרת של AppMyTrip, והוא לעולם לא נרשם ביומן.",
   "apiKey.removeAria": "הסרת מפתח {key}",
   "apiKey.showAria": "הצגת המפתח",
   "apiKey.hideAria": "הסתרת המפתח",
@@ -442,11 +441,10 @@ export const he = {
   // App-level notices & agent messages
   "notice.rateLimitedDemo":
     "ספק ה-AI מגביל קצב בקשות כרגע — נסו שוב בעוד דקה. בינתיים נטען טיול לדוגמה.",
-  "notice.unreachableDemo": "לא הצלחנו להתחבר לשרת ה-AI — נטען טיול לדוגמה.",
+  "notice.unreachableDemo": "לא הצלחנו להגיע לספק ה-AI — נטען טיול לדוגמה.",
   "notice.enhanceFailed": 'הוספת הפרטים הנוספים נכשלה — ממשיכים עם הלו"ז הנוכחי.',
   "notice.retry": "נסו שוב",
   "notice.updateFailed": 'העדכון נכשל — הלו"ז לא השתנה.',
-  "notice.mediaFailed": "יצירת המדיה בשרת נכשלה — ממשיכים ללא קבצי אודיו.",
   "agent.initial": 'זיהיתי את הטיול! עברו על הלו"ז ותקנו מה שצריך.',
   "agent.demo":
     "טענתי טיול לדוגמה כדי שתוכלו לראות איך האפליקציה עובדת. כדי לפרסר טקסט אמיתי, הגדירו מפתח Gemini API משלכם (כפתור 'הגדרת מפתח API' למעלה) — או המשיכו לערוך ידנית.",
@@ -457,7 +455,7 @@ export const he = {
   "shared.loadFailed": "טעינת הטיול המשותף נכשלה. ייתכן שהקישור שגוי או שהטיול הוסר.",
   "shared.loading": "טוען את הטיול...",
 
-  // Offline demo trip (shown when the backend is unreachable)
+  // Offline demo trip (shown when an AI call fails)
   "demo.title": "טיול לדוגמה ✨",
   "demo.dates": "יום א׳ – יום ג׳",
   "demo.d1a1.title": "צ׳ק-אין במלון",

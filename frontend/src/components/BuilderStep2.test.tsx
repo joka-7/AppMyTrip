@@ -50,7 +50,7 @@ describe("BuilderStep2 — apiKey mode", () => {
     expect(onSkip).toHaveBeenCalledTimes(1);
   });
 
-  it("submits the selected options to the backend and hides the external-AI section", () => {
+  it("submits the selected options to the AI and hides the external-AI section", () => {
     const onSubmit = vi.fn();
     render(<BuilderStep2 {...baseProps({ onSubmit })} />);
     fireEvent.click(screen.getByText("הוספת מחירים משוערים"));

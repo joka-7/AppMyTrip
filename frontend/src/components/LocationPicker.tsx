@@ -22,7 +22,7 @@ function ClickToSet({ onPick }: { onPick: (coords: { lat: number; lng: number })
 /**
  * A small embedded map for picking an activity's location by clicking or dragging a
  * pin, instead of typing raw latitude/longitude numbers. `value` is null when no
- * location has been set yet (the backend then auto-locates the activity by name).
+ * location has been set yet (the AI then auto-locates the activity by name).
  */
 export default function LocationPicker({
   value,

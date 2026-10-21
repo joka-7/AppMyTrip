@@ -16,37 +16,7 @@ AppMyTrip/
 │   ├── copilot-instructions.md                   # Copilot's copy of AGENTS.md (generated)
 │   └── dependabot.yml
 ├── .run/                                         # Shared PyCharm/WebStorm run configurations
-│   ├── Backend (FastAPI).run.xml
-│   ├── Backend tests (pytest).run.xml
 │   └── Frontend (npm dev).run.xml
-├── backend/                                      # FastAPI service (LLM parse, AI agent, TTS podcasts) — stateless
-│   ├── api/                                      # Vercel serverless entrypoint (re-exports the ASGI app)
-│   │   └── index.py
-│   ├── routers/
-│   │   ├── __init__.py
-│   │   └── builder.py                            # /api/trip/* endpoints
-│   ├── services/
-│   │   ├── __init__.py
-│   │   ├── llm.py                                # Communication with the external LLM provider, with exponential-backoff…
-│   │   ├── llm_model_dispatcher.py               # LLM calls routed through the shared ModelDispatcher library
-│   │   ├── rate_limit.py                         # Opt-in per-IP rate limiting (in-memory; off unless RATE_LIMIT_PER_MINUTE is…
-│   │   └── tts.py                                # Text-to-speech provider abstraction.
-│   ├── static/
-│   │   └── podcasts/
-│   │       └── .gitkeep
-│   ├── vendor/
-│   │   └── model-dispatcher                      # Vendored copy of ModelDispatcher (see joka-7/ModelDispatcher)
-│   ├── .env.example
-│   ├── models.py                                 # Pydantic request/response models for the trip-builder API.
-│   ├── pyproject.toml
-│   ├── requirements-dev.txt
-│   ├── requirements-model-dispatcher.txt
-│   ├── requirements.txt
-│   ├── test_llm_model_dispatcher.py              # Tests for the ModelDispatcher-backed LLM path
-│   ├── test_trip_api.py                          # Offline tests (LLM mocked)
-│   ├── trip_api_backend.py                       # Entrypoint: app creation, CORS, static mount, routers
-│   ├── uv.lock
-│   └── vercel.json
 ├── docs/                                         # Design documentation
 │   ├── screenshots/                              # Screenshots referenced from README.md
 │   │   ├── step1-overview.png
@@ -147,7 +117,7 @@ AppMyTrip/
 │   │   ├── gradlew.bat
 │   │   ├── settings.gradle
 │   │   └── variables.gradle
-│   ├── e2e/                                      # Playwright end-to-end tests (real browser, backend mocked)
+│   ├── e2e/                                      # Playwright end-to-end tests (real browser, AI provider mocked)
 │   │   ├── a11y.spec.ts
 │   │   ├── builder-flow.spec.ts
 │   │   ├── mixed-day.spec.ts
@@ -322,6 +292,7 @@ AppMyTrip/
 │   └── vitest.config.ts
 ├── .ai                                           # Ogen-ai submodule — the shared source of rules, skills and the ai-sync…
 ├── .gitignore
+├── .gitleaksignore
 ├── .gitmodules
 ├── AGENTS.md                                     # The compiled coding rules every AI assistant reads — generated, do not…
 ├── CLAUDE.md                                     # Claude Code's copy of AGENTS.md (generated)

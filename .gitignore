@@ -6,10 +6,6 @@ venv/
 .pytest_cache/
 *.egg-info/
 
-# Locally-synthesized TTS audio (backend/services/tts.py: PiperTTSProvider)
-backend/static/podcasts/*
-!backend/static/podcasts/.gitkeep
-
 # Local SQLite leftovers (if any; the app is Firestore-backed, not SQLite)
 *.db
 

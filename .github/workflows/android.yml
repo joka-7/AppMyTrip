@@ -22,9 +22,8 @@ permissions:
 env:
   # Public build config (repository *variables*, not secrets): the OAuth Web
   # client ID appears in every Google sign-in URL, and the Firebase web config
-  # and API URL ship inside every web build anyway.
+  # ships inside every web build anyway.
   VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
-  VITE_API_URL: ${{ vars.VITE_API_URL }}
   VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
   VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
   VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}

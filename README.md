@@ -6,11 +6,12 @@ structured, per-day trip app — with day tabs, a map of points of interest, a
 Waze), an AI completion agent, and rich media (historical podcasts). On the web
 and as an Android app.
 
-**Status: working web app.** A FastAPI backend parses trip text with an LLM, and a
-React web UI walks you through the 4-step build flow with a live phone preview.
-The flow runs end to end — parse, enrich, iterate with the AI agent, customise and
-deploy — behind CI (lint, type-check, 106 backend tests at 84% coverage, Playwright
-end-to-end) with grouped Dependabot updates.
+**Status: working web app.** A React web UI walks you through the 4-step build flow
+with a live phone preview. The AI steps run in the browser: each call goes from the
+user's device straight to their own AI provider, with their own key — there is no
+AppMyTrip server. The flow runs end to end — parse, enrich, iterate with the AI
+agent, customise and deploy — behind CI (lint, format check, Vitest unit tests,
+build, Playwright end-to-end) with grouped Dependabot updates.
 
 **Android app:** the same web app in a Capacitor shell (`frontend/android/`), built
 and signed by `.github/workflows/android.yml`. See "Android app" below.
@@ -23,7 +24,7 @@ and signed by `.github/workflows/android.yml`. See "Android app" below.
 - **Layer on the details you actually want.** Opt in per trip to driving/transit
   directions, estimated prices, a historical audio podcast per site, links to
   attraction/transport sites, an automatically-worked-out travel mode per leg, and a
-  what-to-bring packing list — each is one extra (mockable) AI call, so you only pay
+  what-to-bring packing list — each is one extra AI call, so you only pay
   for what you check (Step 2).
 - **Iterate with an AI completion agent.** Chat in plain language ("add a beach
   afternoon on Saturday", "we land Friday morning now") and watch the itinerary
@@ -46,7 +47,8 @@ and signed by `.github/workflows/android.yml`. See "Android app" below.
   plus an optional edit link — that is end-to-end encrypted: the key travels in the link itself, so not even the
   app's operator can read a shared trip. Pick an expiry (7/30/90 days, or forever).
 - **Bring your own AI key.** Each user supplies their own Gemini, OpenAI, Anthropic,
-  or Groq API key from the navbar, so running the app costs its operator nothing.
+  or Groq API key from the navbar, so running the app costs its operator nothing. The
+  key, the prompt and the itinerary go from the device straight to that provider.
 - **Print or export** the itinerary and checklist, or export the trip dates to a
   calendar file.
 - **Use it in Hebrew, English, or French**, including full right-to-left layout.
@@ -68,7 +70,7 @@ and watch them merge into the live preview:
 ![Step 2 optional enhancements](docs/screenshots/step2-overview.png)
 
 **Step 3 — AI completion agent.** Chat with the AI to fill gaps or make changes
-before generating media; its opening message and your replies show up here:
+before designing the app; its opening message and your replies show up here:
 
 ![Step 3 AI completion agent](docs/screenshots/step3-overview.png)
 
@@ -110,11 +112,11 @@ SCREENSHOT_BASE_URL=http://localhost:5174 npx playwright test e2e/screenshots.sp
 AppMyTrip/
 ├── .github/
 ├── .run/           # Shared PyCharm/WebStorm run configurations
-├── backend/        # FastAPI service (LLM parse, AI agent, TTS podcasts) — stateless
 ├── docs/           # Design documentation
 ├── frontend/       # Vite + React + TypeScript + Tailwind web app — the 4-step build flow and live…
 ├── .ai             # Ogen-ai submodule — the shared source of rules, skills and the ai-sync…
 ├── .gitignore
+├── .gitleaksignore
 ├── .gitmodules
 ├── AGENTS.md       # The compiled coding rules every AI assistant reads — generated, do not…
 ├── CLAUDE.md       # Claude Code's copy of AGENTS.md (generated)
@@ -133,127 +135,36 @@ python .ai/skills/repo_tree/gen_tree.py --project . --output docs/STRUCTURE.md
 python .ai/skills/repo_tree/gen_tree.py --project . --output README.md --max-depth 1
 ```
 
-## Backend
+## AI — runs on the device, with the user's own key
 
-With [`uv`](https://docs.astral.sh/uv/) (fast, free, no network cost beyond the
-one-time install — recommended):
+There is no backend. Parsing free text into a trip (Step 1), the opt-in Step 2
+enhancements and the Step 3 chat agent all run in the browser
+(`frontend/src/services/tripAi.ts`), calling `complete()` from the
+[`modeldispatcher-browser-agent`](https://www.npmjs.com/package/modeldispatcher-browser-agent)
+npm package. The prompt, the itinerary and the key go from the device directly to
+the user's AI provider; no AppMyTrip server sees them.
 
-```bash
-cd backend
-uv sync --group dev    # creates .venv/ and installs from uv.lock
+Each user supplies their **own** key(s) from the navbar's settings menu
+(`SettingsMenu` → `frontend/src/components/AiSettingsPanel.tsx`), stored only in that browser's
+`localStorage` (`frontend/src/services/apiKey.ts`). Supported providers: `gemini`,
+`groq`, `openai` and `anthropic`. Several keys per provider can be saved; every saved
+provider is tried in turn (active one first, `getAllCredentials()`), so a call only
+fails once all of them have. Models per provider are fixed in `TRIP_MODELS`
+(`tripAi.ts`). There is no server-side rate limiting — there is nothing to
+rate-limit; each user's own provider quota applies.
 
-uv run pytest                # run tests (no API key / network needed — LLM calls are mocked)
-uv run ruff check . && uv run ruff format .   # lint / format
+Without a key, the AI settings can switch to the "external" mode
+(`frontend/src/services/externalChat.ts`): the app hands its prompt to a free chat
+app and the user pastes the reply back in.
 
-uv run python trip_api_backend.py   # serves on http://0.0.0.0:8000, docs at /docs
-```
+`preferences` (e.g. "Vegan", "gluten-free", "חלבי") is a plain free-text field added
+to the prompt — there is no hardcoded dietary assumption, no special-cased logic
+(e.g. no `is_kosher` field), and nothing stored per account. Saving/loading/sharing
+trips is handled entirely client-side too (see "Frontend" → "Trip storage" below).
 
-Or with plain `pip`:
-
-```bash
-cd backend
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements-dev.txt
-
-# run tests (no API key / network needed — LLM calls are mocked)
-pytest
-
-# lint / format (ruff)
-ruff check .
-ruff format .
-
-# run the API — no LLM API key needed to start the server itself; see
-# "LLM provider" below for how keys are supplied
-python trip_api_backend.py    # serves on http://0.0.0.0:8000, docs at /docs
-```
-
-The backend is fully stateless — no database, no auth, no server-side persistence:
-- `POST /api/trip/parse` — raw text (+ optional `preferences`, `api_key`, `provider`) →
-  structured itinerary (LLM); always returns `initial_agent_message: null` (the
-  frontend shows a default greeting)
-- `POST /api/trip/enhance` — current itinerary + opt-in `options` (+ `api_key`,
-  `provider`) → itinerary with selected extras filled in (directions, prices,
-  podcast briefs, links) — one concurrent LLM call per checked option
-- `POST /api/trip/agent` — chat + current itinerary (+ optional `preferences`, `api_key`,
-  `provider`) → updated itinerary (LLM)
-- `POST /api/trip/generate-media` — fill TTS podcast URLs for flagged sites
-
-`preferences` (e.g. "Vegan", "gluten-free", "חלבי") is a plain free-text field the frontend sends
-with each request — there is no hardcoded dietary assumption, no special-cased
-logic (e.g. no `is_kosher` field), and no per-account storage on the backend.
-Saving/loading/sharing trips is handled entirely client-side: private trips go to
-each user's own Google Drive, and shared trips are stored only as ciphertext (see
-"Frontend" → "Trip storage" below). The backend stores no trip content and logs no
-prompts.
-
-### LLM provider — bring your own key
-
-Each user supplies their **own** LLM API key from the frontend's "הגדרת מפתח API"
-(API key) menu in the navbar — it's stored only in that browser's `localStorage`
-and sent as `api_key` (+ which provider it belongs to, as `provider`) with every
-`/api/trip/parse`/`/api/trip/agent` request. This means each user burns their own
-quota/cost instead of sharing the app operator's key, and the app works without the
-operator ever configuring an LLM key at all. If a request omits `api_key`, the
-backend falls back to its own env vars (handy for local dev) and returns
-`401 Unauthorized` if neither is set.
-
-`backend/services/llm.py` supports four providers, selected per-request via
-`provider` (or the server-side `LLM_PROVIDER` env var as a fallback, default
-`gemini`):
-
-- `gemini` — Google Gemini. Server fallback key: `GEMINI_API_KEY` (free tier at
-  [ai.google.dev](https://ai.google.dev/)).
-- `openai` — OpenAI GPT models. Server fallback key: `OPENAI_API_KEY` (get one at
-  [platform.openai.com/api-keys](https://platform.openai.com/api-keys)).
-- `anthropic` — Anthropic Claude models. Server fallback key: `ANTHROPIC_API_KEY`
-  (get one at
-  [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys)).
-- `groq` — Groq's free, OpenAI-compatible API. Server fallback key: `GROQ_API_KEY`
-  (get one free at [console.groq.com/keys](https://console.groq.com/keys)).
-
-Each provider's default model can be overridden with `GEMINI_MODEL`/`OPENAI_MODEL`/
-`ANTHROPIC_MODEL`/`GROQ_MODEL` env vars.
-
-`/generate-media` doesn't call the LLM at all, so it works without any key set.
-
-**Backend implementation toggle:** `LLM_BACKEND` (default `legacy`) selects which
-code actually talks to the provider. `legacy` is `services/llm.py`'s own httpx
-retry/rotation logic; `model_dispatcher` delegates to the same request/response
-contract via [`model-dispatcher`](https://github.com/joka-7/ModelDispatcher)
-instead (`services/llm_model_dispatcher.py`) — same providers, same
-bring-your-own-key/multi-key-rotation behavior, same API surface. Doesn't affect
-`parse_trip_text`/`agent_interaction`/`enhance_trip` or anything that calls them.
-Every `/api/trip/{parse,agent,enhance}` request also accepts its own optional
-`backend: "legacy" | "model_dispatcher"` field, overriding this server default
-for just that one call — the frontend's settings menu (`ApiKeyMenu`) exposes
-this as "Server engine", stored in `localStorage` (`tripweaver_backend`) and
-sent with every request via `getBackend()` (`services/apiKey.ts`).
-
-`model-dispatcher` is vendored as a **git submodule** at `backend/vendor/model-dispatcher`
-(see `.gitmodules`), not an installed package — clone with
-`git clone --recurse-submodules`, or run `git submodule update --init` after a
-plain clone. It's also kept **out of** `requirements.txt`/`requirements-dev.txt`
-on purpose: install it separately via `pip install -r requirements-model-dispatcher.txt`
-(after the submodule is fetched) to actually use `LLM_BACKEND=model_dispatcher`.
-This backend deploys as a Vercel Python Function (see `backend/vercel.json`), and
-**Vercel does not fetch git submodules by default** — see
-`requirements-model-dispatcher.txt` for what enabling this in production requires.
-
-### Text-to-speech provider
-
-`backend/services/tts.py` selects a provider via the `TTS_PROVIDER` env var:
-
-- `mock` (default) — instant fake URLs, no network, no cost. Used in dev/test/CI.
-- `piper` — synthesizes real audio locally with the open-source
-  [Piper](https://github.com/rhasspy/piper) engine (`piper-tts` package, already in
-  `requirements.txt`). Fully offline, no API key, no per-request cost. Requires a
-  one-time voice model download, then:
-  ```bash
-  export TTS_PROVIDER=piper
-  export PIPER_VOICE_MODEL=/path/to/en_US-amy-medium.onnx
-  ```
-  Generated `.wav` files are written to `backend/static/podcasts/` and served at
-  `/static/podcasts/<file>.wav`.
+Podcasts are narrated by the device's built-in speech synthesis
+(`frontend/src/hooks/usePodcastPlayer.ts`), reading the activity's description and
+its AI-written `podcast_brief`. There is no server-side text-to-speech.
 
 ## Frontend
 
@@ -272,7 +183,7 @@ npm run format:check
 # run tests (vitest + React Testing Library)
 npm run test
 
-# end-to-end tests (Playwright — real browser, real dev server, backend mocked)
+# end-to-end tests (Playwright — real browser, real dev server)
 npx playwright install chromium   # one-time browser download
 npm run test:e2e
 ```
@@ -349,30 +260,23 @@ the current trip, browse/load previously saved trips, and share/delete them.
 
 - **Frontend → Vercel** (free Hobby tier): import the repo, set the root directory to
   `frontend/`, build command `npm run build`, output directory `dist`. Add the
-  `VITE_GOOGLE_CLIENT_ID`, `VITE_FIREBASE_*` and `VITE_API_URL` env vars from above in the Vercel project
-  settings. A `frontend/vercel.json` is included so SPA routes don't 404 on refresh,
-  and adds a few response headers: `X-Content-Type-Options`, `Referrer-Policy`,
+  `VITE_GOOGLE_CLIENT_ID` and `VITE_FIREBASE_*` env vars from above in the Vercel
+  project settings. This static build is the only thing to deploy: the AI needs no
+  configuration, since each user's key goes from their device to their provider. A
+  `frontend/vercel.json` is included so SPA routes don't 404 on refresh, and adds a
+  few response headers: `X-Content-Type-Options`, `Referrer-Policy`,
   `Permissions-Policy`, and a `Content-Security-Policy-Report-Only` (deliberately
   *report-only* — it logs violations to the browser console without blocking
   anything, since a blocking policy needs to be checked against a real deployment
-  first, e.g. that your `VITE_API_URL` backend domain is covered by `connect-src`).
-  Once you've deployed and confirmed no unexpected violations show up, consider
-  changing the header key to `Content-Security-Policy` to actually enforce it.
-- **Backend → Vercel serverless functions** (free Hobby tier, no billing account):
-  import the repo as a *second* Vercel project, set the root directory to `backend/`.
-  `backend/vercel.json` + `backend/api/index.py` expose the FastAPI app as a Python
-  serverless function; `requirements.txt` is installed automatically. Add the
-  `CORS_ORIGINS` (your frontend's Vercel domain, plus `https://localhost` for the
-  Android app) env var in the Vercel project
-  settings. Since each user supplies their own LLM API key from the frontend (see
-  "LLM provider — bring your own key" above), you don't need to set
-  `GEMINI_API_KEY`/`OPENAI_API_KEY`/`ANTHROPIC_API_KEY`/`GROQ_API_KEY` for a deployed
-  instance — they're only useful as a local-dev fallback. Leave `TTS_PROVIDER` unset
-  (defaults to `mock`) — Vercel's
-  functions have an ephemeral, mostly read-only filesystem, so the local Piper engine
-  (which needs a writable, persistent voice-model + audio directory) isn't a fit here.
-  Alternatively, deploy the same FastAPI app as a long-lived process on a free-tier
-  Render/Fly.io instance if you want real Piper TTS.
+  first). Its `connect-src` allows Google APIs (`https://*.googleapis.com`, which
+  covers Gemini, Drive and Firestore), `https://accounts.google.com` and the
+  OpenAI, Anthropic and Groq APIs. Once you've deployed and confirmed no unexpected
+  violations show up, consider changing the header key to
+  `Content-Security-Policy` to actually enforce it.
+- **Old backend project:** earlier versions deployed a FastAPI backend as a second
+  Vercel project (root directory `backend/`). Nothing uses it any more; that Vercel
+  project can be deleted, along with its env vars and any `VITE_API_URL`
+  variable/setting left in the frontend's Vercel project or the GitHub variables.
 - **Firestore → Firebase**: no separate deploy step — Firestore is a managed
   service; you only need the project, the Web app config and the security rules from
   the setup steps above.
@@ -414,25 +318,31 @@ One-time setup:
    `ANDROID_KEYSTORE_B64`, `ANDROID_KEYSTORE_B64_2` (the two files above) and
    `ANDROID_KEY_PASSWORD`.
 3. **GitHub variables** (same page → Variables): `VITE_GOOGLE_CLIENT_ID`,
-   `VITE_API_URL`, `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_PROJECT_ID`,
-   `VITE_FIREBASE_APP_ID` — the same public values the web build uses.
+   `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID` —
+   the same public values the web build uses.
 4. **Android OAuth client** in the same Google Cloud project: package
    `io.github.joka7.appmytrip` and the SHA-1 printed in step 1. Nothing from it goes
    back into the code; the app uses the Web client ID.
-5. Add `https://localhost` to the backend's `CORS_ORIGINS`.
 
 Local build (needs the Android SDK): `cd frontend && npm run build && npx cap sync
 android`, then open `frontend/android` in Android Studio.
 
-## How they connect
+## How the AI steps connect
 
-The frontend calls the backend through `frontend/src/api.ts`. The base URL is set
-by `VITE_API_URL` (see `frontend/.env.example`, default `http://localhost:8000`).
+The UI calls the AI steps through `frontend/src/api.ts`, which runs them on the
+device via `frontend/src/services/tripAi.ts`:
 
-- Step 1 "create app structure" → `POST /api/trip/parse`
-- Step 2 opt-in enhancements → `POST /api/trip/enhance`
-- Step 3 agent chat → `POST /api/trip/agent`
-- Step 3 → 4 "continue to design" → `POST /api/trip/generate-media`
+```mermaid
+flowchart LR
+    UI[Builder UI] --> API["api.ts\nparseTrip / enhanceTrip / agentInteract"]
+    API --> AI["tripAi.ts\nprompts, intent routing, sanitising"]
+    AI -->|"complete() with the user's key"| P[(Gemini / Groq / OpenAI / Anthropic)]
+```
+
+- Step 1 "create app structure" → `parseTrip`
+- Step 2 opt-in enhancements → `enhanceTrip`
+- Step 3 agent chat → `agentInteract`
+- Step 3 → 4 "continue to design" → no AI call
 
 Activities added later in Step 3 (via the chat agent or the live preview's "+"
 button) automatically re-run the Step 2 enhancements the user checked, so new
@@ -487,40 +397,33 @@ use it. Like the itinerary, the checklist is included when the trip is printed.
 
 Whole days can also be added, deleted, and reordered (move earlier/later, or
 jump to the start/end) from the "manage days" panel next to the day tabs in
-the live preview — entirely client-side, no backend call involved.
+the live preview — entirely client-side, no AI call involved.
 
-If the backend is unreachable (or the `parse`/`agent` calls fail because no API key
-is configured — either via the frontend's API key menu or a server-side env var),
-the UI shows a notice and falls back to local mock behaviour so the app stays
-demoable. The backend enables CORS (configurable via the `CORS_ORIGINS` env var,
-default `*`) so the browser can reach it.
+If parsing fails (no key saved, the provider unreachable or rate-limited), the UI
+shows a notice and loads a sample trip so the app stays demoable. A failed chat turn
+leaves the itinerary unchanged and offers a Retry button.
 
-To run the full stack: start the backend (`python trip_api_backend.py`), then the
-frontend (`npm run dev`), and set your own LLM API key via the navbar's "הגדרת מפתח
-API" menu (or set e.g. `GEMINI_API_KEY` server-side for local dev).
+To run it: start the frontend (`npm run dev`) and save your own AI key in the
+navbar's AI settings.
 
 ## IDE run configurations
 
-`.run/` contains shared PyCharm/WebStorm run configurations (the VCS-friendly
+`.run/` contains a shared WebStorm/PyCharm run configuration (the VCS-friendly
 alternative to per-user `.idea/` files, which stay gitignored):
-- **Backend (FastAPI)** — runs `trip_api_backend.py`
-- **Backend tests (pytest)** — runs the backend test suite
 - **Frontend (npm dev)** — runs the Vite dev server
 
-They assume a `backend/.venv` (e.g. created by `uv sync --group dev`) and a
-frontend Node interpreter configured in the IDE's Node settings.
+It assumes a Node interpreter configured in the IDE's Node settings.
 
 ## Notes
 
 - Design docs: [`docs/HLD.md`](docs/HLD.md) (architecture) and
   [`docs/LLD.md`](docs/LLD.md) (module-level detail).
-- The `parse` and `agent` endpoints need an LLM key — Gemini by default, or Groq (see
-  "LLM provider" above). `generate-media` defaults to a mock TTS service (see
-  "Text-to-speech provider" above for the free local Piper option).
-- Dietary/other preferences are entered as free text in the builder UI and sent with
-  each request — not a hardcoded assumption, not stored server-side (see
-  "Backend" above and "Trip storage" under "Frontend").
-- Everything in this app is free to run, with no billing account anywhere: Gemini's
-  free tier, local Piper TTS (or mock TTS on serverless), Vercel's Hobby tier for both
-  frontend and backend, Firebase's Spark plan for Firestore, and each user's own
-  Google Drive for their trips.
+- Parsing, enhancing and chatting need an AI key — Gemini and Groq have free tiers
+  (see "AI — runs on the device" above), or use the keyless "external" mode.
+- Dietary/other preferences are entered as free text in the builder UI and added to
+  the prompt — not a hardcoded assumption, not stored server-side (see
+  "AI — runs on the device" above and "Trip storage" under "Frontend").
+- Everything in this app is free to run, with no billing account anywhere: each
+  user's own AI key (Gemini and Groq have free tiers), the device's built-in speech
+  synthesis for podcasts, Vercel's Hobby tier for the static frontend, Firebase's
+  Spark plan for Firestore, and each user's own Google Drive for their trips.

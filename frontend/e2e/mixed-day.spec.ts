@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { mockAi } from "./mockAi";
 
 /**
  * A day is not one mode. This walks a realistic mixed day end to end —
@@ -65,9 +66,7 @@ const MIXED_TRIP = {
 
 test.describe("a day that mixes travel modes", () => {
   test.beforeEach(async ({ page }) => {
-    await page.route("**/api/trip/parse", (route) =>
-      route.fulfill({ json: { trip_data: MIXED_TRIP, initial_agent_message: "ok" } }),
-    );
+    await mockAi(page, { parse: MIXED_TRIP });
   });
 
   async function openGeneratedApp(page: import("@playwright/test").Page) {

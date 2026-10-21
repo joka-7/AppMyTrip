@@ -1,8 +1,9 @@
 # AppMyTrip — Low-Level Design (LLD)
 
 > Component-level design of the **TripWeaver AI** prototype: exact modules,
-> classes, functions, data contracts, and control flow for both the FastAPI
-> backend and the React frontend.
+> functions, data contracts, and control flow of the React frontend — including
+> the AI steps, which run in the browser (`frontend/src/services/tripAi.ts`).
+> There is no backend.
 
 Parent document: [`docs/HLD.md`](./HLD.md) (High-Level Design).
 
@@ -10,174 +11,128 @@ Parent document: [`docs/HLD.md`](./HLD.md) (High-Level Design).
 
 ## 1. Directory Structure
 
-```
-AppMyTrip/
-├── backend/                     FastAPI service (stateless)
-│   ├── trip_api_backend.py      app factory: CORS, static mount, router include
-│   ├── api/index.py             Vercel serverless entrypoint (re-exports `app`)
-│   ├── vercel.json              Vercel Python runtime config
-│   ├── models.py                Pydantic request/response models (the contract)
-│   ├── routers/
-│   │   └── builder.py           TripBuilder + /api/trip/* endpoints + guards
-│   ├── services/
-│   │   ├── llm.py               LLM provider abstraction + retry/backoff
-│   │   └── tts.py               TTS provider abstraction (mock / Piper)
-│   ├── static/podcasts/         generated Piper .wav files (served at /static)
-│   ├── test_trip_api.py         offline tests (LLM mocked)
-│   └── requirements.txt / requirements-dev.txt / pyproject.toml
-├── frontend/                    Vite + React + TS + Tailwind SPA/PWA
-│   ├── src/
-│   │   ├── App.tsx              mode switch + TripBuilder/SharedTripViewer state
-│   │   ├── api.ts               typed backend client + shared TS types
-│   │   ├── firebase.ts          Firebase init, Firestore only (optional)
-│   │   ├── components/          UI (AppFrame, BuilderStepN, ItineraryList, ...)
-│   │   ├── hooks/               usePodcastPlayer, useInstallPrompt
-│   │   └── services/            apiKey, tripsStore, driveSync, shareCrypto, ...
-│   ├── firestore.rules          encrypted-share rules (get-only, owner token)
-│   ├── e2e/                     Playwright tests (backend mocked)
-│   └── vite.config.ts           PWA config + build
-└── docs/{hld,lld}/              this design documentation
-```
+The annotated file tree is generated into [`docs/STRUCTURE.md`](./STRUCTURE.md);
+this document doesn't keep a second, hand-written copy. Section 9 below is a
+quick jump to the files each concern lives in.
 
 ---
 
-## 2. Backend LLD
+## 2. AI LLD (`frontend/src/services/tripAi.ts`)
 
-### 2.1 `trip_api_backend.py` — application factory
+### 2.1 Wiring and contracts
 
-Responsibilities, in order:
-1. Optionally load `backend/.env` via `python-dotenv` (import-guarded — absence is fine).
-2. Create `FastAPI(title="TripWeaver AI API", ...)`.
-3. Attempt to `mkdir` `static/podcasts/` and mount `StaticFiles` at `/static`;
-   wrapped in `try/except OSError` so read-only serverless filesystems don't crash
-   startup (safe there because `TTS_PROVIDER=mock` writes nothing).
-4. Add `CORSMiddleware` with origins from `CORS_ORIGINS` (comma-separated, default `*`).
-5. `app.include_router(builder_router)`.
-6. `if __name__ == "__main__":` run Uvicorn on `0.0.0.0:8000`.
+`api.ts` is the composition root: it builds one instance with
+`createTripAi({ complete })`, passing `complete` from `modeldispatcher-browser-agent`
+(tests inject a fake `CompleteFn`), and converts the saved keys with
+`agentConfigFrom(credentials)` on every call.
 
-`api/index.py` simply does `from trip_api_backend import app` so `@vercel/python`
-can serve the same ASGI app as a function.
+| Export | Signature | Contract |
+|--------|-----------|----------|
+| `CompleteFn` | `(cfg: AgentConfig, prompt: string, options?: RequestOptions) => Promise<string>` | The injected provider call; `tripAi` always passes `{ systemInstruction, jsonMode: true, maxTokens }` |
+| `ProviderKeys` | `{ provider: string; api_keys: string[] }` | One saved provider and its keys (`getAllCredentials()` in `services/apiKey.ts`) |
+| `agentConfigFrom` | `(credentials: readonly ProviderKeys[]) => AgentConfig` | Keeps only `gemini`/`openai`/`anthropic`/`groq` entries with ≥1 key, in order, each with its `TRIP_MODELS` model; `ollamaUrl: ""` |
+| `createTripAi` | `({ complete }) => { parseTripText, agentTurn, enhanceTrip }` | Factory; no module-level state |
+| `parseTripText` | `(rawText, preferences, cfg) => Promise<TripData>` | Free text → sanitised trip |
+| `agentTurn` | `(trip, message, preferences, cfg) => Promise<{ trip, reply }>` | One chat turn, scoped when safe, truncation-guarded |
+| `enhanceTrip` | `(trip, options: EnhanceOptions, cfg) => Promise<TripData>` | Opt-in extras merged into a copy of `trip` |
+| `sanitizeTrip` | `(value: unknown) => TripData` | Rebuilds a trip from an untrusted reply; `422` when it has no object or no `days` array |
+| `extractJson` | `(text: string) => unknown` | Parses the reply, tolerating a code fence or prose around the outermost `{…}`; `422` otherwise |
+| `detectDayNumbers`, `mentionsAddingADay`, `mentionsDeletion`, `looksTruncated` | pure heuristics | See 2.3 / 2.4 |
 
-### 2.2 `models.py` — API contract (Pydantic v2)
+The public wrappers in `api.ts` keep the old response shapes:
+`parseTrip(rawText, preferences, credentials)` → `{ trip_data, initial_agent_message: null }`,
+`agentInteract(tripData, userMessage, preferences, credentials)` → `{ trip_data, agent_reply }`,
+`enhanceTrip(tripData, options, credentials)` → `{ trip_data }`.
 
-| Model | Role | Notable fields |
-|-------|------|----------------|
-| `Activity` | one schedule item | `id`, `time`, `title`, `desc`, `type` (`Literal["attraction","food","lodging","transport"]`), `hasPodcast`, `podcast_url`, `podcast_brief`, `map_coordinates: dict[str,float] \| None`, `price`, `url`, `directions_car`, `directions_transit`, `map_url` (user-pasted Maps link overriding the generated one), `travel_mode` (`Literal["driving","walking","bicycling","transit","hiking"] \| None` — the leg *into* this stop; null on a day's first activity) |
-| `ChecklistItem` | one thing to bring | `id`, `text` |
-| `TripDay` | one day | `dayNum: int`, `activities: list[Activity]`, `checklist: list[ChecklistItem]` |
-| `TripData` | whole trip | `title`, `dates`, `days`, `language` (ISO 639-1, default `"he"`), `photo_album_url`, `checklist: list[ChecklistItem]` (trip-wide essentials) |
-| `ParseRequest` | Stage 1 input | `raw_text`, `preferences?`, `api_key?`, `provider?` |
-| `EnhanceOptions` | Stage 2 toggles | `directions_car`, `directions_transit`, `prices`, `podcast`, `links`, `travel_mode`, `packing` (all `bool=False`). The last two are whole-trip options and are excluded from the per-activity top-up in `tripEnhance.ts`. |
-| `EnhanceRequest` | Stage 2 input | `trip_data`, `options`, `api_key?`, `provider?` |
-| `AgentInteractRequest` | Stage 3 input | `trip_data`, `user_message`, `preferences?`, `api_key?`, `provider?` |
-| `AgentResponse` | Stage 3 LLM output | `updated_trip: TripData`, `agent_reply: str` |
+**Constants.** Output budgets `MAX_TOKENS_CLASSIFY = 1024`,
+`MAX_TOKENS_SCOPED_EDIT = 8192`, `MAX_TOKENS_FULL_TRIP = 16384` (some providers,
+Groq notably, reject a request asking for more than the model allows).
+`TRIP_MODELS`: `gemini-2.5-flash`, `gpt-4o-mini`, `claude-sonnet-4-5-20250929`,
+`openai/gpt-oss-120b` (Groq). Every prompt embeds a JSON schema from
+`frontend/src/data/` (`tripDataSchema`, `agentResponseSchema`,
+`agentScopedResponseSchema`, `agentDayIntentSchema`).
 
-The field descriptions double as **LLM prompt instructions** — `TripData.model_json_schema()`
-is embedded in each prompt so the model returns a schema-conformant object.
+### 2.2 Untrusted replies — `sanitizeTrip`
 
-Anything the frontend stores on a trip **must** appear here too. Pydantic drops
-unknown keys, so a field present only in `frontend/src/api.ts` is deleted on
-every `/parse`, `/agent` and `/enhance` round-trip — the next chat message would
-wipe a user's pasted map link or packing list.
+Every reply goes through `extractJson` and then `sanitizeTrip` (or, for scoped
+edits, `sanitizeDays`) before anything uses it. Each field is rebuilt from a typed
+read: strings are length-capped, numbers must be finite, `map_coordinates` must be
+within ±90/±180, an unknown activity `type` becomes `"attraction"`, an unknown
+`travel_mode` becomes `null`, `podcast_url` is always `null`, a missing
+`dayNum` becomes its index + 1, `language` defaults to `"he"`. Limits: 120 days,
+150 activities per day, 100 checklist items. Anything not shaped like a trip →
+`ApiError(422)`.
 
-### 2.3 `routers/builder.py` — endpoints + `TripBuilder`
+### 2.3 Chat turn — intent routing and scoped edits
 
-**`TripBuilder`** is a Builder-pattern class holding one trip plus the request's
-`preferences`, `api_key`, `provider`. Fluent setters return `self`. Key methods:
+```text
+agentTurn(trip, message):
+  result = agentTurnOnce(trip, message)
+  if looksTruncated(trip, result.trip, message):
+      result = agentTurnOnce(trip, message)          # one retry
+      if looksTruncated(...): throw ApiError(409)
+  return result
 
-| Method | Purpose |
-|--------|---------|
-| `load_initial_text(text)` / `load_existing_trip(trip)` | seed state |
-| `set_preferences / set_api_key / set_provider` | per-request config |
-| `extract_with_llm()` | `await LLMService.parse_trip_text(...)` → sets `_trip` |
-| `process_agent_update(msg)` | call agent LLM, apply truncation guard, replace `_trip`, return reply |
-| `enhance(options)` | `await LLMService.enhance_trip(...)` |
-| `generate_media()` | for each `hasPodcast and not podcast_url` activity, fill `podcast_url` via `TTSService` |
-| `get_trip()` | return `_trip` (raises if empty) |
+agentTurnOnce:
+  intent = resolveIntent(trip, message)
+  try:
+    add_days                       -> addDays   (sends title/dates/day count/last day; new days only)
+    edit_days with day numbers     -> editDays  (sends only those days; replaces them by dayNum)
+  catch ApiError(422): fall through   # other errors (401/429/502) propagate
+  return fullTurn                     # whole itinerary in, {updated_trip, agent_reply} out
 
-**Truncation guard** — module-level helpers:
-- `_activity_count(trip)` = total activities.
-- `_looks_truncated(previous, updated, user_message)` → `True` when the user did
-  **not** use a deletion keyword (`_DELETION_KEYWORDS`, Hebrew + English), the
-  previous trip had ≥4 activities, and the update dropped to `< prev/2`.
-  `process_agent_update` raises `HTTPException(502)` in that case, leaving the
-  itinerary unchanged.
-
-**Endpoints** (all `POST`, all `response_model=dict`):
-
-| Route | Builds | Returns |
-|-------|--------|---------|
-| `/api/trip/parse` | new builder → set config → load text → `extract_with_llm` | `{trip_data, initial_agent_message: null}` |
-| `/api/trip/agent` | builder from `trip_data` → `process_agent_update` | `{trip_data, agent_reply}` |
-| `/api/trip/enhance` | builder from `trip_data` → `enhance(options)` | `{trip_data}` |
-| `/api/trip/generate-media` | builder from `trip_data` → `generate_media` | `{trip_data, status}` |
-
-Note `/generate-media` deliberately does **not** set `api_key`/`provider` — it
-never calls the LLM, only TTS, so it works with no key configured.
-
-### 2.4 `services/llm.py` — provider abstraction + resiliency
-
-```mermaid
-classDiagram
-    class LLMProvider {
-        <<Protocol>>
-        +complete_json(system_prompt, user_content) dict
-    }
-    class GeminiProvider
-    class _OpenAICompatibleProvider
-    class OpenAIProvider
-    class GroqProvider
-    class AnthropicProvider
-    class LLMService {
-        <<facade / static>>
-        +parse_trip_text(...) TripData
-        +agent_interaction(...) AgentResponse
-        +enhance_trip(...) TripData
-        -_get_provider(api_key, provider) LLMProvider
-        -_execute_with_retry(...) dict
-        -_enhance_one(...) TripData
-    }
-    LLMProvider <|.. GeminiProvider
-    LLMProvider <|.. _OpenAICompatibleProvider
-    _OpenAICompatibleProvider <|-- OpenAIProvider
-    _OpenAICompatibleProvider <|-- GroqProvider
-    LLMProvider <|.. AnthropicProvider
-    LLMService ..> LLMProvider : selects one per request
+resolveIntent:
+  n = detectDayNumbers(message)       # "day 8" / "יום 8" / "jour 8"
+  if n: all new -> add_days; all existing -> edit_days(n); mixed -> classify
+  elif mentionsAddingADay(message): add_days
+  if trip has no days: general
+  classify: one call (MAX_TOKENS_CLASSIFY) with a one-line summary per day;
+            any failure or odd reply -> general
 ```
 
-- **`LLMProvider`** protocol: single async method `complete_json(system_prompt, user_content) -> dict`.
-- **`GeminiProvider`** — Google `generativelanguage` v1beta, `responseMimeType: application/json`; default model `gemini-2.5-flash` (`GEMINI_MODEL` override).
-- **`_OpenAICompatibleProvider`** — shared base for chat-completions + `response_format: json_object`; subclasses set `url`, env key var, model env var, default model:
-  - `OpenAIProvider` → `https://api.openai.com/v1/chat/completions`, default `gpt-4o-mini`.
-  - `GroqProvider` → `https://api.groq.com/openai/v1/chat/completions`, default `openai/gpt-oss-120b`.
-- **`AnthropicProvider`** — Messages API (no JSON mode): prompt demands bare JSON, `max_tokens=8192` (deliberately high because each agent turn re-echoes the whole itinerary), strips accidental ```` ```json ```` fences before `json.loads`.
-- **`_PROVIDERS`** registry maps `"gemini"|"openai"|"anthropic"|"groq"` → class.
+Scoped replies are rejected with `422` (and so fall back to `fullTurn`) when they
+have no days, when `addDays` returns a `dayNum` that already exists, or when
+`editDays` returns a day it wasn't asked for. `fullTurn` substitutes a default
+reply text ("בוצע!" / "Done!") when `agent_reply` is missing rather than failing
+the edit.
 
-**`LLMService`** (all classmethods/staticmethods; no instance state):
-- `_get_provider(api_key, provider)` — resolves name from `provider` arg or `LLM_PROVIDER` env (default `gemini`); unknown name → `RuntimeError`; missing key → `HTTPException(401)`.
-- `_execute_with_retry(system_prompt, user_content, api_key, provider, max_retries=5)`:
-  - delays `[1,2,4,8,16]`.
-  - `429` → honor `Retry-After` header if present else backoff; final attempt raises `HTTPException(429)`.
-  - other `httpx` / `ValueError` / `JSONDecodeError` → backoff; final attempt raises `HTTPException(502)`.
-- `parse_trip_text(...)` — builds a planner system prompt (injects `preferences` as free text if given; instructs to leave enrichment fields null; detect + set `language`), embeds `TripData` JSON schema, validates response into `TripData` (`422` on `ValidationError`).
-- `agent_interaction(...)` — system prompt insists on **copying every activity through unchanged unless asked**, preserving `id` and enrichment fields, replying in `TripData.language` (or switching if the user clearly changed language), and reassigning `dayNum`/reordering `days` on structural changes; embeds `AgentResponse` schema; validates into `AgentResponse`.
-- **Enhancement** (`_ENHANCE_OPTION_SPECS`): a list of `(flag_name, instruction, editable_fields)` tuples. `enhance_trip` selects the checked specs, runs `_enhance_one` per spec **concurrently** via `asyncio.gather(..., return_exceptions=True)`, then deep-copies the current trip and merges each successful result **by activity `id`, only for that option's fields**. Raises the first error only if **every** option failed.
+### 2.4 Truncation guard — `looksTruncated(previous, updated, message)`
 
-### 2.5 `services/tts.py` — TTS abstraction
+`true` when the message contains no deletion keyword (`mentionsDeletion`: a
+multilingual word list matched on Unicode-aware word boundaries, plus substring
+matches for Chinese/Japanese/Korean), the previous trip had at least 6 activities,
+and the reply kept fewer than 35% of them.
 
-- **`TTSProvider`** protocol: `synthesize(text, slug) -> str` (returns a fetchable URL).
-- **`MockTTSProvider`** (default): `asyncio.sleep(0.5)` then returns a fake CDN URL — no network, no cost.
-- **`PiperTTSProvider`**: requires `PIPER_VOICE_MODEL`; runs `piper.PiperVoice` in `asyncio.to_thread`, writes `static/podcasts/<slug>.wav`, returns `/static/podcasts/<slug>.wav`.
-- **`TTSService.generate_podcast_for_activity(title, desc, brief?)`**: slugifies the title (`_slugify`), picks the provider from `TTS_PROVIDER`, narrates `desc` (+ `brief` if present), returns the URL. `STATIC_DIR`/`PODCASTS_DIR` are module-level `Path`s reused by the app factory.
+### 2.5 Enhancement — `enhanceTrip(trip, options, cfg)`
 
-### 2.6 Backend error taxonomy
+`ENHANCE_SPECS` holds one entry per option (`directions_car`, `directions_transit`,
+`prices`, `podcast`, `links`, `travel_mode`, `packing`): its instruction and the
+fields it may write (`activityFields`, `dayFields`, `tripFields`). The selected
+specs, plus `MISSING_COORDINATES` whenever any activity lacks `map_coordinates`,
+each make one whole-trip call, all run concurrently with `Promise.allSettled`. The
+results merge into a `structuredClone` of the trip: activities matched by `id`,
+days by `dayNum`, only that spec's fields, and only when the new value is non-empty
+(`hasValue`), so a reply never erases an existing value; `MISSING_COORDINATES`
+never touches an activity that already has coordinates. It throws the first error
+only when every call failed; no option selected and nothing missing → the trip is
+returned unchanged.
 
-| HTTP | Raised by | Meaning |
-|------|-----------|---------|
-| `401` | `_get_provider` | no LLM key (request nor server env) |
-| `422` | model validation | LLM returned schema-invalid JSON |
-| `429` | `_execute_with_retry` | provider rate-limited after retries |
-| `502` | `_execute_with_retry` / `process_agent_update` | LLM failed after retries, or response looked truncated |
+### 2.6 Error contract
+
+One error type: `ApiError(status, detail)` (`tripAi.ts`, re-exported by `api.ts`).
+`classify` maps the dispatcher's failures; the AI steps raise the rest.
+
+| Status | Raised by | Meaning |
+|--------|-----------|---------|
+| `401` | `classify` | `NoProviderConfiguredError` (no usable key saved), or every provider attempt failed with 401/403/key errors |
+| `409` | `agentTurn` | the reply still dropped most of the trip after one retry |
+| `422` | `extractJson`, `sanitizeTrip`, scoped-reply checks | the reply was not valid JSON / not a trip / not the days asked for |
+| `429` | `classify` | every attempt failed with a rate limit |
+| `502` | `classify` | every provider failed otherwise; `detail` lists `provider: error` per attempt |
+
+`App.tsx`'s `describeApiError` turns the status into a localized message (and
+appends `detail` for `502`). Provider HTTP, the per-request timeout, one retry on
+429/5xx and key/provider fall-through live in `modeldispatcher-browser-agent`.
 
 ---
 
@@ -197,14 +152,15 @@ classDiagram
 | `tripId` | Drive record id once saved/loaded (`null` = unsaved → next save creates new) |
 | `agentMessages` | chat transcript |
 | `enhanceOptions` | remembered Step 2 toggles, re-applied to newly added activities |
-| `isProcessing/isEnhancing/isGeneratingMedia/isSendingMessage` | per-call loading flags |
+| `isProcessing/isEnhancing/isSendingMessage` | per-call loading flags |
 | `apiNotice` | dismissible localized fallback banner |
 
-Handlers: `handleProcessText` (parse, fallback → `DEMO_TRIP`), `handleEnhance`,
-`handleSendMessage` (agent, fallback → `mockAgentReply`), `handleContinueToDesign`
-(generate-media), `handleUpdateActivity`, `handleAddActivity`, `handleUpdateTrip`,
-and `enhanceNewActivities(before, after)` — diffs by activity `id`, re-runs the
-remembered enhancements only on newly added activities, then merges by `id`.
+Handlers: `handleProcessText` (parse, fallback → `buildDemoTrip()`), `handleEnhance`,
+`handleSendMessage` (agent; on failure a chat notice + Retry, trip unchanged), and
+after each agent turn `findNewActivities` + `enhanceActivities`
+(`services/tripEnhance.ts`) — diffs by activity `id`, re-runs the remembered
+enhancements only on newly added activities, then merges by `id`. Step 3's
+"continue" just moves to Step 4.
 `hooks/useTripEditing.ts` — shared by both the builder preview and the
 shared-viewer below, since both mutate a `TripData` via a `setTrip` callback —
 also exposes `handleAddDay` (append an empty day), `handleDeleteDay(index)`,
@@ -220,12 +176,12 @@ On load it also calls `setLangIfUnset(result.trip.language)` (from
 `appmytrip_lang` yet, in which case the UI defaults to the trip's own language
 instead of the hardcoded Hebrew fallback.
 
-### 3.2 `api.ts` — typed client
+### 3.2 `api.ts` — AI entry points
 
-- `API_BASE_URL` = cleaned `VITE_API_URL` (default `http://localhost:8000`), trailing slashes stripped.
-- Shared TS interfaces: `Activity`, `TripDay`, `TripData`, `EnhanceOptions`, and the response types — these are the frontend mirror of `backend/models.py`.
-- `postJSON<T>(path, body)` — one `fetch` wrapper; throws `Error("API {path} failed ({status}): {detail}")` on non-2xx (the `(429)` substring is how the UI detects rate-limits).
-- Functions: `parseTrip`, `agentInteract`, `enhanceTrip`, `generateMedia` — each maps to its endpoint and threads `apiKey`/`provider`.
+- Shared TS interfaces: `Activity`, `TripDay`, `TripData`, `EnhanceOptions`, and the response types (`ParseResponse`, `AgentResponse`, `EnhanceResponse`) — the one trip contract.
+- `const tripAi = createTripAi({ complete })` — the only place the dispatcher is wired in.
+- Functions: `parseTrip`, `agentInteract`, `enhanceTrip` — each takes `credentials: readonly ProviderKeys[]` last and delegates to `tripAi` (see 2.1).
+- Re-exports `ApiError` (see 2.6).
 
 ### 3.3 Component composition
 
@@ -233,7 +189,7 @@ instead of the hardcoded Hebrew fallback.
 flowchart TB
     App --> TripBuilder
     App --> SharedTripViewer
-    TripBuilder --> Nav["nav: ApiKeyMenu, CloudMenu, InstallAppButton"]
+    TripBuilder --> Nav["nav: SettingsMenu, CloudMenu, InstallAppButton"]
     TripBuilder --> ProgressBar
     TripBuilder --> S1[BuilderStep1]
     TripBuilder --> S2[BuilderStep2]
@@ -267,10 +223,10 @@ flowchart TB
 | `ChatPanel` | Message list + input; reused by Step 3 and `AppFrame`'s chat tab | Exports `AgentMessage` type; typing indicator when `isSending`; shows `LanguageIndicator` |
 | `BuilderStep1` | Paste text + preferences (free text, e.g. dietary/accessibility); submit → parse | "continue without reprocessing" when a trip already exists |
 | `BuilderStep2` | Opt-in enhancement checkboxes → `EnhanceOptions` | Skip/back; select-all; loading state during enhance |
-| `BuilderStep3` | Chat step + edit trip dates | Continue → generate media; shows language |
+| `BuilderStep3` | Chat step + edit trip dates | Continue → Step 4; shows language |
 | `BuilderStep4` | Theme + share lifetime + deploy/save/share | Calls `getCurrentSession()`/`signInWithGoogle`, `saveTrip`, `shareTrip`; "update existing" vs "save as new copy"; copyable share link |
 | `CloudMenu` | Navbar cloud icon: sign in, save, list/load/delete/share trips | Uses `tripsStore`; keeps `tripId` in sync with `TripBuilder` |
-| `ApiKeyMenu` | BYO-key UI in navbar | Reads/writes `services/apiKey` per provider |
+| `SettingsMenu` → `AiSettingsPanel` | BYO-key UI in navbar | Mode choice (own key vs external chat app); reads/writes `services/apiKey` per provider |
 | `ApiNotice` | Dismissible fallback banner | Driven by `apiNotice` state |
 | `PriceSummary` | Totals prices across the trip | Currency/number formatting |
 | `PodcastPlayer` | Floating player bar | Progress + close; driven by `usePodcastPlayer` |
@@ -282,8 +238,10 @@ flowchart TB
 ### 3.5 Hooks
 
 - **`usePodcastPlayer()`** → `{ playingPodcast, progress, error, togglePlay, stop }`.
-  On `playingPodcast` change: if `podcast_url` exists, play via `HTMLAudioElement`
-  (progress from `timeupdate`); on audio error **fall back to Web Speech**
+  On `playingPodcast` change: narrate `desc` (+ `podcast_brief`) with **Web Speech**.
+  Only a trip saved before the AI moved on-device can carry a `podcast_url`; that is
+  played via `HTMLAudioElement` (progress from `timeupdate`), and on audio error
+  falls back to Web Speech
   (`SpeechSynthesisUtterance`, waiting for `voiceschanged`, preferring a Hebrew
   voice), with a `stopped` guard against StrictMode remount/switch races and an
   estimated progress timer. `togglePlay(act)` toggles the same activity off.
@@ -294,7 +252,9 @@ flowchart TB
 
 | Service | Exports | Notes |
 |---------|---------|-------|
-| `apiKey.ts` | `getApiKey`, `getApiKeyForProvider`, `getApiProvider`, `setApiKey`, `clearApiKey`, `PROVIDERS` | Per-provider keys in `localStorage` (`tripweaver_api_keys`); migrates a legacy single-key format |
+| `apiKey.ts` | `LLMProvider`, `PROVIDERS`, `getApiProvider`, `setApiProvider`, `getApiKeysForProvider`, `getAllCredentials`, `addApiKey`, `removeApiKey` | Several keys per provider (`gemini`/`groq`/`openai`/`anthropic`) in `localStorage`; `getAllCredentials` lists the active provider first and omits providers with no key |
+| `tripAi.ts` | see section 2 | The AI steps, run in the browser |
+| `tripEnhance.ts` | `ALL_ENHANCE_OPTIONS`, `effectiveEnhanceOptions`, `findNewActivities`, `enhanceActivities` | Per-activity top-up of Step 2 extras for newly added activities |
 | `firebase.ts` | `getFirebaseApp`, `isFirebaseConfigured` | Initializes only when `VITE_FIREBASE_*` are set; else `null` (app still runs, sharing off). Used only for Firestore |
 | `driveSync.ts` | `createDriveSync` → `signIn`, `signOut`, `onAuthChange`, `loadAll`, `upsert`, `remove`, `deleteAllSyncedData` | Google Drive appDataFolder sync, ported from KanDOne: per-device files, tombstones, `nextStamp`, Web Locks, retries, native-auth hook |
 | `shareCrypto.ts` | `encryptJson`, `decryptJson`, `generateShareKey`, `generateOwnerToken`, `sha256Hex` | AES-256-GCM via WebCrypto; base64url keys; hex SHA-256 matching the rules' `toHexString().lower()` |
@@ -307,24 +267,22 @@ flowchart TB
 
 ---
 
-## 4. Data Contracts (per endpoint)
+## 4. Data Contracts (per call)
 
 ```jsonc
-// POST /api/trip/parse
-// req:  { raw_text, preferences?, api_key?, provider? }
+// parseTrip(rawText, preferences, credentials)
+// prompt schema: data/tripDataSchema.json
 // resp: { trip_data: TripData, initial_agent_message: null }   // always null; client shows default greeting
 
-// POST /api/trip/enhance
-// req:  { trip_data: TripData, options: EnhanceOptions, api_key?, provider? }
+// enhanceTrip(tripData, options: EnhanceOptions, credentials)
+// prompt schema: data/tripDataSchema.json (one call per selected option)
 // resp: { trip_data: TripData }
 
-// POST /api/trip/agent
-// req:  { trip_data: TripData, user_message, preferences?, api_key?, provider? }
+// agentInteract(tripData, userMessage, preferences, credentials)
+// prompt schemas: data/agentDayIntentSchema.json   { action: "add_days"|"edit_days"|"general", day_numbers?: int[] }
+//                 data/agentScopedResponseSchema.json  { days, agent_reply }   (scoped turns)
+//                 data/agentResponseSchema.json    { updated_trip: TripData, agent_reply }   (whole-trip turn)
 // resp: { trip_data: TripData, agent_reply: string }
-
-// POST /api/trip/generate-media
-// req:  { trip_data: TripData, user_message: "" }   // user_message unused
-// resp: { trip_data: TripData, status: string }
 ```
 
 ---
@@ -335,31 +293,38 @@ flowchart TB
 
 ```mermaid
 flowchart TD
-    A[EnhanceRequest options] --> B{which flags true?}
-    B -->|per option| C[_enhance_one focused LLM call]
-    C --> D[asyncio.gather return_exceptions=True]
-    D --> E[deep-copy current trip]
-    E --> F[index activities by id]
-    F --> G{for each option result}
-    G -->|exception| H[remember first error, skip]
-    G -->|ok| I[copy only that option's fields onto matching id]
+    A[EnhanceOptions] --> B{which flags true?\n+ any activity missing coordinates?}
+    B -->|none| N[return trip unchanged]
+    B -->|per spec| C[enhanceOne: focused whole-trip call]
+    C --> D[Promise.allSettled]
+    D --> E[structuredClone current trip]
+    E --> F[index activities by id, days by dayNum]
+    F --> G{for each spec result}
+    G -->|rejected| H[remember first error, skip]
+    G -->|ok| I[copy only that spec's non-empty fields onto matches]
     H & I --> J{any succeeded?}
     J -->|yes| K[return merged trip]
-    J -->|no| L[raise first error]
+    J -->|no| L[throw first error]
 ```
 
-### 5.2 Agent turn with truncation guard (Step 3)
+### 5.2 Agent turn with intent routing and truncation guard (Step 3)
 
 ```mermaid
 flowchart TD
-    A[AgentInteractRequest] --> B[LLMService.agent_interaction]
-    B --> C[updated_trip + reply]
-    C --> D{_looks_truncated?}
-    D -->|user asked to delete| E[accept]
-    D -->|prev < 4 activities| E
-    D -->|updated >= prev/2| E
-    D -->|else| F[HTTP 502, keep old trip]
-    E --> G[replace state, return reply]
+    A[agentTurn] --> R{resolveIntent}
+    R -->|detectDayNumbers / mentionsAddingADay| S
+    R -->|otherwise| CL[classify call, 1024 tokens]
+    CL --> S{action}
+    S -->|add_days| AD[addDays: last day as context]
+    S -->|edit_days| ED[editDays: only those days]
+    S -->|general| FT[fullTurn: whole trip]
+    AD & ED -->|ApiError 422| FT
+    AD & ED & FT --> T{looksTruncated?}
+    T -->|no| OK[return trip + reply]
+    T -->|yes, first time| A2[run the turn once more]
+    A2 --> T2{looksTruncated?}
+    T2 -->|no| OK
+    T2 -->|yes| F[ApiError 409, keep old trip]
 ```
 
 ### 5.3 Client fallback (resilience)
@@ -367,9 +332,9 @@ flowchart TD
 - `parseTrip` succeeds with `initial_agent_message: null` → client shows default
   greeting (`'זיהיתי את הטיול! …'`); on failure → load `DEMO_TRIP` + demo agent
   message, still advance to Step 2.
-- `agentInteract` fails → `mockAgentReply` (keyword-based local edit) + notice.
-- `enhanceTrip`/`generateMedia` fail → keep current trip + notice, continue.
-- Rate-limit (`(429)` in message) → distinct "provider is rate-limiting" notice.
+- `agentInteract` fails → `describeApiError` message in the chat + Retry; the trip is unchanged.
+- `enhanceTrip` fails → keep current trip + notice, continue to Step 3.
+- Rate-limit (`ApiError` with status `429`) → distinct "provider is rate-limiting" notice.
 
 ### 5.4 Save / share (Step 4 & CloudMenu)
 
@@ -399,13 +364,14 @@ flowchart TD
     B -->|yes| D[diff before/after by activity id]
     D --> E{new ids?}
     E -->|no| C
-    E -->|yes| F[POST /enhance with synthetic one-day trip of new activities only]
+    E -->|yes| F[enhanceTrip on a synthetic one-day trip of the new activities only]
     F --> G[merge enhanced fields back onto matching ids in full trip]
 ```
 
-The frontend stores `enhanceOptions` from Step 2 and calls `enhanceNewActivities`
-after every agent turn (`handleSendMessage`) and manual add (`handleAddActivity`).
-Failures are logged and the unenhanced activity is kept.
+The frontend stores `enhanceOptions` from Step 2 and calls `enhanceActivities`
+(`services/tripEnhance.ts`) after every agent turn (`App.tsx`) and manual add
+(`handleAddActivity` in `hooks/useTripEditing.ts`). It returns an empty map on
+failure, so the unenhanced activity is kept.
 
 ---
 
@@ -437,8 +403,8 @@ cannot replay or forge an edit. A revoked share must drop `editTokenHash`.
 `proof` is the previous token, which no longer matches the rotated hash. The
 rules were verified against the Firestore emulator, including a filtered `list`
 query that the old `allow read` rule let through. API keys never touch
-Firestore — they live only in the caller's `localStorage` and are sent solely to
-our backend.
+Firestore — they live only in the caller's `localStorage` and are sent only to the
+user's AI provider.
 
 ---
 
@@ -446,30 +412,32 @@ our backend.
 
 | Decision | Chosen | Alternative | Why chosen |
 |----------|--------|-------------|------------|
-| LLM access | Per-provider classes behind a `Protocol` + registry | One monolithic client with `if provider ==` branches | Open/closed: add a provider without touching call sites; testable via a fake provider |
-| OpenAI + Groq | Share `_OpenAICompatibleProvider` base | Duplicate class per provider | Both speak the same JSON-mode chat API; DRY |
+| Where the AI runs | In the browser, device → provider (`modeldispatcher-browser-agent`) | A server proxying every call | No server to run, pay for or secure; prompts and keys never pass through the operator |
+| Provider access | One injected `complete()` from an npm package | Per-provider clients in the app | Key rotation and provider fallback already live in the package; a fake `complete` makes `tripAi` testable |
 | Step 2 enhancement | One concurrent call per option, merge by id | One combined call for all options | Faster when many options; partial-failure isolation |
-| Agent update shape | Echo whole itinerary back | Return a diff/patch | Simpler prompt + validation now; diff is future work (token-limit risk mitigated by guard) |
-| Backend state | Fully stateless, client owns trip | Server session/DB | Free serverless deploy; no data for us to secure/back up |
+| Agent update shape | Only the affected days when the intent is clear, else echo the whole itinerary | Return a diff/patch | Simpler prompt + validation; scoping cuts the token-limit risk, the guard covers the rest |
+| State | Client owns the trip | Server session/DB | No data for us to secure/back up |
 | Persistence | User's own Drive + encrypted shares | Firestore per-user docs; our own DB + API | The operator can read nothing; $0; no backups for us to keep |
 | Shared editing | One edit link (write token proven via a write-only receipt) | Per-editor key wrapping; read-only links | Simple to share; the token never sits where viewers can read it |
-| TTS default | Mock provider | Always real TTS | No cost/latency in dev/CI/serverless; Piper opt-in for real audio |
-| Podcast playback | Audio URL with Web Speech fallback | Audio only | Guarantees audible output even with mock URLs |
+| Podcast playback | Device speech synthesis (legacy `podcast_url` audio still played) | Server-side TTS | No server, no cost; always audible |
 
 ---
 
 ## 8. Test Strategy
 
-- **Backend** (`backend/test_trip_api.py`): endpoint + builder tests with the LLM
-  mocked (no key/network) — covers parse/agent/enhance/generate-media, the
-  truncation guard, and enhancement partial-failure merging.
+- **AI steps** (`frontend/src/services/tripAi.test.ts`, Vitest): a fake
+  `CompleteFn`, no key/network — one `describe` per export: the heuristics
+  (`detectDayNumbers`, `mentionsAddingADay`, `mentionsDeletion`, `looksTruncated`),
+  `extractJson`, `sanitizeTrip`, `agentConfigFrom`, and `createTripAi()`'s
+  `parseTripText`, `agentTurn` and `enhanceTrip`.
 - **Frontend unit** (Vitest + RTL): `api.test.ts`, `App.test.tsx`,
-  `App.shared.test.tsx`, and component tests (`ApiKeyMenu`, `CloudMenu`,
-  `ItineraryList`, `MapView`, `PriceSummary`, `ThemeSelector`).
-- **E2E** (`frontend/e2e/`, Playwright): real browser + dev server, backend
-  mocked — exercises the full 4-step flow and shared-link view.
-- **Suggested addition:** a contract test asserting the TS `TripData`/`Activity`
-  interfaces stay in sync with `backend/models.py` (they are hand-mirrored today).
+  `App.shared.test.tsx`, `App.editLink.test.tsx`, and component tests (e.g.
+  `AiSettingsPanel`, `CloudMenu`, `ItineraryList`, `MapView`, `PriceSummary`,
+  `ThemeSelector`).
+- **E2E** (`frontend/e2e/`, Playwright): real browser + dev server — exercises the
+  full 4-step flow and shared-link view.
+- **Suggested addition:** a contract test asserting the prompt schemas in
+  `frontend/src/data/` stay in sync with the TS `TripData`/`Activity` interfaces.
 
 ---
 
@@ -477,14 +445,11 @@ our backend.
 
 | Concern | File |
 |---------|------|
-| App factory / CORS / static | `backend/trip_api_backend.py` |
-| Serverless entrypoint | `backend/api/index.py` |
-| API contract | `backend/models.py` |
-| Endpoints + builder + guards | `backend/routers/builder.py` |
-| LLM abstraction + retries | `backend/services/llm.py` |
-| TTS abstraction | `backend/services/tts.py` |
 | Mode switch + state | `frontend/src/App.tsx` |
-| Typed API client + TS types | `frontend/src/api.ts` |
+| AI entry points + TS types | `frontend/src/api.ts` |
+| AI steps, guards, sanitising | `frontend/src/services/tripAi.ts` |
+| Prompt JSON schemas | `frontend/src/data/*.json` |
+| New-activity enhancement top-up | `frontend/src/services/tripEnhance.ts` |
 | Generated-app UI | `frontend/src/components/AppFrame.tsx` |
 | Itinerary edit/add | `frontend/src/components/ItineraryList.tsx` |
 | Podcast playback | `frontend/src/hooks/usePodcastPlayer.ts` |

@@ -1,171 +1,88 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { parseTrip, agentInteract, generateMedia, API_BASE_URL } from "./api";
+import type { AgentConfig } from "modeldispatcher-browser-agent";
+
+const dispatcher = vi.hoisted(() => ({ complete: vi.fn() }));
+vi.mock("modeldispatcher-browser-agent", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("modeldispatcher-browser-agent")>()),
+  complete: dispatcher.complete,
+}));
+
+import { agentInteract, enhanceTrip, parseTrip } from "./api";
 import type { TripData } from "./api";
 
-const sampleTrip: TripData = {
+const trip: TripData = {
   title: "Trip",
   dates: "Mon - Tue",
+  language: "en",
   days: [{ dayNum: 1, activities: [] }],
 };
+const CREDENTIALS = [
+  { provider: "groq", api_keys: ["g1"] },
+  { provider: "gemini", api_keys: ["k1", "k2"] },
+];
 
-const fetchMock = vi.fn<typeof fetch>();
+describe("api", () => {
+  const fetchMock = vi.fn<typeof fetch>();
 
-describe("api client", () => {
   beforeEach(() => {
+    dispatcher.complete.mockReset();
     fetchMock.mockReset();
     vi.stubGlobal("fetch", fetchMock);
   });
 
-  it("parseTrip posts raw text to /api/trip/parse and returns the parsed response", async () => {
-    const responseBody = { trip_data: sampleTrip, initial_agent_message: "hi" };
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => responseBody,
-    } as Response);
+  it("parseTrip calls the user's providers directly, in order, and never an app server", async () => {
+    dispatcher.complete.mockResolvedValue(JSON.stringify(trip));
 
-    const result = await parseTrip("some trip text");
+    const result = await parseTrip("two days in Rome", null, CREDENTIALS);
 
-    expect(fetch).toHaveBeenCalledWith(
-      `${API_BASE_URL}/api/trip/parse`,
-      expect.objectContaining({
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          raw_text: "some trip text",
-          preferences: null,
-          credentials: null,
-          api_keys: null,
-          provider: null,
-        }),
-      }),
-    );
-    expect(result).toEqual(responseBody);
-  });
-
-  it("parseTrip threads an explicit preferences string through to the request body", async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => ({ trip_data: sampleTrip, initial_agent_message: null }),
-    } as Response);
-
-    await parseTrip("some trip text", "Vegan");
-
-    expect(fetch).toHaveBeenCalledWith(
-      `${API_BASE_URL}/api/trip/parse`,
-      expect.objectContaining({
-        body: JSON.stringify({
-          raw_text: "some trip text",
-          preferences: "Vegan",
-          credentials: null,
-          api_keys: null,
-          provider: null,
-        }),
-      }),
-    );
-  });
-
-  it("parseTrip threads the caller's own API keys + provider through to the request body", async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => ({ trip_data: sampleTrip, initial_agent_message: null }),
-    } as Response);
-
-    await parseTrip("some trip text", null, ["claude-key-a", "claude-key-b"], "anthropic");
-
-    expect(fetch).toHaveBeenCalledWith(
-      `${API_BASE_URL}/api/trip/parse`,
-      expect.objectContaining({
-        body: JSON.stringify({
-          raw_text: "some trip text",
-          preferences: null,
-          credentials: null,
-          api_keys: ["claude-key-a", "claude-key-b"],
-          provider: "anthropic",
-        }),
-      }),
-    );
-  });
-
-  it("parseTrip threads multi-provider credentials through to the request body", async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => ({ trip_data: sampleTrip, initial_agent_message: null }),
-    } as Response);
-
-    await parseTrip("some trip text", null, ["key-a"], "gemini", [
-      { provider: "gemini", api_keys: ["key-a"] },
-      { provider: "groq", api_keys: ["key-b", "key-c"] },
+    const cfg = dispatcher.complete.mock.calls[0]?.[0] as AgentConfig;
+    expect(cfg.providers.map((p) => [p.provider, p.apiKeys])).toEqual([
+      ["groq", ["g1"]],
+      ["gemini", ["k1", "k2"]],
     ]);
+    expect(result).toEqual({
+      trip_data: expect.objectContaining({ title: "Trip" }),
+      initial_agent_message: null,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 
-    expect(fetch).toHaveBeenCalledWith(
-      `${API_BASE_URL}/api/trip/parse`,
-      expect.objectContaining({
-        body: JSON.stringify({
-          raw_text: "some trip text",
-          preferences: null,
-          credentials: [
-            { provider: "gemini", api_keys: ["key-a"] },
-            { provider: "groq", api_keys: ["key-b", "key-c"] },
+  it("agentInteract returns the updated trip and the agent's reply", async () => {
+    dispatcher.complete.mockResolvedValue(
+      JSON.stringify({ updated_trip: { ...trip, title: "Renamed" }, agent_reply: "Renamed it" }),
+    );
+
+    const result = await agentInteract(trip, "rename the trip", null, CREDENTIALS);
+
+    expect(result.trip_data.title).toBe("Renamed");
+    expect(result.agent_reply).toBe("Renamed it");
+  });
+
+  it("enhanceTrip returns the trip with the requested extras", async () => {
+    const withStop: TripData = {
+      ...trip,
+      days: [
+        {
+          dayNum: 1,
+          activities: [
+            {
+              id: "a",
+              time: "",
+              title: "Museum",
+              desc: "",
+              type: "attraction",
+              map_coordinates: { lat: 1, lng: 1 },
+            },
           ],
-          api_keys: ["key-a"],
-          provider: "gemini",
-        }),
-      }),
-    );
-  });
+        },
+      ],
+    };
+    const priced = structuredClone(withStop);
+    priced.days[0]!.activities[0]!.price = 15;
+    dispatcher.complete.mockResolvedValue(JSON.stringify(priced));
 
-  it("agentInteract posts trip data + message to /api/trip/agent", async () => {
-    const responseBody = { trip_data: sampleTrip, agent_reply: "ok" };
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => responseBody,
-    } as Response);
+    const result = await enhanceTrip(withStop, { prices: true }, CREDENTIALS);
 
-    const result = await agentInteract(sampleTrip, "add food");
-
-    expect(fetch).toHaveBeenCalledWith(
-      `${API_BASE_URL}/api/trip/agent`,
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          trip_data: sampleTrip,
-          user_message: "add food",
-          preferences: null,
-          credentials: null,
-          api_keys: null,
-          provider: null,
-        }),
-      }),
-    );
-    expect(result).toEqual(responseBody);
-  });
-
-  it("generateMedia posts trip data to /api/trip/generate-media", async () => {
-    const responseBody = { trip_data: sampleTrip, status: "ok" };
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => responseBody,
-    } as Response);
-
-    const result = await generateMedia(sampleTrip);
-
-    expect(fetch).toHaveBeenCalledWith(
-      `${API_BASE_URL}/api/trip/generate-media`,
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ trip_data: sampleTrip }),
-      }),
-    );
-    expect(result).toEqual(responseBody);
-  });
-
-  it("throws an Error when the response is not OK", async () => {
-    fetchMock.mockResolvedValue({
-      ok: false,
-      status: 502,
-      text: async () => "bad gateway",
-    } as Response);
-
-    await expect(parseTrip("text")).rejects.toThrow(/API request failed \(502\)/);
+    expect(result.trip_data.days[0]?.activities[0]?.price).toBe(15);
   });
 });

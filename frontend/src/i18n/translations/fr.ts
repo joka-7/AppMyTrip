@@ -79,7 +79,6 @@ export const fr: Record<TranslationKey, string> = {
   "step3.subtitle": "Notre IA parcourt l'itinéraire et s'assure que vous n'avez rien oublié.",
   "step3.datesLabel": "Dates du voyage",
   "step3.datesPlaceholder": "Par exemple : 12–19 juillet",
-  "step3.generating": "Génération des médias (podcasts)...",
   "step3.continue": "Continuer vers le design de l'app",
   "step3.external.heading": "Envoyer à une IA externe",
   "step3.external.intro":
@@ -316,7 +315,7 @@ export const fr: Record<TranslationKey, string> = {
   "apiKey.descriptionAfter":
     ". Vous pouvez ajouter plusieurs clés ; quand l'une atteint sa limite, nous passons automatiquement à la suivante. Tout est stocké uniquement dans votre navigateur.",
   "apiKey.trustNote":
-    "Chaque clé est envoyée avec vos requêtes au serveur de cette application (jamais à un tiers), uniquement pour être transmise au fournisseur choisi — elle n'est jamais stockée sur le serveur ni journalisée en entier.",
+    "Chaque clé va directement de cet appareil au fournisseur choisi — jamais par un serveur AppMyTrip, et elle n'est jamais journalisée.",
   "apiKey.removeAria": "Supprimer la clé {key}",
   "apiKey.showAria": "Afficher la clé",
   "apiKey.hideAria": "Masquer la clé",
@@ -467,13 +466,11 @@ export const fr: Record<TranslationKey, string> = {
   "notice.rateLimitedDemo":
     "Le fournisseur d'IA limite les requêtes en ce moment — réessayez dans une minute. En attendant, un voyage d'exemple a été chargé.",
   "notice.unreachableDemo":
-    "Impossible de se connecter au serveur d'IA — un voyage d'exemple a été chargé.",
+    "Impossible de joindre le fournisseur d'IA — un voyage d'exemple a été chargé.",
   "notice.enhanceFailed":
     "L'ajout des détails supplémentaires a échoué — nous continuons avec l'itinéraire actuel.",
   "notice.retry": "Réessayer",
   "notice.updateFailed": "La mise à jour a échoué — l'itinéraire n'a pas changé.",
-  "notice.mediaFailed":
-    "La génération des médias sur le serveur a échoué — nous continuons sans fichiers audio.",
   "agent.initial": "J'ai reconnu le voyage ! Parcourez l'itinéraire et corrigez ce qu'il faut.",
   "agent.demo":
     "J'ai chargé un voyage d'exemple pour vous montrer comment l'app fonctionne. Pour analyser un vrai texte, configurez votre propre clé API Gemini (bouton « Configurer la clé API » ci-dessus) — ou continuez à éditer manuellement.",
@@ -486,7 +483,7 @@ export const fr: Record<TranslationKey, string> = {
     "Le chargement du voyage partagé a échoué. Le lien est peut-être erroné ou le voyage a été supprimé.",
   "shared.loading": "Chargement du voyage...",
 
-  // Offline demo trip (shown when the backend is unreachable)
+  // Offline demo trip (shown when an AI call fails)
   "demo.title": "Voyage d'exemple ✨",
   "demo.dates": "dim. – mar.",
   "demo.d1a1.title": "Enregistrement à l'hôtel",

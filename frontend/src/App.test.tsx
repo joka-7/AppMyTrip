@@ -16,7 +16,6 @@ vi.mock("./api", async (importOriginal) => {
     ...actual,
     parseTrip: vi.fn(),
     agentInteract: vi.fn(),
-    generateMedia: vi.fn(),
     enhanceTrip: vi.fn(),
   };
 });
@@ -90,7 +89,7 @@ describe("App builder flow", () => {
       expect(screen.getByText("Sample Trip")).toBeInTheDocument();
       expect(screen.getByText("Museum")).toBeInTheDocument();
     });
-    expect(screen.queryByText(/לא הצלחנו להתחבר לשרת ה-AI/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/לא הצלחנו להגיע לספק ה-AI/)).not.toBeInTheDocument();
   });
 
   // On a shared device, account B must not inherit (and later save) A's trip.
@@ -119,7 +118,7 @@ describe("App builder flow", () => {
     expect(tripsStore.claimDeviceData).toHaveBeenCalledWith("account-b");
   });
 
-  it("falls back to the demo trip and shows a notice when the backend call fails", async () => {
+  it("falls back to the demo trip and shows a notice when the AI call fails", async () => {
     vi.mocked(api.parseTrip).mockRejectedValue(new Error("network down"));
 
     render(<App />);
@@ -127,7 +126,7 @@ describe("App builder flow", () => {
     fireEvent.click(screen.getByRole("button", { name: /צור מבנה אפליקציה ראשוני/ }));
 
     await waitFor(() => {
-      expect(screen.getByText(/לא הצלחנו להתחבר לשרת ה-AI/)).toBeInTheDocument();
+      expect(screen.getByText(/לא הצלחנו להגיע לספק ה-AI/)).toBeInTheDocument();
     });
 
     expect(screen.getByText("שיפורים נוספים (אופציונלי)")).toBeInTheDocument();
@@ -171,8 +170,6 @@ describe("App builder flow", () => {
           packing: true,
         },
         [],
-        "gemini",
-        [],
       );
     });
   });
@@ -212,8 +209,6 @@ describe("App builder flow", () => {
       expect(api.enhanceTrip).toHaveBeenLastCalledWith(
         expect.objectContaining(sampleTrip),
         { prices: true },
-        [],
-        "gemini",
         [],
       );
     });
@@ -287,7 +282,7 @@ describe("App builder flow", () => {
     expect(screen.getByText("₪20")).toBeInTheDocument();
   });
 
-  it("shows the backend's actual failure detail alongside the friendly message on a 502", async () => {
+  it("shows the provider's actual failure detail alongside the friendly message on a 502", async () => {
     vi.mocked(api.parseTrip).mockResolvedValue({
       trip_data: sampleTrip,
       initial_agent_message: "Welcome!",
@@ -295,7 +290,7 @@ describe("App builder flow", () => {
     vi.mocked(api.agentInteract).mockRejectedValue(
       new ApiError(
         502,
-        "LLM API rejected the request: 404 Not Found for url 'https://openrouter.ai/api/v1/chat/completions'",
+        "LLM API rejected the request: 404 Not Found for url 'https://api.groq.com/openai/v1/chat/completions'",
       ),
     );
 

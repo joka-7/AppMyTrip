@@ -8,7 +8,7 @@ import React, {
   type SetStateAction,
 } from "react";
 import { ChevronLeft, Globe, Smartphone, Wand2 } from "lucide-react";
-import { parseTrip, agentInteract, generateMedia, enhanceTrip, ApiError } from "./api";
+import { parseTrip, agentInteract, enhanceTrip, ApiError } from "./api";
 import type { EnhanceOptions, TripData } from "./api";
 import ApiNotice from "./components/ApiNotice";
 import BuilderStep1 from "./components/BuilderStep1";
@@ -22,7 +22,7 @@ import { useBackToClose } from "./hooks/useBackToClose";
 import { useChecklistSuggest } from "./hooks/useChecklistSuggest";
 import { useTripEditing } from "./hooks/useTripEditing";
 import { DEFAULT_APP_DESIGN, type AppDesign } from "./services/appDesign";
-import { getApiKeys, getApiProvider, getAllCredentials } from "./services/apiKey";
+import { getAllCredentials } from "./services/apiKey";
 import { getAiMode } from "./services/externalChat";
 import type { ExternalAgentTurn } from "./services/externalTripReply";
 import { appendErrorDetail } from "./services/errorMessage";
@@ -81,22 +81,21 @@ const SHARED_EDIT_TOKEN = new URLSearchParams(window.location.hash.slice(1)).get
 // Empty starting point — the preview shows an empty state until a trip is parsed.
 const EMPTY_TRIP: TripData = { title: "", dates: "", days: [] };
 
-// The backend surfaces a 429 status when the LLM provider is rate-limiting
-// the configured API key — worth telling the user apart from a generic
+// tripAi.ts reports a 429 status when the LLM provider is rate-limiting
+// every saved API key — worth telling the user apart from a generic
 // "server unreachable" failure, since it's transient and not a config issue.
 const isRateLimited = (err: unknown): boolean => err instanceof ApiError && err.status === 429;
 
 // Turns a failed API call into a specific, honest Hebrew explanation instead of a
-// generic "something went wrong" — but doesn't show most backend `detail` text
-// verbatim, since that's often a developer-facing string (sometimes an entire
-// Pydantic validation dump) that isn't fit for a chat bubble. Instead, classify by
+// generic "something went wrong" — but doesn't show most `detail` text
+// verbatim, since that's often a developer-facing string that isn't fit for a
+// chat bubble. Instead, classify by
 // HTTP status into a short, clean explanation a non-technical user can act on.
 //
 // 502/504 (the provider/every-key-failed case) is the one exception: its `detail`
-// is always our own short, already-user-facing summary (which key/provider failed
-// and why — see LLMService._summarize_failures on the backend), not a raw dump, and
-// it's exactly the case people otherwise have to dig through server logs to
-// diagnose. Appending it here means the actual cause is visible right in the app.
+// is our own short summary of which provider failed and why (see classify in
+// services/tripAi.ts), not a raw dump, and it's exactly the case people otherwise
+// have to dig through the browser console to diagnose. Appending it here means the actual cause is visible right in the app.
 const describeApiError = (err: unknown, fallback: string): string => {
   if (isRateLimited(err)) {
     return translate("apiError.rateLimited");
@@ -124,8 +123,8 @@ const describeApiError = (err: unknown, fallback: string): string => {
   return fallback;
 };
 
-// Generic sample trip used as an offline demo / fallback when the backend is
-// unreachable (e.g. no GEMINI_API_KEY). Intentionally not tied to a specific
+// Generic sample trip used as an offline demo / fallback when the AI call
+// fails (e.g. no saved key). Intentionally not tied to a specific
 // real destination; coordinates are clustered so the auto-fit map looks sensible.
 // Built lazily so the activity titles/descriptions render in the current UI
 // language.
@@ -259,10 +258,9 @@ function TripBuilder() {
   const [preferences, setPreferences] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isEnhancing, setIsEnhancing] = useState(false);
-  const [isGeneratingMedia, setIsGeneratingMedia] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [chatInput, setChatInput] = useState("");
-  // Set when a backend call fails and we fall back to local mock behaviour.
+  // Set when an AI call fails and we fall back to local mock behaviour.
   const [apiNotice, setApiNotice] = useState<string | null>(null);
   // Chat-turn failures stay in the chat panel (with a Retry button) rather than
   // competing with the top ApiNotice used for parse/enhance/media.
@@ -271,7 +269,7 @@ function TripBuilder() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const pdfTargetRef = useRef<HTMLDivElement>(null);
 
-  // Starts empty; populated by /api/trip/parse (or DEMO_TRIP on fallback).
+  // Starts empty; populated by parseTrip (or DEMO_TRIP on fallback).
   const [tripData, setTripData] = useState<TripData>(EMPTY_TRIP);
   // Id of the trip currently being edited, once saved/loaded — null means
   // "not saved yet", so the next deploy/save creates a new trip rather than
@@ -325,13 +323,7 @@ function TripBuilder() {
     setApiNotice(null);
     setFailedEnhanceOptions(null);
     try {
-      const res = await parseTrip(
-        rawText,
-        preferences || null,
-        getApiKeys(),
-        getApiProvider(),
-        getAllCredentials(),
-      );
+      const res = await parseTrip(rawText, preferences || null, getAllCredentials());
       setTripData(normalizeTripForLoad(res.trip_data));
       setTripId(null);
       setAgentMessages(
@@ -353,7 +345,7 @@ function TripBuilder() {
   };
 
   /** Continues exactly as handleProcessText's success path would, but from a
-   * trip parsed out of a pasted external-AI reply instead of a backend call —
+   * trip parsed out of a pasted external-AI reply instead of a keyed AI call —
    * see BuilderStep1's no-key escape hatch. */
   const handleExternalReplyParsed = (tripData: TripData) => {
     setApiNotice(null);
@@ -438,13 +430,7 @@ function TripBuilder() {
     setEnhanceOptions(options);
     setIsEnhancing(true);
     try {
-      const res = await enhanceTrip(
-        tripData,
-        options,
-        getApiKeys(),
-        getApiProvider(),
-        getAllCredentials(),
-      );
+      const res = await enhanceTrip(tripData, options, getAllCredentials());
       setTripData(normalizeTripForLoad(res.trip_data));
       setFailedEnhanceOptions(null);
       setApiNotice(null);
@@ -459,7 +445,7 @@ function TripBuilder() {
   };
 
   /** Continues exactly as handleEnhance's success path would, but from a trip
-   * parsed out of a pasted external-AI reply instead of a backend call — see
+   * parsed out of a pasted external-AI reply instead of a keyed AI call — see
    * BuilderStep2's no-key escape hatch. */
   const handleExternalEnhanceApplied = (trip: TripData) => {
     setTripData(normalizeTripForLoad(trip));
@@ -482,8 +468,6 @@ function TripBuilder() {
         priorTrip,
         userText,
         preferences || null,
-        getApiKeys(),
-        getApiProvider(),
         getAllCredentials(),
       );
       // Applied right away — the agent's edit is the authoritative new state,
@@ -529,7 +513,7 @@ function TripBuilder() {
   };
 
   /** Applies one chat turn parsed from a pasted external-AI reply — see
-   * BuilderStep3's no-key escape hatch. Skips the backend-only follow-up
+   * BuilderStep3's no-key escape hatch. Skips the keyed follow-up
    * enhance pass sendChatMessage runs for newly added activities (see
    * findNewActivities below); nothing left to fall back to without a key. */
   const handleExternalAgentTurnApplied = (userMessage: string, turn: ExternalAgentTurn) => {
@@ -561,21 +545,6 @@ function TripBuilder() {
     isSuggesting: isSuggestingChecklist,
     error: checklistSuggestError,
   } = useChecklistSuggest(tripData, setTripData);
-
-  const handleContinueToDesign = async () => {
-    setIsGeneratingMedia(true);
-    try {
-      const res = await generateMedia(tripData);
-      setTripData(normalizeTripForLoad(res.trip_data));
-    } catch (err) {
-      console.error(err);
-      setApiNotice(t("notice.mediaFailed"));
-      setFailedEnhanceOptions(null);
-    } finally {
-      setIsGeneratingMedia(false);
-      goToStep(4);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-surface font-sans" dir={dir}>
@@ -714,9 +683,8 @@ function TripBuilder() {
                   chatNotice={chatNotice}
                   onRetryChat={failedChatText ? handleRetryChat : undefined}
                   failedChatText={failedChatText}
-                  onContinue={handleContinueToDesign}
+                  onContinue={() => goToStep(4)}
                   onBack={() => goToStep(2)}
-                  isGeneratingMedia={isGeneratingMedia}
                   tripData={tripData}
                   preferences={preferences}
                   aiMode={getAiMode()}
@@ -930,14 +898,7 @@ function SharedTripViewer({
     setChatNotice(null);
 
     try {
-      const res = await agentInteract(
-        priorTrip,
-        userText,
-        null,
-        getApiKeys(),
-        getApiProvider(),
-        getAllCredentials(),
-      );
+      const res = await agentInteract(priorTrip, userText, null, getAllCredentials());
       // See TripBuilder's own handleSendMessage for why this is normalized and
       // applied immediately, with new activities enhanced (and merged in) as a
       // separate, non-blocking step below.

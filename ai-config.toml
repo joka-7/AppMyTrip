@@ -6,8 +6,8 @@
 name = "AppMyTrip"
 
 [stack]
-# FastAPI backend (Python) + React/TS frontend
-languages  = ["python", "typescript"]
+# React/TS frontend (web + Capacitor Android); no backend
+languages  = ["typescript"]
 frameworks = ["react"]
 practices  = ["testing", "git-commits", "security", "architecture", "documentation"]
 
