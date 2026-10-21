@@ -541,6 +541,10 @@ export function createDriveSync({
   // Counts uploads, so a read started before one is never handed to a caller that asked after it.
   let writeEpoch = 0;
   let readInFlight: { epoch: number; promise: Promise<MergedView> } | null = null;
+  // Bumped whenever the connected account may change. A write batch records it
+  // when it starts, and every request of that batch (retries included) checks
+  // it, so a batch from one account can never run on another account's token.
+  let sessionGeneration = 0;
 
   const isConfigured = () => Boolean(clientId);
   const expiryMargin = nativeAuth ? NATIVE_TOKEN_EXPIRY_MARGIN_MS : TOKEN_EXPIRY_MARGIN_MS;
@@ -722,8 +726,15 @@ export function createDriveSync({
     if (!res.ok) {
       throw new DriveSyncError("Could not read the Google account.", { status: res.status });
     }
-    const info = (await res.json()) as { sub: string; email?: string; name?: string };
-    return { uid: info.sub, email: info.email || "", displayName: info.name || "" };
+    const info = (await res.json()) as { sub?: unknown; email?: unknown; name?: unknown };
+    if (typeof info.sub !== "string" || !info.sub) {
+      throw new DriveSyncError("Google did not identify the account.", { code: "access_denied" });
+    }
+    return {
+      uid: info.sub,
+      email: typeof info.email === "string" ? info.email : "",
+      displayName: typeof info.name === "string" ? info.name : "",
+    };
   }
 
   async function signIn(): Promise<DriveUser> {
@@ -733,6 +744,7 @@ export function createDriveSync({
     const response = await requestToken();
     const user = await fetchUser(response.access_token);
     if (session?.user?.uid !== user.uid) {
+      sessionGeneration += 1;
       ownFileId = null;
       documentCache.clear();
       latestSeenAt = 0;
@@ -772,7 +784,11 @@ export function createDriveSync({
     init: RequestInit = {},
     retried = false,
     attempt = 0,
+    generation?: number,
   ): Promise<Response> {
+    if (generation !== undefined && generation !== sessionGeneration) {
+      throw new DriveSyncError("Signed out before sync.", { code: "signed-out" });
+    }
     const token = await accessToken();
     const res = await fetchImpl(url, {
       ...init,
@@ -783,11 +799,11 @@ export function createDriveSync({
     if (res.status === 401 && session) {
       // Revoked or expired early: drop the token. The app renews and retries once.
       setSession(expiredSession());
-      if (canRenewSilently() && !retried) return driveFetch(url, init, true, attempt);
+      if (canRenewSilently() && !retried) return driveFetch(url, init, true, attempt, generation);
     }
     if (!res.ok && attempt < MAX_ATTEMPTS - 1 && worthRetrying(res.status, init.method)) {
       await sleep(retryDelayMs(attempt, res));
-      return driveFetch(url, init, retried, attempt + 1);
+      return driveFetch(url, init, retried, attempt + 1, generation);
     }
     if (!res.ok) {
       throw new DriveSyncError(`Google Drive request failed (${res.status}).`, {
@@ -797,7 +813,11 @@ export function createDriveSync({
     return res;
   }
 
-  async function listFiles(query: string, pageToken = ""): Promise<DriveFile[]> {
+  async function listFiles(
+    query: string,
+    pageToken = "",
+    generation?: number,
+  ): Promise<DriveFile[]> {
     const params = new URLSearchParams({
       spaces: "appDataFolder",
       q: query,
@@ -805,12 +825,16 @@ export function createDriveSync({
       pageSize: "1000",
     });
     if (pageToken) params.set("pageToken", pageToken);
-    const page = (await (await driveFetch(`${DRIVE_API}/files?${params}`)).json()) as {
+    const page = (await (
+      await driveFetch(`${DRIVE_API}/files?${params}`, {}, false, 0, generation)
+    ).json()) as {
       files?: DriveFile[];
       nextPageToken?: string;
     };
     const files = page.files ?? [];
-    return page.nextPageToken ? [...files, ...(await listFiles(query, page.nextPageToken))] : files;
+    return page.nextPageToken
+      ? [...files, ...(await listFiles(query, page.nextPageToken, generation))]
+      : files;
   }
 
   const listDeviceFiles = async () =>
@@ -818,8 +842,14 @@ export function createDriveSync({
       (file) => file.name.startsWith(FILE_PREFIX) && file.name.endsWith(".json"),
     );
 
-  async function readFile(id: string): Promise<DeviceDocument> {
-    const res = await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(id)}?alt=media`);
+  async function readFile(id: string, generation?: number): Promise<DeviceDocument> {
+    const res = await driveFetch(
+      `${DRIVE_API}/files/${encodeURIComponent(id)}?alt=media`,
+      {},
+      false,
+      0,
+      generation,
+    );
     // A connection dropped mid-download is a network error, not a corrupt file.
     const text = await res.text().catch((err: unknown) => {
       throw offlineError(err);
@@ -937,14 +967,14 @@ export function createDriveSync({
     return readInFlight.promise;
   }
 
-  async function readOwnDocument(): Promise<DeviceDocument> {
+  async function readOwnDocument(generation: number): Promise<DeviceDocument> {
     if (!ownFileId) {
-      const [file] = await listFiles(`name = '${ownFileName()}'`);
+      const [file] = await listFiles(`name = '${ownFileName()}'`, "", generation);
       ownFileId = file?.id ?? null;
     }
     if (!ownFileId) return emptyDocument(deviceId());
     try {
-      const own = await readFile(ownFileId);
+      const own = await readFile(ownFileId, generation);
       latestSeenAt = Math.max(latestSeenAt, latestStamp(own));
       return own;
     } catch (err) {
@@ -956,7 +986,7 @@ export function createDriveSync({
     }
   }
 
-  async function writeOwnDocument(document: DeviceDocument) {
+  async function writeOwnDocument(document: DeviceDocument, generation: number) {
     const body = JSON.stringify(document);
     writeEpoch += 1;
     if (ownFileId) {
@@ -964,6 +994,9 @@ export function createDriveSync({
       await driveFetch(
         `${DRIVE_UPLOAD_API}/files/${encodeURIComponent(ownFileId)}?uploadType=media`,
         { method: "PATCH", headers: { "Content-Type": "application/json" }, body },
+        false,
+        0,
+        generation,
       );
       writeEpoch += 1;
       return;
@@ -982,11 +1015,17 @@ export function createDriveSync({
       `--${boundary}--`,
       "",
     ].join("\r\n");
-    const res = await driveFetch(`${DRIVE_UPLOAD_API}/files?uploadType=multipart&fields=id`, {
-      method: "POST",
-      headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
-      body: multipart,
-    });
+    const res = await driveFetch(
+      `${DRIVE_UPLOAD_API}/files?uploadType=multipart&fields=id`,
+      {
+        method: "POST",
+        headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
+        body: multipart,
+      },
+      false,
+      0,
+      generation,
+    );
     ownFileId = ((await res.json()) as { id: string }).id;
     writeEpoch += 1;
   }
@@ -996,10 +1035,11 @@ export function createDriveSync({
     const batch = queue;
     queue = [];
     if (batch.length === 0) return;
+    const generation = sessionGeneration;
     try {
       await withLock(async () => {
         // Re-read under the lock: another tab of this browser shares the file.
-        const own = await readOwnDocument();
+        const own = await readOwnDocument(generation);
         const at = nextStamp(now(), latestSeenAt);
         await writeOwnDocument(
           applyOperations(
@@ -1007,6 +1047,7 @@ export function createDriveSync({
             batch.map((entry) => entry.op),
             at,
           ),
+          generation,
         );
         latestSeenAt = at;
       });
@@ -1066,6 +1107,7 @@ export function createDriveSync({
   }
 
   function endSession() {
+    sessionGeneration += 1;
     dropQueuedWrites();
     ownFileId = null;
     latestSeenAt = 0;

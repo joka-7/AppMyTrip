@@ -533,6 +533,37 @@ describe("createDriveSync", () => {
     });
   });
 
+  describe("account switch", () => {
+    // A batch already inside the lock kept going after sign-out and picked up
+    // whatever token was current, so it could land in the next account's Drive.
+    it("never lands a write that was in flight when the session ended", async () => {
+      let openGate = () => {};
+      const gate = new Promise<void>((resolve) => {
+        openGate = resolve;
+      });
+      const google = fakeGoogle();
+      const { sync } = build({ google, storage: signedIn(), withLock: (task) => gate.then(task) });
+      const pending = sync.upsert(TRIPS, { id: "from-a" });
+      pending.catch(() => {});
+      await vi.advanceTimersByTimeAsync(150);
+      await sync.signOut();
+      await sync.signIn();
+      openGate();
+      await settle();
+      await expect(pending).rejects.toMatchObject({ code: "signed-out" });
+      expect(Object.keys(google.state.files)).toEqual([]);
+    });
+
+    it("refuses an account Google reports without an id", async () => {
+      const google = fakeGoogle();
+      const fetchImpl = vi.fn(async (url: string, init?: RequestInit) =>
+        url.includes("userinfo") ? reply({ email: "x@y" }) : google.fetchImpl(url, init),
+      );
+      const { sync } = build({ google: { ...google, fetchImpl } });
+      await expect(sync.signIn()).rejects.toThrow();
+    });
+  });
+
   describe("remove", () => {
     // Deleted records come back unless the tombstone reaches the merge.
     it("hides the record even though another device still holds an older copy", async () => {
