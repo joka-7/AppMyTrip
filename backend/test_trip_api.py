@@ -503,8 +503,8 @@ def test_execute_with_retry_fails_fast_on_a_permanent_4xx_even_on_the_last_key(m
 def test_execute_with_retry_never_logs_the_api_key(monkeypatch, caplog, status):
     # httpx's str(HTTPStatusError) embeds the full request URL; a provider
     # that ever puts a key in the URL must not leak it into server logs.
-    secret = "AIzaSECRETKEY123456"
-    request = httpx.Request("POST", f"https://example.test/v1/generate?key={secret}")
+    marker = "not-a-real-key-marker"
+    request = httpx.Request("POST", f"https://example.test/v1/generate?key={marker}")
     response = httpx.Response(status, request=request)
     error = httpx.HTTPStatusError(
         f"Client error for url '{request.url}'", request=request, response=response
@@ -525,10 +525,10 @@ def test_execute_with_retry_never_logs_the_api_key(monkeypatch, caplog, status):
     monkeypatch.setattr(LLMService, "_sleep_within_deadline", AsyncMock())
 
     with caplog.at_level("INFO", logger="llm"), pytest.raises(HTTPException) as exc_info:
-        asyncio.run(LLMService._execute_with_retry("sys", "user", api_keys=[secret, secret + "2"]))
+        asyncio.run(LLMService._execute_with_retry("sys", "user", api_keys=[marker, marker + "2"]))
 
-    assert secret not in caplog.text
-    assert secret not in str(exc_info.value.detail)
+    assert marker not in caplog.text
+    assert marker not in str(exc_info.value.detail)
 
 
 def test_gemini_provider_sends_key_in_header_not_url(monkeypatch):
