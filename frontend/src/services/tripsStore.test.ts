@@ -30,7 +30,13 @@ function fakeDrive() {
       drive.deletedAll = true;
     }),
     loadAll: vi.fn(async () => ({ items: [...records.values()], deletedIds: [] })),
+    /** Upserts left before the next one fails (null = never fail). */
+    upsertsBeforeFailure: null as number | null,
     upsert: vi.fn(async (_c: string, item: DriveRecord) => {
+      if (drive.upsertsBeforeFailure !== null && drive.upsertsBeforeFailure-- === 0) {
+        drive.upsertsBeforeFailure = null;
+        throw new Error("drive down");
+      }
       records.set(item.id, structuredClone(item));
     }),
     remove: vi.fn(async (_c: string, id: string) => {
@@ -43,16 +49,16 @@ function fakeDrive() {
 /** In-memory share store that enforces what firestore.rules enforces. */
 function fakeShares() {
   const docs = new Map<string, SharedTripWrite & { hash: string }>();
-  let failNextUpdate = false;
+  let updatesToFail = 0;
   let failNextCreate = false;
   const shares: SharedTripsBackend & {
     docs: typeof docs;
-    failNextUpdate(): void;
+    failNextUpdate(count?: number): void;
     failNextCreate(): void;
   } = {
     docs,
-    failNextUpdate: () => {
-      failNextUpdate = true;
+    failNextUpdate: (count = 1) => {
+      updatesToFail = count;
     },
     failNextCreate: () => {
       failNextCreate = true;
@@ -69,8 +75,8 @@ function fakeShares() {
       docs.set(id, { ...data, hash: data.ownerTokenHash });
     },
     async update(id, data) {
-      if (failNextUpdate) {
-        failNextUpdate = false;
+      if (updatesToFail > 0) {
+        updatesToFail -= 1;
         throw new Error("network");
       }
       const current = docs.get(id);
@@ -89,6 +95,15 @@ function fakeShares() {
   return shares;
 }
 
+function memoryStorage() {
+  const map = new Map<string, string>();
+  return {
+    getItem: (k: string) => map.get(k) ?? null,
+    setItem: (k: string, v: string) => void map.set(k, v),
+    removeItem: (k: string) => void map.delete(k),
+  };
+}
+
 function build() {
   const drive = fakeDrive();
   const shares = fakeShares();
@@ -101,6 +116,7 @@ function build() {
     now: () => new Date((clock += 1000)),
     newId: () => `trip-${++ids}`,
     onSignOut,
+    storage: memoryStorage(),
   });
   return { store, drive, shares, onSignOut };
 }
@@ -189,6 +205,34 @@ describe("tripsStore", () => {
       expect((await store.loadSharedTrip(shareId, key)).trip.title).toBe("Rome");
     });
 
+    // A re-share whose Firestore update landed but whose final Drive write
+    // failed used to lose the token the stored hash belongs to on the next try.
+    it("never strands the owner when the Drive write after a successful update fails", async () => {
+      const { store, drive, shares } = build();
+      const id = await store.saveTrip(trip("Rome"));
+      await store.shareTrip(id, trip("Rome"));
+      drive.upsertsBeforeFailure = 1;
+      await expect(store.shareTrip(id, trip("Rome 2"))).rejects.toThrow("drive down");
+      shares.failNextUpdate(2);
+      await expect(store.shareTrip(id, trip("Rome 2b"))).rejects.toThrow("network");
+      const link = await store.shareTrip(id, trip("Rome 3"));
+      const { id: shareId, key } = linkParts(link);
+      expect((await store.loadSharedTrip(shareId, key)).trip.title).toBe("Rome 3");
+      await store.unpublishTrip(id);
+      await expect(store.loadSharedTrip(shareId, key)).rejects.toBeInstanceOf(
+        SharedTripUnavailableError,
+      );
+    });
+
+    it("rejects a malformed share id without asking the server", async () => {
+      const { store, shares } = build();
+      const get = vi.spyOn(shares, "get");
+      await expect(store.loadSharedTrip("../x", "k")).rejects.toBeInstanceOf(
+        SharedTripUnavailableError,
+      );
+      expect(get).not.toHaveBeenCalled();
+    });
+
     it.each([
       ["a missing share", "nope", undefined],
       ["a wrong key", undefined, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"],
@@ -230,6 +274,51 @@ describe("tripsStore", () => {
       await expect(store.loadSharedTrip(shareId, key)).rejects.toBeInstanceOf(
         SharedTripUnavailableError,
       );
+    });
+  });
+
+  describe("deleteTrip after the share is gone", () => {
+    // The TTL policy removes expired shares; unpublishing one that no longer
+    // exists used to throw and block deleting the trip (and all data).
+    it("still deletes the trip when its share document no longer exists", async () => {
+      const { store, drive, shares } = build();
+      const id = await store.saveTrip(trip("Rome"));
+      await store.shareTrip(id, trip("Rome"), undefined, 7);
+      shares.docs.clear();
+      await store.deleteTrip(id);
+      expect(drive.records.has(id)).toBe(false);
+    });
+
+    it("revoking sets an expiry so the TTL policy cleans it up", async () => {
+      const { store, shares } = build();
+      const id = await store.saveTrip(trip("Rome"));
+      await store.shareTrip(id, trip("Rome"));
+      await store.unpublishTrip(id);
+      const [doc] = [...shares.docs.values()];
+      expect(doc.revoked).toBe(true);
+      expect(doc.expiresAt).not.toBeNull();
+    });
+
+    it("ignores share secrets in Drive that are not in the expected format", async () => {
+      const { store, drive } = build();
+      const id = await store.saveTrip(trip("Rome"));
+      drive.records.set(id, {
+        ...drive.records.get(id)!,
+        share: { id: "x", key: "y", ownerToken: "z" },
+      });
+      expect(await store.shareLinkFor(id)).toBeNull();
+    });
+  });
+
+  describe("claimDeviceData", () => {
+    // Work left on a shared device by account A must not end up in B's Drive.
+    it("resets device data only when a different account signs in", () => {
+      const { store, onSignOut } = build();
+      expect(store.claimDeviceData("a")).toBe(false);
+      expect(store.claimDeviceData("a")).toBe(false);
+      expect(onSignOut).not.toHaveBeenCalled();
+      expect(store.claimDeviceData("b")).toBe(true);
+      expect(onSignOut).toHaveBeenCalledTimes(1);
     });
   });
 

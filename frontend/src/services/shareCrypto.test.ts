@@ -85,6 +85,24 @@ describe("encryptJson / decryptJson", () => {
     await expect(decryptJson(payload, key)).rejects.toBeInstanceOf(ShareCryptoError);
   });
 
+  it("reports content that decrypts to something other than JSON as a share error", async () => {
+    const key = generateShareKey();
+    const raw = await crypto.subtle.importKey("raw", fromBase64Url(key), "AES-GCM", false, [
+      "encrypt",
+    ]);
+    const iv = new Uint8Array(12);
+    const ciphertext = new Uint8Array(
+      await crypto.subtle.encrypt(
+        { name: "AES-GCM", iv },
+        raw,
+        new TextEncoder().encode("{not json"),
+      ),
+    );
+    await expect(
+      decryptJson({ ciphertext: toBase64Url(ciphertext), iv: toBase64Url(iv) }, key),
+    ).rejects.toBeInstanceOf(ShareCryptoError);
+  });
+
   it("rejects a key of the wrong length", async () => {
     await expect(encryptJson(trip, toBase64Url(new Uint8Array(16)))).rejects.toBeInstanceOf(
       ShareCryptoError,

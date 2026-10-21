@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import App from "./App";
+import * as tripsStore from "./services/tripsStore";
 import * as api from "./api";
 import { ApiError } from "./api";
 import type { TripData } from "./api";
@@ -19,15 +20,21 @@ vi.mock("./api", async (importOriginal) => {
     enhanceTrip: vi.fn(),
   };
 });
+const auth = vi.hoisted(() => ({
+  listeners: new Set<(user: { uid: string; email: string; displayName: string } | null) => void>(),
+}));
 vi.mock("./services/tripsStore", () => ({
-  onAuthChange: () => () => {},
+  onAuthChange: (callback: (user: null) => void) => {
+    auth.listeners.add(callback);
+    return () => auth.listeners.delete(callback);
+  },
+  claimDeviceData: vi.fn(),
   signInWithGoogle: vi.fn(),
   signOutOfGoogle: vi.fn(),
   listTrips: vi.fn(),
   saveTrip: vi.fn(),
   loadTrip: vi.fn(),
   deleteTrip: vi.fn(),
-  deleteSharedTrip: vi.fn(),
   shareTrip: vi.fn(),
   loadSharedTrip: vi.fn().mockRejectedValue(new Error("not shared")),
 }));
@@ -84,6 +91,32 @@ describe("App builder flow", () => {
       expect(screen.getByText("Museum")).toBeInTheDocument();
     });
     expect(screen.queryByText(/לא הצלחנו להתחבר לשרת ה-AI/)).not.toBeInTheDocument();
+  });
+
+  // On a shared device, account B must not inherit (and later save) A's trip.
+  it("clears the builder when a different account connects", async () => {
+    vi.mocked(api.parseTrip).mockResolvedValue({
+      trip_data: sampleTrip,
+      initial_agent_message: "Welcome!",
+    });
+    vi.mocked(tripsStore.claimDeviceData).mockReturnValue(true);
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /צור מבנה אפליקציה ראשוני/ }));
+    await waitFor(() => {
+      expect(screen.getByText("שיפורים נוספים (אופציונלי)")).toBeInTheDocument();
+    });
+
+    act(() => {
+      for (const listener of auth.listeners) {
+        listener({ uid: "account-b", email: "b@example.com", displayName: "B" });
+      }
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /צור מבנה אפליקציה ראשוני/ })).toBeInTheDocument();
+    });
+    expect(tripsStore.claimDeviceData).toHaveBeenCalledWith("account-b");
   });
 
   it("falls back to the demo trip and shows a notice when the backend call fails", async () => {

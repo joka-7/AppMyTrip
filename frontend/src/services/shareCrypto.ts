@@ -91,5 +91,9 @@ export async function decryptJson(payload: EncryptedPayload, key: string): Promi
   } catch (err) {
     throw new ShareCryptoError("This link's key does not open the shared trip.", { cause: err });
   }
-  return JSON.parse(new TextDecoder().decode(plaintext)) as unknown;
+  try {
+    return JSON.parse(new TextDecoder().decode(plaintext)) as unknown;
+  } catch (err) {
+    throw new ShareCryptoError("This shared trip could not be read.", { cause: err });
+  }
 }

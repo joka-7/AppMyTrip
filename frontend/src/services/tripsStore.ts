@@ -26,6 +26,13 @@ import { buildShareUrl } from "./shareLink";
 
 const TRIPS = "trips";
 const SHARE_ID_BYTES = 16;
+/** Which account the work left on this device belongs to (see claimDeviceData). */
+const DEVICE_OWNER_KEY = "appmytrip_device_owner_v1";
+/** base64url of SHARE_ID_BYTES / 32-byte keys and tokens. */
+const SHARE_ID_PATTERN = /^[A-Za-z0-9_-]{22}$/;
+const SECRET_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+/** Tokens whose write to Firestore may have landed; capped so a long failure streak can't grow a record forever. */
+const MAX_PENDING_TOKENS = 10;
 
 export type CloudSession = DriveUser;
 
@@ -52,8 +59,12 @@ interface ShareSecrets {
   id: string;
   key: string;
   ownerToken: string;
-  /** Written before a Firestore update so a failure in between never locks the owner out. */
-  nextOwnerToken: string | null;
+  /**
+   * New tokens recorded before each Firestore update and dropped only once it
+   * succeeded and the new token was promoted. Any of them may be the one the
+   * stored hash belongs to, so none is ever discarded unconfirmed.
+   */
+  pendingTokens: string[];
 }
 
 interface StoredTrip {
@@ -71,17 +82,25 @@ const TRIP_STAGES: readonly TripStage[] = ["step1", "step2", "step3", "step4", "
 const isObject = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
+const isSecret = (value: unknown): value is string =>
+  typeof value === "string" && SECRET_PATTERN.test(value);
+
 function parseShare(value: unknown): ShareSecrets | null {
   if (!isObject(value)) return null;
-  const { id, key, ownerToken, nextOwnerToken } = value;
-  if (typeof id !== "string" || typeof key !== "string" || typeof ownerToken !== "string") {
+  const { id, key, ownerToken, pendingTokens } = value;
+  if (
+    typeof id !== "string" ||
+    !SHARE_ID_PATTERN.test(id) ||
+    !isSecret(key) ||
+    !isSecret(ownerToken)
+  ) {
     return null;
   }
   return {
     id,
     key,
     ownerToken,
-    nextOwnerToken: typeof nextOwnerToken === "string" ? nextOwnerToken : null,
+    pendingTokens: Array.isArray(pendingTokens) ? pendingTokens.filter(isSecret) : [],
   };
 }
 
@@ -123,12 +142,21 @@ interface SharedPayload {
   appDesign: AppDesign;
 }
 
+function browserStorage(): Storage | null {
+  try {
+    return typeof window !== "undefined" ? window.localStorage : null;
+  } catch {
+    return null;
+  }
+}
+
 export function createTripsStore({
   drive,
   shares,
   now = () => new Date(),
   newId = () => crypto.randomUUID(),
   onSignOut = clearDraft,
+  storage = browserStorage(),
 }: {
   drive: DriveSync;
   shares: SharedTripsBackend;
@@ -136,6 +164,7 @@ export function createTripsStore({
   newId?: () => string;
   /** Cross-account safety: work left on this device must not be shown to the next account. */
   onSignOut?: () => void;
+  storage?: Pick<Storage, "getItem" | "setItem"> | null;
 }) {
   async function loadStoredTrips(): Promise<StoredTrip[]> {
     const { items } = await drive.loadAll(TRIPS);
@@ -162,7 +191,7 @@ export function createTripsStore({
         id: toBase64Url(crypto.getRandomValues(new Uint8Array(SHARE_ID_BYTES))),
         key,
         ownerToken: generateOwnerToken(),
-        nextOwnerToken: null,
+        pendingTokens: [],
       };
       // Secrets reach Drive before the share exists, so a published link is never orphaned.
       await drive.upsert(TRIPS, toRecord({ ...stored, share }));
@@ -175,31 +204,28 @@ export function createTripsStore({
       return share;
     }
     const next = generateOwnerToken();
-    // Record the next token first: if the Firestore write then fails, the
-    // owner still holds whichever token the stored hash belongs to.
-    await drive.upsert(
-      TRIPS,
-      toRecord({ ...stored, share: { ...existing, nextOwnerToken: next } }),
-    );
-    await updateWithEitherToken(existing, next, {
+    // Record the next token first, next to every earlier unconfirmed one: if
+    // the Firestore write or the Drive write after it fails, the owner still
+    // holds whichever token the stored hash belongs to.
+    const pendingTokens = [...existing.pendingTokens, next].slice(-MAX_PENDING_TOKENS);
+    await drive.upsert(TRIPS, toRecord({ ...stored, share: { ...existing, pendingTokens } }));
+    await updateWithAnyToken(existing, next, {
       ...encrypted,
       ownerTokenHash: await sha256Hex(next),
       expiresAt,
       revoked: false,
     });
-    const share: ShareSecrets = { ...existing, ownerToken: next, nextOwnerToken: null };
+    const share: ShareSecrets = { ...existing, ownerToken: next, pendingTokens: [] };
     await drive.upsert(TRIPS, toRecord({ ...stored, share }));
     return share;
   }
 
-  async function updateWithEitherToken(
+  async function updateWithAnyToken(
     share: ShareSecrets,
     next: string,
     data: Omit<Parameters<SharedTripsBackend["update"]>[1], "proof">,
   ): Promise<void> {
-    const candidates = [share.ownerToken, share.nextOwnerToken].filter(
-      (token): token is string => Boolean(token) && token !== next,
-    );
+    const candidates = [share.ownerToken, ...share.pendingTokens].filter((t) => t !== next);
     let lastError: unknown = null;
     for (const proof of candidates) {
       try {
@@ -219,16 +245,26 @@ export function createTripsStore({
     }
   }
 
+  /**
+   * Revokes the share and gives it an expiry so the TTL policy deletes it. A
+   * share that is already unreadable (removed by TTL, expired, or revoked)
+   * counts as unpublished: otherwise an expired link would block deleting its
+   * trip, and with it "Delete all my data".
+   */
   async function unpublish(stored: StoredTrip): Promise<void> {
     if (!stored.share) return;
     const next = generateOwnerToken();
-    await updateWithEitherToken(stored.share, next, {
-      ciphertext: "",
-      iv: "",
-      ownerTokenHash: await sha256Hex(next),
-      expiresAt: null,
-      revoked: true,
-    });
+    try {
+      await updateWithAnyToken(stored.share, next, {
+        ciphertext: "",
+        iv: "",
+        ownerTokenHash: await sha256Hex(next),
+        expiresAt: now(),
+        revoked: true,
+      });
+    } catch (err) {
+      if ((await shares.get(stored.share.id)) !== null) throw err;
+    }
   }
 
   return {
@@ -236,6 +272,24 @@ export function createTripsStore({
     getCurrentSession: (): CloudSession | null => drive.currentUser(),
     onAuthChange: (callback: (user: CloudSession | null) => void) => drive.onAuthChange(callback),
     signInWithGoogle: (): Promise<CloudSession> => drive.signIn(),
+
+    /**
+     * Call when an account connects. Returns true when the work left on this
+     * device (the builder draft) belonged to a different account: it has been
+     * cleared, and the caller must reset its in-memory trip too, so account A's
+     * trip is never saved into account B's Drive on a shared device.
+     */
+    claimDeviceData(uid: string): boolean {
+      const previous = storage?.getItem(DEVICE_OWNER_KEY) ?? null;
+      try {
+        storage?.setItem(DEVICE_OWNER_KEY, uid);
+      } catch {
+        // Storage blocked: nothing persists on this device to leak anyway.
+      }
+      if (previous === null || previous === uid) return false;
+      onSignOut();
+      return true;
+    },
 
     async signOutOfGoogle(): Promise<void> {
       await drive.signOut();
@@ -336,6 +390,9 @@ export function createTripsStore({
       shareId: string,
       key: string,
     ): Promise<{ trip: TripData; appDesign: AppDesign; meta: SharedTripMeta }> {
+      if (!SHARE_ID_PATTERN.test(shareId)) {
+        throw new SharedTripUnavailableError("This shared trip link is not valid.");
+      }
       const doc = await shares.get(shareId);
       if (!doc) {
         throw new SharedTripUnavailableError("This shared trip link has expired or was removed.");
@@ -361,6 +418,7 @@ export const {
   onAuthChange,
   signInWithGoogle,
   signOutOfGoogle,
+  claimDeviceData,
   listTrips,
   saveTrip,
   loadTrip,

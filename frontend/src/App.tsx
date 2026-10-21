@@ -42,8 +42,10 @@ import {
   mergeEnhancedActivities,
 } from "./services/tripEnhance";
 import {
+  claimDeviceData,
   getCurrentSession,
   loadSharedTrip,
+  onAuthChange,
   saveTrip,
   shareTrip,
   signInWithGoogle,
@@ -387,6 +389,28 @@ function TripBuilder() {
     draftReadyRef.current = true;
     setPendingDraft(null);
   };
+
+  // A different Google account connecting on this device must not inherit the
+  // previous account's trip: its next save would land in the new account's
+  // Drive. claimDeviceData clears the stored draft; this clears the screen.
+  useEffect(
+    () =>
+      onAuthChange((user) => {
+        if (!user || !claimDeviceData(user.uid)) return;
+        rawTextTouchedRef.current = false;
+        setRawText(translate("step1.exampleRawText"));
+        setPreferences("");
+        setTripData(EMPTY_TRIP);
+        setAppDesign(DEFAULT_APP_DESIGN);
+        setTripId(null);
+        setAgentMessages([]);
+        setEnhanceOptions({});
+        setStep(1);
+        setPendingDraft(null);
+        draftReadyRef.current = true;
+      }),
+    [],
+  );
 
   // Debounced local draft so a refresh mid-build can offer recovery.
   useEffect(() => {
