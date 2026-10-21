@@ -94,6 +94,15 @@ def _describe_http_status_error(e: httpx.HTTPStatusError) -> str:
     )
 
 
+def _describe_error(e: Exception) -> str:
+    """A log- and client-safe summary of a non-HTTP-status failure. httpx's
+    transport errors can carry the request URL, so only the error class and,
+    for parse failures, their own message are kept."""
+    if isinstance(e, httpx.HTTPError):
+        return f"{type(e).__name__} contacting the LLM provider"
+    return str(e)
+
+
 class LLMProvider(Protocol):
     async def complete_json(
         self, system_prompt: str, user_content: str, max_tokens: int = 16384
@@ -115,10 +124,12 @@ class GeminiProvider:
     async def complete_json(
         self, system_prompt: str, user_content: str, max_tokens: int = 16384
     ) -> dict:
+        # Key in a header, never the query string: httpx puts the full URL into
+        # its exception messages, so a URL-borne key ends up in logs.
         url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{self.model}:generateContent?key={self.api_key}"
+            f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
         )
+        headers = {"x-goog-api-key": self.api_key}
         payload = {
             "systemInstruction": {"parts": [{"text": system_prompt}]},
             "contents": [{"parts": [{"text": user_content}]}],
@@ -134,7 +145,9 @@ class GeminiProvider:
             },
         }
         async with httpx.AsyncClient() as client:
-            response = await client.post(url, json=payload, timeout=PER_CALL_TIMEOUT_SECONDS)
+            response = await client.post(
+                url, json=payload, headers=headers, timeout=PER_CALL_TIMEOUT_SECONDS
+            )
             response.raise_for_status()
             result = response.json()
 
@@ -475,11 +488,9 @@ class LLMService:
                         delay = float(retry_after) if retry_after else delays[attempt]
                         await cls._sleep_within_deadline(delay, deadline)
                         continue
+                    # Not `e`: str(HTTPStatusError) includes the request URL.
                     logger.info(
-                        "llm attempt: %s failed with HTTP %d: %s",
-                        key_label,
-                        e.response.status_code,
-                        e,
+                        "llm attempt: %s failed: %s", key_label, _describe_http_status_error(e)
                     )
                     if not is_last_key:
                         break  # rotate to the next key immediately
@@ -505,12 +516,13 @@ class LLMService:
                         ) from e
                     await cls._sleep_within_deadline(delays[attempt], deadline)
                 except (httpx.HTTPError, ValueError, json.JSONDecodeError) as e:
-                    logger.info("llm attempt: %s failed: %s", key_label, e)
+                    logger.info("llm attempt: %s failed: %s", key_label, _describe_error(e))
                     if not is_last_key:
                         break  # rotate to the next key immediately
                     if attempt == max_retries - 1:
                         raise HTTPException(
-                            status_code=502, detail=f"LLM API failed after retries: {str(e)}"
+                            status_code=502,
+                            detail=f"LLM API failed after retries: {_describe_error(e)}",
                         ) from e
                     await cls._sleep_within_deadline(delays[attempt], deadline)
 

@@ -41,6 +41,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         )
         self.path_prefix = path_prefix
         self._hits: dict[str, deque[float]] = defaultdict(deque)
+        self._last_sweep = time.monotonic()
 
     async def dispatch(self, request: Request, call_next) -> Response:
         if self.limit <= 0 or not request.url.path.startswith(self.path_prefix):
@@ -48,6 +49,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         client_ip = request.client.host if request.client else "unknown"
         now = time.monotonic()
+        if now - self._last_sweep > _WINDOW_SECONDS:
+            self._forget_idle_addresses(now)
         hits = self._hits[client_ip]
         while hits and now - hits[0] > _WINDOW_SECONDS:
             hits.popleft()
@@ -68,3 +71,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         hits.append(now)
         return await call_next(request)
+
+    def _forget_idle_addresses(self, now: float) -> None:
+        """Drops addresses with no hit inside the window, so memory tracks
+        recent callers rather than every address ever seen."""
+        self._hits = defaultdict(
+            deque,
+            {
+                ip: hits
+                for ip, hits in self._hits.items()
+                if hits and now - hits[-1] <= _WINDOW_SECONDS
+            },
+        )
+        self._last_sweep = now

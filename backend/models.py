@@ -272,7 +272,9 @@ class AgentResponse(BaseModel):
     """Structured response expected from the LLM during Stage 3 chat."""
 
     updated_trip: TripData
-    agent_reply: str = Field(..., description="The friendly reply from the agent in Hebrew")
+    agent_reply: str = Field(
+        ..., description="The friendly reply from the agent, in the trip's language"
+    )
 
 
 class AgentDayIntent(BaseModel):

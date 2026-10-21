@@ -18,6 +18,11 @@ service cloud.firestore {
     // delete it, up to ~24h. A doc with no expiresAt (the "forever" default)
     // is unaffected.
     //
+    // `get`, not `read`: `read` also grants `list`, which would let anyone
+    // query the whole collection and download every shared trip (and its
+    // owner/admin emails) without knowing a single link. The app only ever
+    // fetches one shared trip by id (loadSharedTrip), so nothing needs list.
+    //
     // Only the owner (by uid) can create or unpublish a share. Once shared,
     // the owner or anyone listed in adminEmails (matched against the caller's
     // verified sign-in email, so an admin only needs to be invited by
@@ -31,13 +36,14 @@ service cloud.firestore {
     // access (including future ones) or silently strip/extend the link's
     // expiry, none of which the app's own UI ever lets an admin do.
     match /sharedTrips/{tripId} {
-      allow read: if !('expiresAt' in resource.data) || resource.data.expiresAt > request.time;
+      allow get: if !('expiresAt' in resource.data) || resource.data.expiresAt > request.time;
       allow create: if request.auth != null
         && request.auth.uid == request.resource.data.ownerId;
       allow update: if request.auth != null
         && request.resource.data.ownerId == resource.data.ownerId
         && (request.auth.uid == resource.data.ownerId
-          || (request.auth.token.email.lower() in resource.data.adminEmails
+          || (request.auth.token.email_verified == true
+            && request.auth.token.email.lower() in resource.data.adminEmails
             && !request.resource.data.diff(resource.data).affectedKeys()
                   .hasAny(['expiresAt', 'ownerEmail', 'ownerId'])
             && request.resource.data.adminEmails.hasAll(resource.data.adminEmails)));

@@ -185,6 +185,44 @@ def test_generate_media_fills_podcast_urls():
     assert act.podcast_url is not None
 
 
+def test_generate_media_synthesizes_podcasts_concurrently(monkeypatch):
+    # One-at-a-time synthesis made a 30-podcast trip spend 30x one call's
+    # latency inside a single serverless request.
+    active = 0
+    peak = 0
+
+    async def fake_generate(title, desc, brief=None):
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
+        await asyncio.sleep(0.01)
+        active -= 1
+        return f"/static/podcasts/{title}.wav"
+
+    monkeypatch.setattr(TTSService, "generate_podcast_for_activity", fake_generate)
+    trip = _sample_trip()
+    trip.days[0].activities = [
+        Activity(
+            id=f"a{i}", time="09:00", title=f"t{i}", desc="d", type="attraction", hasPodcast=True
+        )
+        for i in range(3)
+    ]
+    builder = TripBuilder().load_existing_trip(trip)
+
+    asyncio.run(builder.generate_media())
+
+    assert peak > 1
+    urls = [act.podcast_url for act in builder.get_trip().days[0].activities]
+    assert urls == ["/static/podcasts/t0.wav", "/static/podcasts/t1.wav", "/static/podcasts/t2.wav"]
+
+
+def test_agent_reply_schema_does_not_force_hebrew():
+    # The schema is sent to the LLM; a hardcoded language there overrode the
+    # trip's own `language` and produced Hebrew replies on English trips.
+    description = AgentResponse.model_json_schema()["properties"]["agent_reply"]["description"]
+    assert "Hebrew" not in description
+
+
 def test_tts_provider_defaults_to_mock(monkeypatch):
     monkeypatch.delenv("TTS_PROVIDER", raising=False)
     provider = TTSService._get_provider()
@@ -459,6 +497,60 @@ def test_execute_with_retry_fails_fast_on_a_permanent_4xx_even_on_the_last_key(m
     # The upstream 404 is preserved, not flattened into a generic 502.
     assert exc_info.value.status_code == 404
     assert tried == ["k1"]  # a single attempt, not 5
+
+
+@pytest.mark.parametrize("status", [400, 500])
+def test_execute_with_retry_never_logs_the_api_key(monkeypatch, caplog, status):
+    # httpx's str(HTTPStatusError) embeds the full request URL; a provider
+    # that ever puts a key in the URL must not leak it into server logs.
+    secret = "AIzaSECRETKEY123456"
+    request = httpx.Request("POST", f"https://example.test/v1/generate?key={secret}")
+    response = httpx.Response(status, request=request)
+    error = httpx.HTTPStatusError(
+        f"Client error for url '{request.url}'", request=request, response=response
+    )
+
+    class FailingProvider:
+        def __init__(self, api_key=None):
+            self.api_key = api_key
+
+        async def complete_json(self, system_prompt, user_content, max_tokens=16384):
+            raise error
+
+    monkeypatch.setattr(
+        LLMService,
+        "_get_provider",
+        staticmethod(lambda api_key=None, provider=None: FailingProvider(api_key)),
+    )
+    monkeypatch.setattr(LLMService, "_sleep_within_deadline", AsyncMock())
+
+    with caplog.at_level("INFO", logger="llm"), pytest.raises(HTTPException) as exc_info:
+        asyncio.run(LLMService._execute_with_retry("sys", "user", api_keys=[secret, secret + "2"]))
+
+    assert secret not in caplog.text
+    assert secret not in str(exc_info.value.detail)
+
+
+def test_gemini_provider_sends_key_in_header_not_url(monkeypatch):
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        body = {"candidates": [{"content": {"parts": [{"text": '{"ok": true}'}]}}]}
+        return httpx.Response(200, json=body)
+
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        llm_module.httpx,
+        "AsyncClient",
+        lambda *a, **kw: real_client(transport=httpx.MockTransport(handler)),
+    )
+
+    result = asyncio.run(GeminiProvider(api_key="AIzaSECRET").complete_json("sys", "user"))
+
+    assert result == {"ok": True}
+    assert "AIzaSECRET" not in str(seen[0].url)
+    assert seen[0].headers["x-goog-api-key"] == "AIzaSECRET"
 
 
 def test_execute_with_retry_preserves_413_payload_too_large(monkeypatch):
@@ -1983,6 +2075,41 @@ def test_rate_limit_middleware_blocks_after_the_configured_limit():
     third = limited_client.get("/api/trip/ping")
     assert third.status_code == 429
     assert "Too many requests" in third.json()["detail"]
+
+
+def test_rate_limit_middleware_forgets_idle_addresses(monkeypatch):
+    # Every address that ever called used to stay in memory forever.
+    from starlette.requests import Request
+    from starlette.responses import PlainTextResponse
+
+    import services.rate_limit as rate_limit_module
+    from services.rate_limit import RateLimitMiddleware
+
+    now = 1000.0
+    monkeypatch.setattr(rate_limit_module.time, "monotonic", lambda: now)
+    middleware = RateLimitMiddleware(app=None, limit_per_minute=5)
+
+    def request_from(ip: str) -> Request:
+        return Request(
+            {
+                "type": "http",
+                "method": "GET",
+                "path": "/api/trip/x",
+                "headers": [],
+                "client": (ip, 1234),
+                "query_string": b"",
+            }
+        )
+
+    async def call_next(_request):
+        return PlainTextResponse("ok")
+
+    asyncio.run(middleware.dispatch(request_from("1.1.1.1"), call_next))
+    now += 61
+    asyncio.run(middleware.dispatch(request_from("2.2.2.2"), call_next))
+
+    assert "1.1.1.1" not in middleware._hits
+    assert "2.2.2.2" in middleware._hits
 
 
 def test_rate_limit_middleware_only_covers_configured_path_prefix():

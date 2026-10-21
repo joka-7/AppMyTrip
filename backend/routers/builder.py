@@ -1,9 +1,11 @@
+import asyncio
 import re
 import unicodedata
 
 from fastapi import APIRouter, HTTPException
 
 from models import (
+    Activity,
     AgentInteractRequest,
     EnhanceOptions,
     EnhanceRequest,
@@ -16,6 +18,8 @@ from services.llm import LLMService
 from services.tts import TTSService
 
 router = APIRouter(prefix="/api/trip", tags=["trip"])
+
+_MAX_CONCURRENT_PODCASTS = 4
 
 
 def _activity_count(trip: TripData) -> int:
@@ -343,12 +347,24 @@ class TripBuilder:
         if not self._trip:
             return self
 
-        for day in self._trip.days:
-            for act in day.activities:
-                if act.hasPodcast and not act.podcast_url:
-                    act.podcast_url = await TTSService.generate_podcast_for_activity(
-                        act.title, act.desc, act.podcast_brief
-                    )
+        pending = [
+            act
+            for day in self._trip.days
+            for act in day.activities
+            if act.hasPodcast and not act.podcast_url
+        ]
+        # Bounded concurrency: one-at-a-time made a long trip wait N x one
+        # synthesis inside a single (time-limited) request, while an unbounded
+        # gather would load every voice model at once on a Piper host.
+        limit = asyncio.Semaphore(_MAX_CONCURRENT_PODCASTS)
+
+        async def synthesize(act: Activity) -> None:
+            async with limit:
+                act.podcast_url = await TTSService.generate_podcast_for_activity(
+                    act.title, act.desc, act.podcast_brief
+                )
+
+        await asyncio.gather(*(synthesize(act) for act in pending))
         return self
 
     def get_trip(self) -> TripData:
