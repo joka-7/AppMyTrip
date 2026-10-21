@@ -14,7 +14,7 @@ Companion document: [`docs/LLD.md`](./LLD.md) (Low-Level Design).
 
 AppMyTrip turns a free-text trip summary (e.g. pasted WhatsApp messages) into a
 structured, per-day trip app: day tabs, a map of points of interest, an AI
-completion agent, and rich media (historical "podcasts"). Web first, Android later.
+completion agent, and rich media (historical "podcasts"). On the web and as an Android app (Capacitor shell).
 
 Core product goals that shape the architecture:
 
@@ -429,7 +429,7 @@ flowchart LR
 | Auth scope | Google sign-in only (Drive is the store) | — |
 | Shared editing | Share links are read-only | Per-editor key wrapping if co-editing is needed again |
 | Testing | Unit + e2e exist; no load/perf tests | Add contract tests between TS/Pydantic models |
-| Android | Web-only today | Wrap PWA / native shell later |
+| Android | Capacitor shell, sideloaded APK from GitHub releases | Play Store listing |
 
 ---
 

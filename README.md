@@ -3,8 +3,8 @@
 An app that turns a free-text trip summary (e.g. pasted WhatsApp messages) into a
 structured, per-day trip app — with day tabs, a map of points of interest, a
 "what to bring" checklist per day, turn-by-turn navigation links (Google Maps and
-Waze), an AI completion agent, and rich media (historical podcasts). Web first,
-Android later.
+Waze), an AI completion agent, and rich media (historical podcasts). On the web
+and as an Android app.
 
 **Status: working web app.** A FastAPI backend parses trip text with an LLM, and a
 React web UI walks you through the 4-step build flow with a live phone preview.
@@ -12,7 +12,8 @@ The flow runs end to end — parse, enrich, iterate with the AI agent, customise
 deploy — behind CI (lint, type-check, 106 backend tests at 84% coverage, Playwright
 end-to-end) with grouped Dependabot updates.
 
-Not built yet: the **Android** app. Web is the only target today.
+**Android app:** the same web app in a Capacitor shell (`frontend/android/`), built
+and signed by `.github/workflows/android.yml`. See "Android app" below.
 
 ## What you can do with it
 
@@ -350,7 +351,8 @@ the current trip, browse/load previously saved trips, and share/delete them.
   import the repo as a *second* Vercel project, set the root directory to `backend/`.
   `backend/vercel.json` + `backend/api/index.py` expose the FastAPI app as a Python
   serverless function; `requirements.txt` is installed automatically. Add the
-  `CORS_ORIGINS` (your frontend's Vercel domain) env var in the Vercel project
+  `CORS_ORIGINS` (your frontend's Vercel domain, plus `https://localhost` for the
+  Android app) env var in the Vercel project
   settings. Since each user supplies their own LLM API key from the frontend (see
   "LLM provider — bring your own key" above), you don't need to set
   `GEMINI_API_KEY`/`OPENAI_API_KEY`/`ANTHROPIC_API_KEY`/`GROQ_API_KEY` for a deployed
@@ -363,6 +365,53 @@ the current trip, browse/load previously saved trips, and share/delete them.
 - **Firestore → Firebase**: no separate deploy step — Firestore is a managed
   service; you only need the project, the Web app config and the security rules from
   the setup steps above.
+
+## Android app
+
+The Android app is the built web app inside a Capacitor shell
+(`frontend/capacitor.config.json`, package `io.github.joka7.appmytrip`).
+Differences from the web:
+
+- **Google sign-in goes through Android itself**, because Google refuses OAuth
+  inside an embedded WebView: `frontend/src/services/nativeGoogleAuth.ts` asks
+  Android (via `@capgo/capacitor-social-login`) for the same `drive.appdata`
+  token, and renews it silently. `MainActivity.java` hands Google's consent
+  result back to that plugin.
+- **No service worker and no "Install" button** inside the app: a service worker
+  in the APK would keep serving the previous version after an update.
+- **Android backup is off** (`allowBackup="false"`), so tokens and the in-progress
+  trip are not copied into device backups.
+
+Every push to `main` builds a signed APK and publishes it as a GitHub release
+(`android-1.0.<run>`); pull requests get the APK as a workflow artifact. The APK
+must be signed with one permanent key, because Google sign-in only works for the
+key whose SHA-1 is registered on the Android OAuth client.
+
+One-time setup:
+1. **Signing key** (keep the `.jks` and the password in a password manager; never
+   commit them):
+   ```bash
+   read -rs KEY_PASSWORD && export KEY_PASSWORD
+   keytool -genkeypair -keystore appmytrip-release.jks -alias appmytrip -keyalg RSA \
+     -keysize 4096 -validity 10000 -storepass:env KEY_PASSWORD -keypass:env KEY_PASSWORD \
+     -dname "CN=AppMyTrip"
+   base64 -w0 appmytrip-release.jks > keystore.b64
+   head -c 1900 keystore.b64 > ANDROID_KEYSTORE_B64; tail -c +1901 keystore.b64 > ANDROID_KEYSTORE_B64_2
+   keytool -list -v -keystore appmytrip-release.jks -storepass:env KEY_PASSWORD -alias appmytrip | grep SHA1
+   ```
+2. **GitHub secrets** (Settings → Secrets and variables → Actions → Secrets):
+   `ANDROID_KEYSTORE_B64`, `ANDROID_KEYSTORE_B64_2` (the two files above) and
+   `ANDROID_KEY_PASSWORD`.
+3. **GitHub variables** (same page → Variables): `VITE_GOOGLE_CLIENT_ID`,
+   `VITE_API_URL`, `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_PROJECT_ID`,
+   `VITE_FIREBASE_APP_ID` — the same public values the web build uses.
+4. **Android OAuth client** in the same Google Cloud project: package
+   `io.github.joka7.appmytrip` and the SHA-1 printed in step 1. Nothing from it goes
+   back into the code; the app uses the Web client ID.
+5. Add `https://localhost` to the backend's `CORS_ORIGINS`.
+
+Local build (needs the Android SDK): `cd frontend && npm run build && npx cap sync
+android`, then open `frontend/android` in Android Studio.
 
 ## How they connect
 
