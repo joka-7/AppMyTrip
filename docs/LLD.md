@@ -29,11 +29,11 @@ AppMyTrip/
 │   ├── src/
 │   │   ├── App.tsx              mode switch + TripBuilder/SharedTripViewer state
 │   │   ├── api.ts               typed backend client + shared TS types
-│   │   ├── firebase.ts          Firebase init (optional)
+│   │   ├── firebase.ts          Firebase init, Firestore only (optional)
 │   │   ├── components/          UI (AppFrame, BuilderStepN, ItineraryList, ...)
 │   │   ├── hooks/               usePodcastPlayer, useInstallPrompt
-│   │   └── services/            apiKey, tripsStore, hebrewDate, language, ...
-│   ├── firestore.rules          per-user + public-share security rules
+│   │   └── services/            apiKey, tripsStore, driveSync, shareCrypto, ...
+│   ├── firestore.rules          encrypted-share rules (get-only, owner token)
 │   ├── e2e/                     Playwright tests (backend mocked)
 │   └── vite.config.ts           PWA config + build
 └── docs/{hld,lld}/              this design documentation
@@ -194,7 +194,7 @@ classDiagram
 | `step` (1–4) | current wizard step; mirrored into `history.pushState` so device Back navigates steps, not out of the app |
 | `rawText`, `preferences`, `theme` | Step 1/4 inputs |
 | `tripData` | the working trip (starts `EMPTY_TRIP`) |
-| `tripId` | Firestore id once saved/loaded (`null` = unsaved → next save creates new) |
+| `tripId` | Drive record id once saved/loaded (`null` = unsaved → next save creates new) |
 | `agentMessages` | chat transcript |
 | `enhanceOptions` | remembered Step 2 toggles, re-applied to newly added activities |
 | `isProcessing/isEnhancing/isGeneratingMedia/isSendingMessage` | per-call loading flags |
@@ -295,8 +295,11 @@ flowchart TB
 | Service | Exports | Notes |
 |---------|---------|-------|
 | `apiKey.ts` | `getApiKey`, `getApiKeyForProvider`, `getApiProvider`, `setApiKey`, `clearApiKey`, `PROVIDERS` | Per-provider keys in `localStorage` (`tripweaver_api_keys`); migrates a legacy single-key format |
-| `firebase.ts` | `firebaseApp`, `isFirebaseConfigured` | Initializes only when `VITE_FIREBASE_*` are set; else `null` (app still runs) |
-| `tripsStore.ts` | `onAuthChange`, `getCurrentSession`, `signInWithGoogle`, `signOutOfGoogle`, `listTrips`, `saveTrip`, `loadTrip`, `deleteTrip`, `shareTrip`, `loadSharedTrip`, `deleteSharedTrip` | Firestore CRUD under `users/{uid}/trips` + public `sharedTrips`; `shareTrip` optional `expiresInDays`; `loadSharedTrip` rejects expired links client-side |
+| `firebase.ts` | `getFirebaseApp`, `isFirebaseConfigured` | Initializes only when `VITE_FIREBASE_*` are set; else `null` (app still runs, sharing off). Used only for Firestore |
+| `driveSync.ts` | `createDriveSync` → `signIn`, `signOut`, `onAuthChange`, `loadAll`, `upsert`, `remove`, `deleteAllSyncedData` | Google Drive appDataFolder sync, ported from KanDOne: per-device files, tombstones, `nextStamp`, Web Locks, retries, native-auth hook |
+| `shareCrypto.ts` | `encryptJson`, `decryptJson`, `generateShareKey`, `generateOwnerToken`, `sha256Hex` | AES-256-GCM via WebCrypto; base64url keys; hex SHA-256 matching the rules' `toHexString().lower()` |
+| `sharedTripsFirestore.ts` | `firestoreSharedTrips` (`create`, `update`, `get`) | Ciphertext-only `sharedTrips` docs; `get` returns null for missing/revoked/expired |
+| `tripsStore.ts` | `createTripsStore` + bound `onAuthChange`, `getCurrentSession`, `signInWithGoogle`, `signOutOfGoogle`, `listTrips`, `saveTrip`, `loadTrip`, `deleteTrip`, `shareTrip`, `shareLinkFor`, `unpublishTrip`, `deleteAllMyData`, `loadSharedTrip` | Trips in Drive (collection `trips`); a trip's share secrets `{id, key, ownerToken, nextOwnerToken}` live in its Drive record; `deleteTrip` unpublishes first; sign-out clears the device draft |
 | `hebrewDate.ts` | `parseTripStartDate`, `hebrewWeekdayLetter` | Parses a start date from the freeform `dates` string (ISO or D/M/Y); returns `null` when none found (weekday omitted rather than guessed); derives per-day Hebrew weekday letters for day tabs |
 | `language.ts` | `languageLabel(code)` | ISO 639-1 → Hebrew language name |
 | `tripFile.ts` | `exportTripToFile(trip, theme)`, `importTripFromFile(file)` | JSON download/upload for client-side backup/transfer; import validates the trip shape before accepting |
@@ -370,10 +373,22 @@ flowchart TD
 
 ### 5.4 Save / share (Step 4 & CloudMenu)
 
-`getCurrentSession()` or `signInWithGoogle()` → `saveTrip(uid, trip, {theme, tripId})`
-(new doc if `tripId` null / "save as copy") → `shareTrip(uid, id, trip, theme, days?)`
-writes a public `sharedTrips/{id}` doc → returns `?shared=<id>` URL. Opening that
-URL routes `App` into `SharedTripViewer` → `loadSharedTrip` (expiry-checked).
+`getCurrentSession()` or `signInWithGoogle()` → `saveTrip(trip, {appDesign, tripId, stage})`
+upserts the trip into Drive (new record if `tripId` null / "save as copy") →
+`shareTrip(id, trip, appDesign, days?)`:
+
+1. Reuse the trip's share `{id, key}` or make new ones (16-byte id, 32-byte key).
+2. Encrypt `{trip, appDesign}` with AES-GCM and a fresh IV.
+3. New share: write the secrets to Drive, then `create` the Firestore doc with
+   `sha256Hex(ownerToken)`. Existing share: write `nextOwnerToken` to Drive first,
+   then `update` with `proof = ownerToken` (falling back to `nextOwnerToken`, then
+   to `create` if the first publish never landed) and the new token's hash, then
+   promote the token in Drive. A failure at any point leaves the owner holding a
+   token that matches the stored hash.
+4. Return `?shared=<id>#k=<key>`.
+
+Opening that URL routes `App` into `SharedTripViewer` with the id from the query
+and the key from the fragment → `loadSharedTrip(id, key)` decrypts it.
 
 ### 5.5 Re-apply Step 2 enhancements to new activities (client-side)
 
@@ -397,15 +412,22 @@ Failures are logged and the unenhanced activity is kept.
 ## 6. Security (Firestore rules)
 
 ```
-users/{userId}/trips/{tripId}   read,write  if auth.uid == userId
-sharedTrips/{tripId}            read        if true            (public)
-                               create,update if auth.uid == resource.data.ownerId
-                               delete       if auth.uid == resource.data.ownerId
+sharedTrips/{shareId}  get     if v == 1 && !revoked && not past expiresAt
+                       create  if valid shape (ciphertext ≤ 900 KB, hash 64 hex)
+                               && no extra fields && !revoked && updatedAt == now
+                       update  if valid shape
+                               && sha256(proof).hex == stored ownerTokenHash
+                               && new ownerTokenHash != stored one
+                       delete  never (TTL on expiresAt; unpublish = revoked update)
+everything else        never   (including the old users/{uid}/trips)
 ```
 
-Private trips are owner-only; shares are world-readable but only the owner can
-publish/unpublish. API keys never touch Firestore — they live only in the
-caller's `localStorage` and are sent solely to our backend.
+`get` without `list` means a share is reachable only by its id. The stored
+`proof` is the previous token, which no longer matches the rotated hash. The
+rules were verified against the Firestore emulator, including a filtered `list`
+query that the old `allow read` rule let through. API keys never touch
+Firestore — they live only in the caller's `localStorage` and are sent solely to
+our backend.
 
 ---
 
@@ -418,7 +440,8 @@ caller's `localStorage` and are sent solely to our backend.
 | Step 2 enhancement | One concurrent call per option, merge by id | One combined call for all options | Faster when many options; partial-failure isolation |
 | Agent update shape | Echo whole itinerary back | Return a diff/patch | Simpler prompt + validation now; diff is future work (token-limit risk mitigated by guard) |
 | Backend state | Fully stateless, client owns trip | Server session/DB | Free serverless deploy; no data for us to secure/back up |
-| Persistence | Firebase (client-side) | Our own DB + API | $0 managed tier; offloads auth + rules |
+| Persistence | User's own Drive + encrypted shares | Firestore per-user docs; our own DB + API | The operator can read nothing; $0; no backups for us to keep |
+| Shared editing | Read-only links | Per-editor key wrapping; link-holder write token | Simplest and safest; owner re-shares to update |
 | TTS default | Mock provider | Always real TTS | No cost/latency in dev/CI/serverless; Piper opt-in for real audio |
 | Podcast playback | Audio URL with Web Speech fallback | Audio only | Guarantees audible output even with mock URLs |
 
@@ -455,5 +478,5 @@ caller's `localStorage` and are sent solely to our backend.
 | Itinerary edit/add | `frontend/src/components/ItineraryList.tsx` |
 | Podcast playback | `frontend/src/hooks/usePodcastPlayer.ts` |
 | BYO key storage | `frontend/src/services/apiKey.ts` |
-| Firestore storage/sharing | `frontend/src/services/tripsStore.ts` |
+| Storage/sharing | `frontend/src/services/tripsStore.ts`, `driveSync.ts`, `shareCrypto.ts`, `sharedTripsFirestore.ts` |
 | Security rules | `frontend/firestore.rules` |

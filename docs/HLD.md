@@ -3,7 +3,8 @@
 > Scope: the current **TripWeaver AI** prototype in this repository — a FastAPI
 > backend that turns free trip text into a structured itinerary via an LLM, and a
 > Vite + React + TypeScript web client that walks the user through a 4-step build
-> flow with a live phone preview, then saves/shares the result through Firebase.
+> flow with a live phone preview, then saves trips to the user's own Google Drive
+> and shares them as end-to-end encrypted links.
 
 Companion document: [`docs/LLD.md`](./LLD.md) (Low-Level Design).
 
@@ -19,7 +20,8 @@ Core product goals that shape the architecture:
 
 | Goal | Architectural consequence |
 |------|---------------------------|
-| **Zero running cost** | No database we operate; Firebase Spark + Vercel Hobby + free LLM tiers |
+| **Zero running cost** | No database we operate; user's own Drive + Firestore Spark + Vercel Hobby + free LLM tiers |
+| **Operator can't read trips** | Private trips in the user's Drive appDataFolder; shares stored as ciphertext with the key in the link's `#fragment` |
 | **Bring-your-own LLM key** | Each request carries its own `api_key`/`provider`; server key is only a dev fallback |
 | **Always demoable** | Client falls back to a local mock trip when the backend/LLM is unavailable |
 | **Stateless backend** | Every endpoint is pure `request → LLM/TTS → response`; no session, no auth, no persistence |
@@ -42,9 +44,10 @@ flowchart LR
         API[Trip API\n/api/trip/*]
     end
 
-    subgraph google [Google / Firebase]
-        Auth[Firebase Auth\nGoogle sign-in]
-        FS[(Cloud Firestore\ntrips + sharedTrips)]
+    subgraph google [Google]
+        Auth[Google Identity\nsign-in, drive.appdata]
+        Drive[(User's Google Drive\nappDataFolder: private trips)]
+        FS[(Cloud Firestore\nsharedTrips: ciphertext only)]
     end
 
     subgraph llm [LLM providers - BYO key]
@@ -62,14 +65,15 @@ flowchart LR
     API --> Gemini & OpenAI & Claude & Groq
     API --> TTS
     SPA -->|sign in| Auth
-    SPA -->|save / load / share| FS
+    SPA -->|save / load| Drive
+    SPA -->|publish / open encrypted share| FS
 ```
 
-**Key point:** the browser talks to two independent back ends — our stateless
-**Trip API** (LLM/TTS work) and **Firebase** (auth + storage). They never talk to
-each other; the browser is the only thing that knows about both. This keeps the
-Trip API free of user accounts and data, and keeps persistence on a managed free
-tier.
+**Key point:** the browser talks to independent back ends — our stateless
+**Trip API** (LLM/TTS work), the user's own **Google Drive** (private trips) and
+**Firestore** (encrypted shares). They never talk to each other; the browser is
+the only thing that knows about all of them. The Trip API has no user accounts or
+data, and nothing the operator controls holds a readable trip.
 
 ---
 
@@ -86,7 +90,7 @@ flowchart TB
         Frame["AppFrame\n(the generated app UI)"]
         subViews["ItineraryList / MapView\nChatPanel / PriceSummary"]
         ApiClient["api.ts\n(typed fetch client)"]
-        Stores["services/\napiKey, tripsStore, firebase"]
+        Stores["services/\napiKey, tripsStore, driveSync,\nshareCrypto, sharedTripsFirestore"]
 
         AppRoot --> TB --> Steps
         AppRoot --> STV
@@ -111,7 +115,8 @@ flowchart TB
     end
 
     ApiClient -->|JSON over HTTPS| Router
-    Stores -->|Firebase SDK| Firebase[(Firebase)]
+    Stores -->|Drive REST| Drive[(User's Google Drive)]
+    Stores -->|Firestore SDK| Firestore[(Firestore sharedTrips)]
     LLMSvc -->|httpx| Providers[(LLM providers)]
 ```
 
@@ -123,7 +128,7 @@ flowchart TB
 | `BuilderStep1..4` | The wizard: (1) paste text, (2) opt-in enhancements, (3) AI chat + edit, (4) theme + save/share |
 | `AppFrame` | The actual "generated app" (header, day tabs, itinerary/map/price/chat tabs, podcast player, bottom nav). Reused by the live preview and the shared page. A "manage days" panel on the day-tab bar adds/deletes/reorders whole days (move earlier/later, jump to start/end). A small "Made with AppMyTrip" attribution strip below the bottom nav links back to the builder's own origin, in the current UI language |
 | `api.ts` | Typed client for the four backend endpoints; also the single source of truth for the shared `TripData`/`Activity` TypeScript types |
-| `services/*` | `apiKey` (BYO key in localStorage), `tripsStore` + `firebase` (auth + Firestore), plus helpers (`hebrewDate`, `language`, `tripFile`, `env`) |
+| `services/*` | `apiKey` (BYO key in localStorage), `tripsStore` (save/load/share), `driveSync` (Drive appDataFolder sync), `shareCrypto` (AES-GCM share links), `sharedTripsFirestore` (ciphertext store), plus helpers (`hebrewDate`, `language`, `tripFile`, `env`) |
 
 ### 3.2 Backend containers
 
@@ -147,7 +152,8 @@ sequenceDiagram
     participant API as FastAPI /api/trip
     participant LLM as LLM provider
     participant TTS as TTS provider
-    participant FB as Firebase
+    participant G as Google Drive
+    participant FS as Firestore
 
     Note over U,FE: Step 1 — paste free trip text
     U->>FE: raw text + preferences
@@ -179,8 +185,10 @@ sequenceDiagram
 
     Note over U,FE: Step 4 — theme + save/share
     U->>FE: pick theme + share lifetime
-    FE->>FB: sign in (Google) + saveTrip + shareTrip
-    FB-->>FE: ?shared=<id> link
+    FE->>G: sign in (Google) + save trip to appDataFolder
+    FE->>FE: encrypt trip (AES-GCM, random key)
+    FE->>FS: store ciphertext + owner-token hash
+    FE-->>U: ?shared=<id>#k=<key> link (key never sent to a server)
 ```
 
 The four HTTP endpoints map 1:1 to product stages:
@@ -191,14 +199,14 @@ The four HTTP endpoints map 1:1 to product stages:
 | 2. Enhance | `BuilderStep2` | `POST /api/trip/enhance` | yes (opt-in) |
 | 3. Agent chat | `BuilderStep3` / preview chat | `POST /api/trip/agent` | yes |
 | 3→4. Media | "continue to design" | `POST /api/trip/generate-media` | no (TTS only) |
-| 4. Save/share | `BuilderStep4` / `CloudMenu` | Firebase (no backend) | no |
+| 4. Save/share | `BuilderStep4` / `CloudMenu` | Google Drive + Firestore (no backend) | no |
 
 ---
 
 ## 5. Data Model
 
 The whole system revolves around one document — `TripData` — carried in every
-request/response and stored verbatim in Firestore. There is no relational schema.
+request/response, stored in the user's Drive, and (encrypted) in a share. There is no relational schema.
 
 ```mermaid
 erDiagram
@@ -283,7 +291,7 @@ erDiagram
 The backend keeps **no** session, DB, or per-user data. The current `TripData` is
 the client's state and is round-tripped on every call. Consequences: trivial
 horizontal scale, safe to run as ephemeral serverless functions, and persistence
-is entirely delegated to Firebase.
+is in the user's own Google Drive, with shares as ciphertext in Firestore.
 
 ### 6.2 Bring-your-own LLM key (BYO)
 Each user stores their own provider key in `localStorage` and sends it as
@@ -330,12 +338,17 @@ by `id`.
 - **Client fallback**: any backend/LLM failure degrades to a local demo trip or
   local mock agent reply, plus a dismissible notice, so the prototype stays live.
 
-### 6.8 Persistence & sharing model (Firebase)
-Private trips live at `users/{uid}/trips/{tripId}` (owner-only). Sharing copies
-the trip into a public, read-only `sharedTrips/{tripId}` doc and yields a
-`?shared=<id>` link. Optional `expiresAt` + a Firestore TTL policy handle
-expiry; the client also rejects expired links defensively. Deleting a private
-trip also deletes its share copy.
+### 6.8 Persistence & sharing model (private by design)
+Private trips live in the user's Google Drive appDataFolder (`driveSync.ts`, ported
+from KanDOne): one file per device, newest edit per trip wins, deletes kept as
+tombstones. Sharing encrypts `{trip, appDesign}` with AES-256-GCM in the browser
+and stores only `{ciphertext, iv, ownerTokenHash, expiresAt}` in
+`sharedTrips/{shareId}`; the link is `?shared=<id>#k=<key>`. Shares are
+read-only. There is no Firebase sign-in: the owner proves ownership with a token
+kept in their Drive, and every update must present it and rotate its hash
+(`firestore.rules`). Rules allow `get` but never `list`, and refuse expired or
+unpublished shares. Deleting a trip unpublishes its share first; "Delete all my
+data" unpublishes every share, deletes the Drive files and revokes access.
 
 ### 6.9 Rich media without a media pipeline
 TTS "podcasts" default to a **mock** provider (instant fake URL, no cost). Real
@@ -356,9 +369,9 @@ flowchart LR
     subgraph vercel2 [Vercel project B — Hobby]
         Fn[Python serverless fn\napi/index.py -> FastAPI app]
     end
-    subgraph fb [Firebase — Spark]
-        AuthD[Authentication]
-        FSD[(Firestore + rules + TTL)]
+    subgraph g [Google]
+        AuthD[Google Identity + Drive API]
+        FSD[(Firestore sharedTrips + rules + TTL)]
     end
 
     Browser --> FEbuild
@@ -374,8 +387,8 @@ flowchart LR
   `app`; `backend/vercel.json` selects the Python runtime). `CORS_ORIGINS` is the
   only env var that matters in prod; no LLM key needed (BYO). TTS stays `mock`
   because serverless filesystems are read-only/ephemeral.
-- **Firebase** is a managed service; only project config + published security
-  rules are needed. Long-lived Piper TTS would need a Render/Fly.io host instead.
+- **Google Cloud / Firebase**: a Web OAuth client with the `drive.appdata` scope,
+  the Drive API enabled, and Firestore with the published security rules. Long-lived Piper TTS would need a Render/Fly.io host instead.
 
 ---
 
@@ -383,7 +396,7 @@ flowchart LR
 
 | Concern | Approach |
 |---------|----------|
-| **Security** | No secrets on our server (BYO key); Firestore rules enforce owner-only writes + public-read shares; API keys live only in the caller's browser and are sent solely to our backend |
+| **Security** | No secrets on our server (BYO key); private trips only in the user's Drive; shares are ciphertext, fetchable by id but never listable, writable only with the owner token; API keys live only in the caller's browser and are sent solely to our backend |
 | **CORS** | Enabled on the backend, origins configurable via `CORS_ORIGINS` (default `*` for local dev) |
 | **Error handling** | Backend maps failures to precise HTTP codes (`401` no key, `422` bad LLM schema, `429` rate-limit, `502` LLM/truncation); frontend shows localized notices and degrades gracefully |
 | **i18n / RTL** | UI is Hebrew/RTL (`dir="rtl"`) by default; the LLM detects the trip's dominant language, sets `TripData.language`, and replies in it; `LanguageIndicator` surfaces it. `LanguageSwitcher` (he/en/fr) is available in the builder navbar and, since a shared-link visitor is a different person from the builder with their own preference, in `SharedAppPage` too. A first-time shared-link visitor with no stored preference gets the UI defaulted to the trip's own `language` (`setLangIfUnset`) rather than the hardcoded Hebrew fallback; an explicit choice — the builder's or a returning visitor's — is never overridden |
@@ -400,8 +413,9 @@ flowchart LR
 - **Scalability:** stateless + serverless → scales with provider limits, not ours.
 - **Portability:** backend is a plain ASGI app (also runnable as a long-lived
   Uvicorn process); frontend is a standard Vite SPA.
-- **Data privacy:** we store nothing server-side; user data lives in the user's
-  own Firebase-authenticated space and browser.
+- **Data privacy:** the operator holds no readable trip: private trips are in the
+  user's own Google Drive, shared trips are ciphertext whose key exists only in the
+  link. The backend stores no trip content and logs no prompts.
 
 ---
 
@@ -410,9 +424,10 @@ flowchart LR
 | Area | Current limitation | Possible next step |
 |------|--------------------|--------------------|
 | LLM reliability | Whole itinerary re-echoed each chat turn (token-limit risk, mitigated by guard) | Diff-based agent updates |
-| Persistence | Firestore-only; no server-side backup we control | Optional export/import already exists (`tripFile`); add server export |
+| Persistence | Lives in each user's Drive; no copy we control (by design) | Export/import already exists (`tripFile`) |
 | Media | Serverless can't run Piper; mock URLs there | Dedicated TTS host or a cloud TTS adapter |
-| Auth scope | Google sign-in only, client-side | Additional providers if needed |
+| Auth scope | Google sign-in only (Drive is the store) | — |
+| Shared editing | Share links are read-only | Per-editor key wrapping if co-editing is needed again |
 | Testing | Unit + e2e exist; no load/perf tests | Add contract tests between TS/Pydantic models |
 | Android | Web-only today | Wrap PWA / native shell later |
 
@@ -427,5 +442,5 @@ flowchart LR
 - LLM abstraction: `backend/services/llm.py`
 - TTS abstraction: `backend/services/tts.py`
 - Frontend shell: `frontend/src/App.tsx`, `frontend/src/components/AppFrame.tsx`
-- Storage/sharing: `frontend/src/services/tripsStore.ts`, `frontend/firestore.rules`
+- Storage/sharing: `frontend/src/services/tripsStore.ts`, `driveSync.ts`, `shareCrypto.ts`, `sharedTripsFirestore.ts`, `frontend/firestore.rules`
 - Project overview: `README.md`

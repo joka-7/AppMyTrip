@@ -4,7 +4,6 @@ import App from "./App";
 import * as api from "./api";
 import { ApiError } from "./api";
 import type { TripData } from "./api";
-import * as tripsStore from "./services/tripsStore";
 import { setLang } from "./i18n/store";
 
 // Automocking (bare `vi.mock("./api")`) replaces ApiError's constructor too,
@@ -22,7 +21,6 @@ vi.mock("./api", async (importOriginal) => {
 });
 vi.mock("./services/tripsStore", () => ({
   onAuthChange: () => () => {},
-  completeRedirectSignIn: vi.fn().mockResolvedValue(null),
   signInWithGoogle: vi.fn(),
   signOutOfGoogle: vi.fn(),
   listTrips: vi.fn(),
@@ -57,10 +55,6 @@ const sampleTrip: TripData = {
 describe("App builder flow", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    // CloudMenu calls this unconditionally on mount (see its redirect-sign-in
-    // completion effect) — resetAllMocks wipes the factory default above, so
-    // it needs restoring or every render of App throws on a bare `vi.fn()`.
-    vi.mocked(tripsStore.completeRedirectSignIn).mockResolvedValue(null);
   });
 
   it("advances to step 2 and on to step 3 after skipping enhancements", async () => {

@@ -346,8 +346,6 @@ export const fr: Record<TranslationKey, string> = {
   "cloud.signInFailed": "La connexion avec Google a échoué. Réessayez.",
   "cloud.signInPopupBlocked":
     "Votre navigateur a bloqué la fenêtre de connexion Google. Autorisez les fenêtres pop-up pour ce site et réessayez.",
-  "cloud.signInUnauthorizedDomain":
-    "L'adresse {domain} n'est pas autorisée pour la connexion Google. S'il s'agit de l'adresse principale du site, elle doit être ajoutée à la liste des domaines autorisés dans la console Firebase ; sinon, essayez depuis l'adresse principale du site.",
   "cloud.signInNetworkFailed":
     "Un problème réseau a empêché la connexion. Vérifiez votre connexion internet et réessayez.",
   "cloud.saved": "Le voyage a été enregistré sur votre compte.",
@@ -362,6 +360,10 @@ export const fr: Record<TranslationKey, string> = {
   "cloud.deleteAria": "Supprimer le voyage {name}",
   "cloud.deleteConfirmAria": "Confirmer la suppression du voyage {name}",
   "cloud.deleteConfirm": "Supprimer ?",
+  "cloud.deleteMyData": "Supprimer toutes mes données",
+  "cloud.deleteMyDataConfirm": "Tout supprimer définitivement ?",
+  "cloud.deleteMyDataFailed":
+    "La suppression a échoué. Rien n'a été retiré de Google Drive ; veuillez réessayer.",
   "cloud.export": "Exporter",
   "cloud.exportIcs": "Exporter le calendrier",
   "cloud.print": "Imprimer",
@@ -406,16 +408,6 @@ export const fr: Record<TranslationKey, string> = {
   "sharedPage.saveFailed": "L'enregistrement sur votre compte a échoué. Réessayez.",
   "sharedPage.localOnlyNotice":
     "Les modifications faites ici (y compris via le chat) sont enregistrées uniquement dans ce navigateur et ne sont pas envoyées au serveur.",
-  "sharedPage.adminHint":
-    "Vous êtes administrateur de ce voyage — vous pouvez enregistrer les modifications ici, ou ajouter un autre administrateur par e-mail.",
-  "sharedPage.saveChanges": "Enregistrer les modifications",
-  "sharedPage.saveChangesDone": "Modifications enregistrées sur ce lien.",
-  "sharedPage.saveChangesFailed": "L'enregistrement des modifications a échoué. Réessayez.",
-  "sharedPage.addAdminPlaceholder": "Ajouter un administrateur par e-mail...",
-  "sharedPage.addAdmin": "Ajouter un administrateur",
-  "sharedPage.addAdminDone":
-    "Ajouté — cette personne peut désormais aussi enregistrer des modifications sur ce lien.",
-  "sharedPage.addAdminFailed": "L'ajout de cet administrateur a échoué. Réessayez.",
   "sharedPage.shareNewLink": "Partager un nouveau lien",
   "sharedPage.newLinkCopied":
     "Un nouveau lien avec vos modifications a été copié dans le presse-papiers.",
@@ -474,7 +466,7 @@ export const fr: Record<TranslationKey, string> = {
   "agent.imported": "Le voyage a été importé depuis un fichier. Vous pouvez continuer à éditer.",
   "agent.sharedIntro":
     "Envoyez un message pour modifier l'itinéraire — les modifications restent uniquement dans votre navigateur.",
-  "shared.expired": "Ce lien de partage a expiré.",
+  "shared.expired": "Ce lien de partage a expiré ou a été supprimé.",
   "shared.loadFailed":
     "Le chargement du voyage partagé a échoué. Le lien est peut-être erroné ou le voyage a été supprimé.",
   "shared.loading": "Chargement du voyage...",

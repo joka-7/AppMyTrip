@@ -55,9 +55,6 @@ describe("SharedAppPage", () => {
         onAddActivity={vi.fn()}
         onUpdateTrip={vi.fn()}
         onImportTrip={vi.fn()}
-        isAdmin={false}
-        onSaveChanges={vi.fn()}
-        onAddAdmin={vi.fn()}
         onCreateNewLink={vi.fn()}
       />,
     );
@@ -74,8 +71,8 @@ describe("SharedAppPage", () => {
     });
   });
 
-  it("shows admin save-changes controls when isAdmin is true", async () => {
-    const onSaveChanges = vi.fn().mockResolvedValue(undefined);
+  // Share links are read-only: nobody, owner included, edits the link in place.
+  it("offers no way to write changes back to the shared link or add editors", () => {
     render(
       <SharedAppPage
         tripData={trip}
@@ -90,18 +87,14 @@ describe("SharedAppPage", () => {
         onAddActivity={vi.fn()}
         onUpdateTrip={vi.fn()}
         onImportTrip={vi.fn()}
-        isAdmin
-        onSaveChanges={onSaveChanges}
-        onAddAdmin={vi.fn()}
         onCreateNewLink={vi.fn()}
       />,
     );
 
     fireEvent.click(screen.getByText("שמירה ושיתוף"));
-    fireEvent.click(screen.getByText("שמירת שינויים"));
-    await waitFor(() => {
-      expect(onSaveChanges).toHaveBeenCalled();
-    });
+    expect(screen.queryByText("שמירת שינויים")).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /admin|מנהל/i })).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/@/)).not.toBeInTheDocument();
   });
 
   it("lets a visitor pick their own UI language, independent of the trip", () => {
@@ -120,9 +113,6 @@ describe("SharedAppPage", () => {
         onAddActivity={vi.fn()}
         onUpdateTrip={vi.fn()}
         onImportTrip={vi.fn()}
-        isAdmin={false}
-        onSaveChanges={vi.fn()}
-        onAddAdmin={vi.fn()}
         onCreateNewLink={vi.fn()}
       />,
     );

@@ -40,9 +40,10 @@ Not built yet: the **Android** app. Web is the only target today.
   driving, transit, cycling, hiking) rather than one mode for the whole day.
 - **Never forget what to bring.** An AI-suggested or hand-edited checklist, split
   into trip-wide items and per-day items, with each viewer ticking their own copy.
-- **Save, load, and share trips.** Sign in with Google, save trips to the cloud,
-  reorder/add/delete whole days, and share a link — read-only, or editable by
-  admins you invite — with an expiry you choose (7/30/90 days, or forever).
+- **Save, load, and share trips — privately.** Sign in with Google and trips are
+  saved to *your own* Google Drive, not to a server we run. Share a read-only link
+  that is end-to-end encrypted: the key travels in the link itself, so not even the
+  app's operator can read a shared trip. Pick an expiry (7/30/90 days, or forever).
 - **Bring your own AI key.** Each user supplies their own Gemini, OpenAI, Anthropic,
   or Groq API key from the navbar, so running the app costs its operator nothing.
 - **Print or export** the itinerary and checklist, or export the trip dates to a
@@ -179,9 +180,10 @@ The backend is fully stateless — no database, no auth, no server-side persiste
 `preferences` (e.g. "Vegan", "gluten-free", "חלבי") is a plain free-text field the frontend sends
 with each request — there is no hardcoded dietary assumption, no special-cased
 logic (e.g. no `is_kosher` field), and no per-account storage on the backend.
-Saving/loading/sharing trips, and remembering a preferences string between sessions,
-is handled entirely client-side via Firestore (see "Frontend" → "Trip storage"
-below) — no database for us to run or back up.
+Saving/loading/sharing trips is handled entirely client-side: private trips go to
+each user's own Google Drive, and shared trips are stored only as ciphertext (see
+"Frontend" → "Trip storage" below). The backend stores no trip content and logs no
+prompts.
 
 ### LLM provider — bring your own key
 
@@ -276,75 +278,57 @@ npm run test:e2e
 
 ### Trip storage (save / load / share trips)
 
-Each user signs in with their own Google account and saves trips as documents in
-Firestore, under `users/{uid}/trips/{tripId}` — readable/writable only by that user
-(see `frontend/firestore.rules`). Sharing a trip copies it into a top-level
-`sharedTrips/{tripId}` doc that anyone can read (no sign-in required) but only the
-owner can write, and produces a `?trip=<name-slug>&shared=<tripId>` link; opening
-that link loads the trip read-only-by-link into the builder. Firestore on the free
-**Spark** plan covers this with normal usage — no billing account required.
+The design goal is that the operator cannot read anyone's trips.
 
-The `trip=` slug is cosmetic — only `shared=` identifies the trip — but it is what
-makes the trip's name visible in the link itself. A static SPA serves the same
-Open Graph tags for every URL, so chat apps can't render a per-trip preview card
-without server-side rendering; the slug puts the name in the text they *do* show.
-Sharing also goes through the native share sheet where available
-(`navigator.share`), sending "trip name — dates" alongside the link, and falls
-back to copying that whole message to the clipboard elsewhere.
+**Private trips live in the user's own Google Drive.** Signing in (Google's own
+sign-in, scope `drive.appdata`) lets the browser save trips to the Drive
+*appDataFolder* — a hidden folder only this app can read, which the user can wipe
+any time from Drive's "Manage apps". The browser talks to Google directly; no
+AppMyTrip server is in the path (`frontend/src/services/driveSync.ts`). Each
+device writes only its own file and reads everyone's, newest edit per trip wins,
+and deletes are kept as tombstones so a deleted trip never comes back from another
+device. **Sign out** clears the in-progress trip from the device, and **Delete all
+my data** (in the cloud menu) unpublishes every share link, deletes the Drive files
+and revokes the app's access.
+
+**Share links are end-to-end encrypted and read-only.** Sharing encrypts the trip
+in the browser (AES-256-GCM, `frontend/src/services/shareCrypto.ts`) and stores
+only the ciphertext in Firestore's `sharedTrips` collection. The link looks like
+`/?shared=<id>#k=<key>`: the key is in the `#fragment`, which browsers never send
+to any server, so neither Firestore, Vercel's logs nor the operator ever see it.
+Nothing readable about the trip is in the URL; the native share sheet sends
+"trip name — dates" as message text next to the link. Re-sharing keeps the same
+link with fresh content. There is no co-editing: a recipient can edit locally,
+then save a copy to their own account or share it as a new link.
+
+There is no Firebase sign-in. A share's owner proves ownership with a random token
+kept in their own Drive; Firestore stores only its SHA-256, and every update must
+present the current token and replace the hash (`frontend/firestore.rules`). The
+rules allow fetching one share by id but never listing the collection, so shares
+cannot be enumerated.
 
 When sharing, the user picks a link lifetime (7 / 30 / 90 days, or "forever" — the
-default). A chosen duration is stored as an `expiresAt` timestamp on the
-`sharedTrips` doc; `loadSharedTrip` rejects the link client-side once that time has
-passed, and `firestore.rules` enforces the same cutoff server-side (`allow read`
-requires either no `expiresAt` or one still in the future) — so an "expired" link is
-actually unreadable, including via direct Firestore access, not just hidden by the
-app's own UI. For actual automatic deletion of expired share docs (so they don't sit
-around forever just unreadable), configure a free, built-in **Firestore TTL policy**
-on the `sharedTrips.expiresAt` field — Firebase console → Firestore Database → TTL
-tab → add a policy for that field/collection (or `gcloud firestore fields
-ttl-policies update`). This is a one-time infrastructure setting, not app code; it's
-included on the Spark plan (no billing upgrade, no Cloud Functions needed), though
-deletion can lag up to ~24h after `expiresAt` — the read rule above already covers
-that gap regardless. Deleting a private trip (the "My Trips" list's ✕ button) also
-deletes its `sharedTrips` copy, so the share link stops working immediately rather
-than relying on TTL cleanup.
-
-**Editing a shared link in place (admins).** A `sharedTrips` doc also carries an
-`adminEmails` list, seeded with the owner's sign-in email the first time the trip is
-shared. Anyone whose current Google sign-in email is on that list gets extra controls
-on the `?shared=` page itself: a "save changes" button (`saveSharedTrip`) that writes
-edits straight back to that same doc/link instead of forking a private copy, and an
-"add admin" field (`addSharedTripAdmin`) that adds another email to the list so that
-person gets the same ability the next time they open the link signed in with that
-account. `firestore.rules` enforces this server-side — an update to a `sharedTrips`
-doc is only allowed from the owner's uid or from a caller whose verified sign-in
-email (`request.auth.token.email`) is already in `adminEmails` — so the client-side
-check is a UI convenience, not the actual access control. A non-owner admin's write
-is further scoped: it may only *add* to `adminEmails` (never remove or replace an
-existing entry) and can never touch `expiresAt` or `ownerEmail` — those stay
-owner-only, so one invited admin can't silently revoke everyone else's access or
-change how long the link lasts. Everyone (admin or not) also gets a "share new link"
-button that forks the current in-browser edits into a brand-new `sharedTrips` doc and
-copies its link, for when you'd rather hand out a separate link than overwrite the
-original.
+default). The rules refuse to serve a share past its `expiresAt` or once it is
+unpublished. Deleting a trip unpublishes its link first. For automatic deletion of
+expired shares, add a **Firestore TTL policy** on `sharedTrips.expiresAt`
+(Firebase console → Firestore Database → TTL), which is included in the free plan.
 
 Setup (free, no billing required):
-1. Create a project at the [Firebase console](https://console.firebase.google.com/).
-2. **Build → Authentication → Sign-in method** → enable the **Google** provider.
-3. **Build → Firestore Database** → create a database (production mode is fine —
-   rules are set explicitly below).
-4. **Firestore Database → Rules** → paste in the contents of `frontend/firestore.rules`
-   and publish.
-5. **Project settings → General → Your apps** → add a Web app, copy the config values.
-6. Copy `frontend/.env.example` to `.env.local` and fill in:
+1. **Google Cloud project** (a Firebase project counts as one): enable the
+   **Google Drive API**; under OAuth consent screen → Data access add the scope
+   `https://www.googleapis.com/auth/drive.appdata` and publish the app; create a
+   **Web application** OAuth client with your site's origins (e.g.
+   `http://localhost:5173` and the Vercel URL) as Authorized JavaScript origins.
+2. **Firestore**: in the [Firebase console](https://console.firebase.google.com/),
+   create a Firestore database, then **Rules** → paste `frontend/firestore.rules`
+   and publish. Add a Web app under Project settings to get its config.
+3. Copy `frontend/.env.example` to `.env.local` and fill in:
    ```bash
+   VITE_GOOGLE_CLIENT_ID=...apps.googleusercontent.com
    VITE_FIREBASE_API_KEY=...
-   VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
    VITE_FIREBASE_PROJECT_ID=your-project
    VITE_FIREBASE_APP_ID=...
    ```
-7. In **Authentication → Settings → Authorized domains**, add `localhost` (already
-   there by default) and your Vercel domain once deployed.
 
 In the app, the cloud icon in the top-right of the navbar lets a user sign in, save
 the current trip, browse/load previously saved trips, and share/delete them.
@@ -353,7 +337,7 @@ the current trip, browse/load previously saved trips, and share/delete them.
 
 - **Frontend → Vercel** (free Hobby tier): import the repo, set the root directory to
   `frontend/`, build command `npm run build`, output directory `dist`. Add the
-  `VITE_FIREBASE_*` and `VITE_API_URL` env vars from above in the Vercel project
+  `VITE_GOOGLE_CLIENT_ID`, `VITE_FIREBASE_*` and `VITE_API_URL` env vars from above in the Vercel project
   settings. A `frontend/vercel.json` is included so SPA routes don't 404 on refresh,
   and adds a few response headers: `X-Content-Type-Options`, `Referrer-Policy`,
   `Permissions-Policy`, and a `Content-Security-Policy-Report-Only` (deliberately
@@ -376,9 +360,9 @@ the current trip, browse/load previously saved trips, and share/delete them.
   (which needs a writable, persistent voice-model + audio directory) isn't a fit here.
   Alternatively, deploy the same FastAPI app as a long-lived process on a free-tier
   Render/Fly.io instance if you want real Piper TTS.
-- **Auth/Firestore → Firebase**: no separate deploy step — Firebase Authentication and
-  Firestore are managed services; you only need the project + Web app config and the
-  security rules from the setup steps above.
+- **Firestore → Firebase**: no separate deploy step — Firestore is a managed
+  service; you only need the project, the Web app config and the security rules from
+  the setup steps above.
 
 ## How they connect
 
@@ -478,4 +462,5 @@ frontend Node interpreter configured in the IDE's Node settings.
   "Backend" above and "Trip storage" under "Frontend").
 - Everything in this app is free to run, with no billing account anywhere: Gemini's
   free tier, local Piper TTS (or mock TTS on serverless), Vercel's Hobby tier for both
-  frontend and backend, and Firebase's Spark plan for auth + Firestore.
+  frontend and backend, Firebase's Spark plan for Firestore, and each user's own
+  Google Drive for their trips.

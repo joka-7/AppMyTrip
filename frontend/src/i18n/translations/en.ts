@@ -336,8 +336,6 @@ export const en: Record<TranslationKey, string> = {
   "cloud.signInFailed": "Signing in with Google failed. Please try again.",
   "cloud.signInPopupBlocked":
     "Your browser blocked the Google sign-in popup. Allow popups for this site and try again.",
-  "cloud.signInUnauthorizedDomain":
-    "The address {domain} isn't authorized for Google sign-in. If this is the site's main address, it needs to be added to the authorized domains list in the Firebase console; if not, try the site's main address instead.",
   "cloud.signInNetworkFailed":
     "A network problem prevented sign-in. Check your connection and try again.",
   "cloud.saved": "The trip was saved to your account.",
@@ -352,6 +350,10 @@ export const en: Record<TranslationKey, string> = {
   "cloud.deleteAria": "Delete trip {name}",
   "cloud.deleteConfirmAria": "Confirm delete trip {name}",
   "cloud.deleteConfirm": "Delete?",
+  "cloud.deleteMyData": "Delete all my data",
+  "cloud.deleteMyDataConfirm": "Delete everything for good?",
+  "cloud.deleteMyDataFailed":
+    "Deleting your data failed. Nothing was removed from Google Drive; please try again.",
   "cloud.export": "Export",
   "cloud.exportIcs": "Export calendar",
   "cloud.print": "Print",
@@ -396,15 +398,6 @@ export const en: Record<TranslationKey, string> = {
   "sharedPage.saveFailed": "Saving to your account failed. Please try again.",
   "sharedPage.localOnlyNotice":
     "Changes you make here (including via chat) are saved only in this browser and are not sent to the server.",
-  "sharedPage.adminHint":
-    "You're an admin of this trip — you can save changes here, or add another admin by email.",
-  "sharedPage.saveChanges": "Save changes",
-  "sharedPage.saveChangesDone": "Changes saved to this link.",
-  "sharedPage.saveChangesFailed": "Saving changes failed. Please try again.",
-  "sharedPage.addAdminPlaceholder": "Add an admin by email...",
-  "sharedPage.addAdmin": "Add admin",
-  "sharedPage.addAdminDone": "Added — they can now save changes to this link too.",
-  "sharedPage.addAdminFailed": "Adding that admin failed. Please try again.",
   "sharedPage.shareNewLink": "Share new link",
   "sharedPage.newLinkCopied": "A new link with your changes was copied to the clipboard.",
   "sharedPage.newLinkCopyFailed":
@@ -459,7 +452,7 @@ export const en: Record<TranslationKey, string> = {
   "agent.imported": "The trip was imported from a file. You can keep editing.",
   "agent.sharedIntro":
     "Send a message to change the itinerary — changes here stay only in your browser.",
-  "shared.expired": "This share link has expired.",
+  "shared.expired": "This share link has expired or was removed.",
   "shared.loadFailed": "Loading the shared trip failed. The link may be wrong or the trip removed.",
   "shared.loading": "Loading the trip...",
 

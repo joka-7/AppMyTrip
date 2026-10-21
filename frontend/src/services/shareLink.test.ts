@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { buildShareUrl, shareMessage, tripSlug } from "./shareLink";
+import { buildShareUrl, shareMessage } from "./shareLink";
 
 /** jsdom won't navigate, but the location can be replaced wholesale. */
 function setLocation(href: string) {
@@ -15,41 +15,19 @@ afterEach(() => {
   Object.defineProperty(window, "location", { configurable: true, value: originalLocation });
 });
 
-describe("tripSlug", () => {
-  it("keeps Hebrew letters — that's the whole point of a readable link", () => {
-    expect(tripSlug("טיול לרומא")).toBe("טיול-לרומא");
-  });
-
-  it("slugifies an English title", () => {
-    expect(tripSlug("Family trip to Rome!")).toBe("Family-trip-to-Rome");
-  });
-
-  it("drops punctuation and collapses runs of separators", () => {
-    expect(tripSlug("  Rome — 2026 / spring  ")).toBe("Rome-2026-spring");
-    expect(tripSlug("A “quoted” trip")).toBe("A-quoted-trip");
-  });
-
-  it("returns an empty slug for a title with nothing usable", () => {
-    expect(tripSlug("")).toBe("");
-    expect(tripSlug("   ")).toBe("");
-    expect(tripSlug("!!! ---")).toBe("");
-  });
-
-  it("caps the length without leaving a trailing separator", () => {
-    const slug = tripSlug(`${"a".repeat(58)} tail`);
-    expect(slug.length).toBeLessThanOrEqual(60);
-    expect(slug.endsWith("-")).toBe(false);
-  });
-});
-
 describe("buildShareUrl", () => {
-  it("puts the trip name in the link, before the opaque id", () => {
+  it("puts the key in the #fragment, which browsers never send to a server", () => {
     setLocation("https://appmytrip.example/");
-    const url = buildShareUrl("trip-123", "טיול לרומא");
-    const parsed = new URL(url);
-    expect(parsed.searchParams.get("trip")).toBe("טיול-לרומא");
-    expect(parsed.searchParams.get("shared")).toBe("trip-123");
-    expect(url.indexOf("trip=")).toBeLessThan(url.indexOf("shared="));
+    const parsed = new URL(buildShareUrl("share-123", "key_ABC-def"));
+    expect(parsed.searchParams.get("shared")).toBe("share-123");
+    expect(new URLSearchParams(parsed.hash.slice(1)).get("k")).toBe("key_ABC-def");
+    expect(parsed.search).not.toContain("key_ABC-def");
+  });
+
+  it("carries nothing readable about the trip in the URL", () => {
+    setLocation("https://appmytrip.example/");
+    const parsed = new URL(buildShareUrl("share-123", "k"));
+    expect([...parsed.searchParams.keys()]).toEqual(["shared"]);
   });
 
   // The old implementation built from window.location.href, so sharing a new
@@ -57,23 +35,15 @@ describe("buildShareUrl", () => {
   // parameters into the new link.
   it("drops the current page's query instead of carrying it over", () => {
     setLocation("https://appmytrip.example/?shared=old-trip&trip=old-name&debug=1");
-    const parsed = new URL(buildShareUrl("new-trip", "New Trip"));
-    expect(parsed.searchParams.get("shared")).toBe("new-trip");
-    expect(parsed.searchParams.get("trip")).toBe("New-Trip");
+    const parsed = new URL(buildShareUrl("new-share", "k"));
+    expect(parsed.searchParams.get("shared")).toBe("new-share");
     expect(parsed.searchParams.get("debug")).toBeNull();
     expect(parsed.searchParams.getAll("shared")).toHaveLength(1);
   });
 
   it("keeps a non-root path, for a sub-directory deployment", () => {
     setLocation("https://example.com/apps/trip/?shared=x");
-    expect(new URL(buildShareUrl("t1", "Trip")).pathname).toBe("/apps/trip/");
-  });
-
-  it("omits the slug entirely when the title has nothing usable", () => {
-    setLocation("https://appmytrip.example/");
-    const parsed = new URL(buildShareUrl("trip-123", "  "));
-    expect(parsed.searchParams.has("trip")).toBe(false);
-    expect(parsed.searchParams.get("shared")).toBe("trip-123");
+    expect(new URL(buildShareUrl("t1", "k")).pathname).toBe("/apps/trip/");
   });
 });
 

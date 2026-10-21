@@ -334,8 +334,6 @@ export const he = {
   "cloud.signInFailed": "ההתחברות ל-Google נכשלה. נסו שוב.",
   "cloud.signInPopupBlocked":
     "הדפדפן חסם את חלון ההתחברות של Google. אפשרו חלונות קופצים לאתר הזה ונסו שוב.",
-  "cloud.signInUnauthorizedDomain":
-    "הכתובת {domain} אינה מורשית להתחברות עם Google. אם זו הכתובת הראשית של האתר, יש להוסיף אותה לרשימת הכתובות המורשות בהגדרות Firebase; אם לא, נסו מהכתובת הראשית של האתר.",
   "cloud.signInNetworkFailed": "בעיית רשת מנעה את ההתחברות. בדקו את החיבור לאינטרנט ונסו שוב.",
   "cloud.saved": "הטיול נשמר בחשבונכם.",
   "cloud.saveFailed": "שמירת הטיול נכשלה.",
@@ -348,6 +346,9 @@ export const he = {
   "cloud.deleteAria": "מחיקת הטיול {name}",
   "cloud.deleteConfirmAria": "אישור מחיקת הטיול {name}",
   "cloud.deleteConfirm": "למחוק?",
+  "cloud.deleteMyData": "מחיקת כל הנתונים שלי",
+  "cloud.deleteMyDataConfirm": "למחוק הכול לצמיתות?",
+  "cloud.deleteMyDataFailed": "מחיקת הנתונים נכשלה. שום דבר לא נמחק מ-Google Drive; נסו שוב.",
   "cloud.export": "ייצוא",
   "cloud.exportIcs": "ייצוא ליומן",
   "cloud.print": "הדפסה",
@@ -392,15 +393,6 @@ export const he = {
   "sharedPage.saveFailed": "השמירה לחשבון נכשלה. נסו שוב.",
   "sharedPage.localOnlyNotice":
     "שינויים שתבצעו כאן (כולל דרך הצ'אט) יישמרו רק בדפדפן הזה ולא יישלחו לשרת.",
-  "sharedPage.adminHint":
-    "אתם מנהלים של הטיול הזה — אפשר לשמור שינויים כאן, או להוסיף מנהל נוסף לפי אימייל.",
-  "sharedPage.saveChanges": "שמירת שינויים",
-  "sharedPage.saveChangesDone": "השינויים נשמרו בקישור הזה.",
-  "sharedPage.saveChangesFailed": "שמירת השינויים נכשלה. נסו שוב.",
-  "sharedPage.addAdminPlaceholder": "הוספת מנהל לפי אימייל...",
-  "sharedPage.addAdmin": "הוספת מנהל",
-  "sharedPage.addAdminDone": "נוסף/ה בהצלחה — עכשיו גם הם יכולים לשמור שינויים בקישור הזה.",
-  "sharedPage.addAdminFailed": "הוספת המנהל נכשלה. נסו שוב.",
   "sharedPage.shareNewLink": "שיתוף קישור חדש",
   "sharedPage.newLinkCopied": "קישור חדש עם השינויים שלכם הועתק ללוח.",
   "sharedPage.newLinkCopyFailed":
@@ -449,7 +441,7 @@ export const he = {
   "agent.loaded": "הטיול נטען. אפשר להמשיך לערוך.",
   "agent.imported": "הטיול יובא מקובץ. אפשר להמשיך לערוך.",
   "agent.sharedIntro": 'שלחו הודעה כדי לשנות את הלו"ז — שינויים כאן נשארים רק בדפדפן שלכם.',
-  "shared.expired": "קישור השיתוף הזה פג תוקף.",
+  "shared.expired": "קישור השיתוף הזה פג תוקף או הוסר.",
   "shared.loadFailed": "טעינת הטיול המשותף נכשלה. ייתכן שהקישור שגוי או שהטיול הוסר.",
   "shared.loading": "טוען את הטיול...",
 

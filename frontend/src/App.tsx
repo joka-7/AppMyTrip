@@ -42,15 +42,12 @@ import {
   mergeEnhancedActivities,
 } from "./services/tripEnhance";
 import {
-  addSharedTripAdmin,
   getCurrentSession,
   loadSharedTrip,
-  onAuthChange,
-  saveSharedTrip,
   saveTrip,
   shareTrip,
   signInWithGoogle,
-  type CloudSession,
+  SharedTripUnavailableError,
 } from "./services/tripsStore";
 import { setLangIfUnset, translate } from "./i18n/store";
 import { useI18n } from "./i18n/useI18n";
@@ -73,6 +70,8 @@ function StepFallback() {
 // standalone generated app (no builder chrome), so people the trip is
 // shared with see something that looks like the real app, not the editor.
 const SHARED_TRIP_ID = new URLSearchParams(window.location.search).get("shared");
+// The decryption key rides in the #fragment, which browsers never send to a server.
+const SHARED_TRIP_KEY = new URLSearchParams(window.location.hash.slice(1)).get("k");
 
 // Empty starting point — the preview shows an empty state until a trip is parsed.
 const EMPTY_TRIP: TripData = { title: "", dates: "", days: [] };
@@ -829,28 +828,26 @@ function TripBuilder() {
 // Loads a "?shared=<tripId>" link's trip and renders only the generated
 // app — no builder chrome, no AI chat — so it looks like the real
 // mobile/web app trip participants would actually use.
-function SharedTripViewer({ tripId }: { tripId: string }) {
+function SharedTripViewer({ tripId, shareKey }: { tripId: string; shareKey: string | null }) {
   const { t, dir } = useI18n();
   const [trip, setTrip] = useState<TripData | null>(null);
   const [appDesign, setAppDesign] = useState<AppDesign>(DEFAULT_APP_DESIGN);
   const [error, setError] = useState<string | null>(null);
 
-  // Edits below (chat or manual) only ever call setTrip — this is local-only
-  // state, never backed by Firestore. adminEmails/session exist purely to
-  // decide whether to show admin controls (save-in-place, add-admin); the
-  // actual writes go through saveSharedTrip/addSharedTripAdmin, gated by
-  // firestore.rules on the server side.
+  // Edits below (chat or manual) only ever call setTrip — local-only state.
+  // Share links are read-only; only the owner re-publishes, from their account.
   const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [chatNotice, setChatNotice] = useState<string | null>(null);
   const [failedChatText, setFailedChatText] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const [session, setSession] = useState<CloudSession | null>(getCurrentSession());
-  const [adminEmails, setAdminEmails] = useState<string[]>([]);
-
   useEffect(() => {
-    loadSharedTrip(tripId)
+    if (!shareKey) {
+      setError(translate("shared.loadFailed"));
+      return;
+    }
+    loadSharedTrip(tripId, shareKey)
       .then((result) => {
         // A visitor opening a shared link for the first time has no language
         // preference of their own yet — default the UI (including the
@@ -860,51 +857,27 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
         setLangIfUnset(result.trip.language);
         setTrip(result.trip);
         setAppDesign(result.appDesign);
-        setAdminEmails(result.meta.adminEmails);
         setAgentMessages([{ role: "agent", text: translate("agent.sharedIntro") }]);
       })
       .catch((err) => {
         console.error(err);
         setError(
-          err instanceof Error && err.message.includes("expired")
+          err instanceof SharedTripUnavailableError
             ? translate("shared.expired")
             : translate("shared.loadFailed"),
         );
       });
-  }, [tripId]);
-
-  useEffect(
-    () =>
-      onAuthChange((user) =>
-        setSession(
-          user ? { uid: user.uid, email: user.email, displayName: user.displayName } : null,
-        ),
-      ),
-    [],
-  );
+  }, [tripId, shareKey]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [agentMessages]);
 
-  const isAdmin = Boolean(session?.email && adminEmails.includes(session.email.toLowerCase()));
-
-  const handleSaveChanges = async () => {
-    if (!trip) throw new Error("Trip not loaded yet.");
-    await saveSharedTrip(tripId, trip, appDesign);
-  };
-
-  const handleAddAdmin = async (email: string) => {
-    await addSharedTripAdmin(tripId, email);
-    const normalized = email.trim().toLowerCase();
-    setAdminEmails((prev) => (prev.includes(normalized) ? prev : [...prev, normalized]));
-  };
-
   const handleCreateNewLink = async (): Promise<string> => {
     if (!trip) throw new Error("Trip not loaded yet.");
-    const currentSession = session ?? (await signInWithGoogle());
-    const newTripId = await saveTrip(currentSession.uid, trip, { appDesign, stage: "final" });
-    return shareTrip(currentSession.uid, newTripId, trip, appDesign);
+    await (getCurrentSession() ?? signInWithGoogle());
+    const newTripId = await saveTrip(trip, { appDesign, stage: "final" });
+    return shareTrip(newTripId, trip, appDesign);
   };
 
   const sendChatMessage = async (userText: string) => {
@@ -1043,9 +1016,6 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
           setTrip(importedTrip);
           setAppDesign(importedAppDesign);
         }}
-        isAdmin={isAdmin}
-        onSaveChanges={handleSaveChanges}
-        onAddAdmin={handleAddAdmin}
         onCreateNewLink={handleCreateNewLink}
       />
     </Suspense>
@@ -1053,5 +1023,13 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
 }
 
 export default function App() {
-  return <>{SHARED_TRIP_ID ? <SharedTripViewer tripId={SHARED_TRIP_ID} /> : <TripBuilder />}</>;
+  return (
+    <>
+      {SHARED_TRIP_ID ? (
+        <SharedTripViewer tripId={SHARED_TRIP_ID} shareKey={SHARED_TRIP_KEY} />
+      ) : (
+        <TripBuilder />
+      )}
+    </>
+  );
 }
