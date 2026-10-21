@@ -171,7 +171,8 @@ function sanitizeActivity(value: unknown): Activity | null {
     ? (value.travel_mode as TravelMode)
     : null;
   return {
-    id: str(value.id, 200),
+    // Ids key every later merge; one the AI left out must not collide with another.
+    id: str(value.id, 200) || crypto.randomUUID(),
     time: str(value.time, 20),
     title: str(value.title, 300),
     desc: str(value.desc, 4000),
@@ -481,6 +482,9 @@ const MISSING_COORDINATES: EnhanceSpec = {
 const hasValue = (value: unknown) =>
   value !== null && value !== undefined && !(Array.isArray(value) && value.length === 0);
 
+// jsonMode only reaches OpenAI-compatible providers; Anthropic needs it asked for in words.
+const JSON_ONLY = "Respond with ONLY valid JSON — no markdown fences, no prose.";
+
 const schemaText = (schema: unknown) =>
   `Output strict JSON matching this schema: ${JSON.stringify(schema)}`;
 
@@ -492,8 +496,13 @@ function classify(err: unknown): ApiError {
   }
   if (err instanceof AllProvidersExhaustedError) {
     const errors = err.attempts.map((a) => a.error);
-    if (errors.length > 0 && errors.every((e) => /\b429\b|rate.?limit/i.test(e))) {
+    // The dispatcher passes on the provider's own message, which usually drops
+    // the HTTP status, so the status is recovered from the wording too.
+    if (errors.length > 0 && errors.every((e) => /\b429\b|rate.?limit|quota/i.test(e))) {
       return new ApiError(429, "Every saved key is rate-limited.");
+    }
+    if (errors.some((e) => /\b413\b|too large/i.test(e))) {
+      return new ApiError(413, "The request is too large for the model.");
     }
     if (errors.length > 0 && errors.every((e) => /\b40[13]\b|api.?key|unauthori[sz]ed/i.test(e))) {
       return new ApiError(401, "None of the saved keys worked.");
@@ -513,7 +522,11 @@ export function createTripAi({ complete }: { complete: CompleteFn }) {
   ): Promise<unknown> {
     let text: string;
     try {
-      text = await complete(cfg, user, { systemInstruction: system, jsonMode: true, maxTokens });
+      text = await complete(cfg, user, {
+        systemInstruction: `${system} ${JSON_ONLY}`,
+        jsonMode: true,
+        maxTokens,
+      });
     } catch (err) {
       throw classify(err);
     }

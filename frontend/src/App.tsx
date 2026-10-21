@@ -92,7 +92,7 @@ const isRateLimited = (err: unknown): boolean => err instanceof ApiError && err.
 // chat bubble. Instead, classify by
 // HTTP status into a short, clean explanation a non-technical user can act on.
 //
-// 502/504 (the provider/every-key-failed case) is the one exception: its `detail`
+// 502 (the provider/every-key-failed case) is the one exception: its `detail`
 // is our own short summary of which provider failed and why (see classify in
 // services/tripAi.ts), not a raw dump, and it's exactly the case people otherwise
 // have to dig through the browser console to diagnose. Appending it here means the actual cause is visible right in the app.
@@ -114,7 +114,6 @@ const describeApiError = (err: unknown, fallback: string): string => {
       case 409:
         return translate("apiError.truncated");
       case 502:
-      case 504:
         return appendErrorDetail(translate("apiError.providerDown"), err.detail);
       default:
         return fallback;

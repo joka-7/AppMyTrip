@@ -199,6 +199,13 @@ describe("sanitizeTrip", () => {
     expect(trip.language).toBe("he");
   });
 
+  it("gives every activity a distinct id when the reply leaves them out", () => {
+    const trip = sanitizeTrip({ days: [{ activities: [{ title: "A" }, { title: "B", id: "" }] }] });
+    const ids = trip.days[0].activities.map((a) => a.id);
+    expect(ids.every(Boolean)).toBe(true);
+    expect(new Set(ids).size).toBe(2);
+  });
+
   it.each([null, "trip", [], { title: "no days" }])("rejects %j with a 422", (value) => {
     expect(() => sanitizeTrip(value)).toThrow(expect.objectContaining({ status: 422 }));
   });
@@ -227,6 +234,8 @@ describe("createTripAi().parseTripText", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0].options).toEqual(expect.objectContaining({ jsonMode: true }));
     expect(calls[0].system).toContain("IMPORTANT: Vegan");
+    // Anthropic has no JSON mode, so the prompt itself must ask for bare JSON.
+    expect(calls[0].system).toContain("Respond with ONLY valid JSON");
     expect(calls[0].prompt).toContain("3 days in Rome");
   });
 
@@ -250,8 +259,22 @@ describe("createTripAi().parseTripText", () => {
       ]),
       502,
     ],
+    [
+      "an exhausted quota",
+      new AllProvidersExhaustedError([
+        { provider: "openai", error: "You exceeded your current quota, please check your plan" },
+      ]),
+      429,
+    ],
+    [
+      "a request too large for the model",
+      new AllProvidersExhaustedError([
+        { provider: "groq", error: "Request too large for model on tokens per minute (TPM)" },
+      ]),
+      413,
+    ],
     ["an unexpected failure", new TypeError("Failed to fetch"), 502],
-  ])("maps %s to %i", async (_label, failure, status) => {
+  ])("maps %s to its status", async (_label, failure, status) => {
     const { ai } = fakeAi(() => failure);
     await expect(ai.parseTripText("x", null, CFG)).rejects.toEqual(
       expect.objectContaining({ status }),

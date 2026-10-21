@@ -78,7 +78,7 @@ agentTurnOnce:
   try:
     add_days                       -> addDays   (sends title/dates/day count/last day; new days only)
     edit_days with day numbers     -> editDays  (sends only those days; replaces them by dayNum)
-  catch ApiError(422): fall through   # other errors (401/429/502) propagate
+  catch ApiError(422): fall through   # other errors (401/413/429/502) propagate
   return fullTurn                     # whole itinerary in, {updated_trip, agent_reply} out
 
 resolveIntent:
@@ -127,7 +127,8 @@ One error type: `ApiError(status, detail)` (`tripAi.ts`, re-exported by `api.ts`
 | `401` | `classify` | `NoProviderConfiguredError` (no usable key saved), or every provider attempt failed with 401/403/key errors |
 | `409` | `agentTurn` | the reply still dropped most of the trip after one retry |
 | `422` | `extractJson`, `sanitizeTrip`, scoped-reply checks | the reply was not valid JSON / not a trip / not the days asked for |
-| `429` | `classify` | every attempt failed with a rate limit |
+| `413` | `classify` | an attempt failed because the request was too large for the model |
+| `429` | `classify` | every attempt failed with a rate limit or an exhausted quota |
 | `502` | `classify` | every provider failed otherwise; `detail` lists `provider: error` per attempt |
 
 `App.tsx`'s `describeApiError` turns the status into a localized message (and

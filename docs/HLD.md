@@ -305,7 +305,8 @@ top-up (see `ALL_ENHANCE_OPTIONS`).
   This defends against the LLM hitting a token limit mid-echo.
 - **Retries / fallback**: `modeldispatcher-browser-agent` retries a 429/5xx or
   network failure once and falls through the saved keys and providers; when all
-  fail, `classify` reports `429` (all rate-limited), `401` (no key worked) or `502`.
+  fail, `classify` reports `429` (all rate-limited or out of quota), `413` (request too
+  large), `401` (no key worked) or `502`.
 - **Client fallback**: a failed parse loads a local demo trip plus a dismissible
   notice; a failed chat turn keeps the itinerary and offers Retry; a failed
   enhancement keeps the current trip, so the prototype stays live.
@@ -369,7 +370,7 @@ flowchart LR
 | Concern | Approach |
 |---------|----------|
 | **Security** | No server of ours, so no secrets of ours; private trips only in the user's Drive; shares are ciphertext, fetchable by id but never listable, writable only with the owner token; API keys live only in the user's `localStorage` and are sent only to their AI provider; every AI reply is untrusted and rebuilt by `sanitizeTrip`; `vercel.json` ships a report-only CSP whose `connect-src` lists Google APIs and the OpenAI, Anthropic and Groq APIs |
-| **Error handling** | One contract: `ApiError(status, detail)` from `services/tripAi.ts` (`401` no usable key, `409` reply dropped most of the trip, `422` reply not a valid trip, `429` every key rate-limited, `502` every provider failed); `App.tsx`'s `describeApiError` turns it into a localized notice and the UI degrades gracefully |
+| **Error handling** | One contract: `ApiError(status, detail)` from `services/tripAi.ts` (`401` no usable key, `409` reply dropped most of the trip, `422` reply not a valid trip, `413` request too large, `429` every key rate-limited, `502` every provider failed); `App.tsx`'s `describeApiError` turns it into a localized notice and the UI degrades gracefully |
 | **i18n / RTL** | UI is Hebrew/RTL (`dir="rtl"`) by default; the LLM detects the trip's dominant language, sets `TripData.language`, and replies in it; `LanguageIndicator` surfaces it. `LanguageSwitcher` (he/en/fr) is available in the builder navbar and, since a shared-link visitor is a different person from the builder with their own preference, in `SharedAppPage` too. A first-time shared-link visitor with no stored preference gets the UI defaulted to the trip's own `language` (`setLangIfUnset`) rather than the hardcoded Hebrew fallback; an explicit choice — the builder's or a returning visitor's — is never overridden |
 | **Offline / PWA** | Installable PWA (manifest + Workbox precache); the demo-trip fallback keeps it usable when no provider is reachable |
 | **Performance** | Default parse/chat stay lean (enrichment deferred to opt-in Step 2); chat edits are scoped to the affected days when possible; enhancement calls run concurrently |
