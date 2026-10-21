@@ -122,6 +122,7 @@ AppMyTrip/
 │   │   ├── builder-flow.spec.ts
 │   │   ├── mixed-day.spec.ts
 │   │   ├── mobile-layout.spec.ts
+│   │   ├── mockAi.ts
 │   │   └── screenshots.spec.ts
 │   ├── public/
 │   │   ├── apple-touch-icon.png
@@ -183,7 +184,9 @@ AppMyTrip/
 │   │   │   ├── ThemeSelector.test.tsx
 │   │   │   └── ThemeSelector.tsx
 │   │   ├── data/
+│   │   │   ├── agentDayIntentSchema.json
 │   │   │   ├── agentResponseSchema.json
+│   │   │   ├── agentScopedResponseSchema.json
 │   │   │   └── tripDataSchema.json
 │   │   ├── hooks/                                # Podcast player, install prompt, trip branding, checklist, editing
 │   │   │   ├── useBackToClose.test.ts
@@ -256,6 +259,8 @@ AppMyTrip/
 │   │   │   ├── staleChunkRecovery.ts
 │   │   │   ├── travelMode.test.ts
 │   │   │   ├── travelMode.ts
+│   │   │   ├── tripAi.test.ts
+│   │   │   ├── tripAi.ts
 │   │   │   ├── tripEnhance.ts
 │   │   │   ├── tripFile.test.ts
 │   │   │   ├── tripFile.ts
