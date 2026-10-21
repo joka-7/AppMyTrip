@@ -77,7 +77,6 @@ export const he = {
   "step3.subtitle": 'הבינה המלאכותית שלנו עוברת על הלו"ז ומוודאת שלא שכחתם כלום.',
   "step3.datesLabel": "תאריכי הטיול",
   "step3.datesPlaceholder": "לדוגמה: 12-19 ביולי",
-  "step3.generating": "מייצר מדיה (פודקאסטים)...",
   "step3.continue": "המשך לעיצוב האפליקציה",
   "step3.external.heading": "שליחה ל-AI חיצוני",
   "step3.external.intro":
@@ -305,7 +304,7 @@ export const he = {
   "apiKey.descriptionAfter":
     ". אפשר להוסיף כמה מפתחות; כשאחד מגיע למגבלת הקצב נעבור אוטומטית לבא. הכול נשמר רק בדפדפן שלכם.",
   "apiKey.trustNote":
-    "כל מפתח נשלח עם הבקשות שלכם לשרת של האפליקציה עצמה (לא לצד שלישי), ומועבר משם רק לספק שבחרתם — הוא לעולם לא נשמר בשרת ולא נרשם ביומן במלואו.",
+    "כל מפתח נשלח מהמכשיר הזה ישירות לספק שבחרתם — אף פעם לא דרך שרת של AppMyTrip, והוא לעולם לא נרשם ביומן.",
   "apiKey.removeAria": "הסרת מפתח {key}",
   "apiKey.showAria": "הצגת המפתח",
   "apiKey.hideAria": "הסתרת המפתח",
@@ -334,8 +333,6 @@ export const he = {
   "cloud.signInFailed": "ההתחברות ל-Google נכשלה. נסו שוב.",
   "cloud.signInPopupBlocked":
     "הדפדפן חסם את חלון ההתחברות של Google. אפשרו חלונות קופצים לאתר הזה ונסו שוב.",
-  "cloud.signInUnauthorizedDomain":
-    "הכתובת {domain} אינה מורשית להתחברות עם Google. אם זו הכתובת הראשית של האתר, יש להוסיף אותה לרשימת הכתובות המורשות בהגדרות Firebase; אם לא, נסו מהכתובת הראשית של האתר.",
   "cloud.signInNetworkFailed": "בעיית רשת מנעה את ההתחברות. בדקו את החיבור לאינטרנט ונסו שוב.",
   "cloud.saved": "הטיול נשמר בחשבונכם.",
   "cloud.saveFailed": "שמירת הטיול נכשלה.",
@@ -348,7 +345,22 @@ export const he = {
   "cloud.deleteAria": "מחיקת הטיול {name}",
   "cloud.deleteConfirmAria": "אישור מחיקת הטיול {name}",
   "cloud.deleteConfirm": "למחוק?",
+  "cloud.deleteMyData": "מחיקת כל הנתונים שלי",
+  "cloud.deleteMyDataConfirm": "למחוק הכול לצמיתות?",
+  "cloud.deleteMyDataFailed": "מחיקת הנתונים נכשלה. שום דבר לא נמחק מ-Google Drive; נסו שוב.",
   "cloud.export": "ייצוא",
+  "cloud.editLink": "קישור עריכה",
+  "cloud.createEditLink": "יצירת קישור עריכה",
+  "cloud.editLinkWarning":
+    'כל מי שמחזיק בקישור הזה יכול לשנות את הטיול המשותף. שיתוף מחדש מ"הטיולים שלי" מחליף את השינויים שנשמרו דרכו.',
+  "cloud.disableEditLink": "ביטול קישור העריכה",
+  "cloud.editLinkDisabled": "קישור העריכה בוטל. קישור הצפייה ממשיך לעבוד.",
+  "cloud.editLinkFailed": "הפעולה על קישור העריכה נכשלה. ודאו שהטיול שותף, ונסו שוב.",
+  "sharedPage.saveChanges": "שמירת שינויים",
+  "sharedPage.saveChangesDone": "השינויים נשמרו בקישור הזה.",
+  "sharedPage.saveChangesFailed": "שמירת השינויים נכשלה. ייתכן שקישור העריכה בוטל.",
+  "sharedPage.editorHint":
+    "פתחתם קישור עריכה — אפשר לשמור כאן שינויים, וכל מי שיש לו את הקישור יראה אותם.",
   "cloud.exportIcs": "ייצוא ליומן",
   "cloud.print": "הדפסה",
   "cloud.exportPdf": "הורדת PDF",
@@ -392,15 +404,6 @@ export const he = {
   "sharedPage.saveFailed": "השמירה לחשבון נכשלה. נסו שוב.",
   "sharedPage.localOnlyNotice":
     "שינויים שתבצעו כאן (כולל דרך הצ'אט) יישמרו רק בדפדפן הזה ולא יישלחו לשרת.",
-  "sharedPage.adminHint":
-    "אתם מנהלים של הטיול הזה — אפשר לשמור שינויים כאן, או להוסיף מנהל נוסף לפי אימייל.",
-  "sharedPage.saveChanges": "שמירת שינויים",
-  "sharedPage.saveChangesDone": "השינויים נשמרו בקישור הזה.",
-  "sharedPage.saveChangesFailed": "שמירת השינויים נכשלה. נסו שוב.",
-  "sharedPage.addAdminPlaceholder": "הוספת מנהל לפי אימייל...",
-  "sharedPage.addAdmin": "הוספת מנהל",
-  "sharedPage.addAdminDone": "נוסף/ה בהצלחה — עכשיו גם הם יכולים לשמור שינויים בקישור הזה.",
-  "sharedPage.addAdminFailed": "הוספת המנהל נכשלה. נסו שוב.",
   "sharedPage.shareNewLink": "שיתוף קישור חדש",
   "sharedPage.newLinkCopied": "קישור חדש עם השינויים שלכם הועתק ללוח.",
   "sharedPage.newLinkCopyFailed":
@@ -438,22 +441,21 @@ export const he = {
   // App-level notices & agent messages
   "notice.rateLimitedDemo":
     "ספק ה-AI מגביל קצב בקשות כרגע — נסו שוב בעוד דקה. בינתיים נטען טיול לדוגמה.",
-  "notice.unreachableDemo": "לא הצלחנו להתחבר לשרת ה-AI — נטען טיול לדוגמה.",
+  "notice.unreachableDemo": "לא הצלחנו להגיע לספק ה-AI — נטען טיול לדוגמה.",
   "notice.enhanceFailed": 'הוספת הפרטים הנוספים נכשלה — ממשיכים עם הלו"ז הנוכחי.',
   "notice.retry": "נסו שוב",
   "notice.updateFailed": 'העדכון נכשל — הלו"ז לא השתנה.',
-  "notice.mediaFailed": "יצירת המדיה בשרת נכשלה — ממשיכים ללא קבצי אודיו.",
   "agent.initial": 'זיהיתי את הטיול! עברו על הלו"ז ותקנו מה שצריך.',
   "agent.demo":
     "טענתי טיול לדוגמה כדי שתוכלו לראות איך האפליקציה עובדת. כדי לפרסר טקסט אמיתי, הגדירו מפתח Gemini API משלכם (כפתור 'הגדרת מפתח API' למעלה) — או המשיכו לערוך ידנית.",
   "agent.loaded": "הטיול נטען. אפשר להמשיך לערוך.",
   "agent.imported": "הטיול יובא מקובץ. אפשר להמשיך לערוך.",
   "agent.sharedIntro": 'שלחו הודעה כדי לשנות את הלו"ז — שינויים כאן נשארים רק בדפדפן שלכם.',
-  "shared.expired": "קישור השיתוף הזה פג תוקף.",
+  "shared.expired": "קישור השיתוף הזה פג תוקף או הוסר.",
   "shared.loadFailed": "טעינת הטיול המשותף נכשלה. ייתכן שהקישור שגוי או שהטיול הוסר.",
   "shared.loading": "טוען את הטיול...",
 
-  // Offline demo trip (shown when the backend is unreachable)
+  // Offline demo trip (shown when an AI call fails)
   "demo.title": "טיול לדוגמה ✨",
   "demo.dates": "יום א׳ – יום ג׳",
   "demo.d1a1.title": "צ׳ק-אין במלון",

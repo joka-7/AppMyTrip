@@ -8,7 +8,7 @@ import React, {
   type SetStateAction,
 } from "react";
 import { ChevronLeft, Globe, Smartphone, Wand2 } from "lucide-react";
-import { parseTrip, agentInteract, generateMedia, enhanceTrip, ApiError } from "./api";
+import { parseTrip, agentInteract, enhanceTrip, ApiError } from "./api";
 import type { EnhanceOptions, TripData } from "./api";
 import ApiNotice from "./components/ApiNotice";
 import BuilderStep1 from "./components/BuilderStep1";
@@ -22,7 +22,7 @@ import { useBackToClose } from "./hooks/useBackToClose";
 import { useChecklistSuggest } from "./hooks/useChecklistSuggest";
 import { useTripEditing } from "./hooks/useTripEditing";
 import { DEFAULT_APP_DESIGN, type AppDesign } from "./services/appDesign";
-import { getApiKeys, getApiProvider, getAllCredentials } from "./services/apiKey";
+import { getAllCredentials } from "./services/apiKey";
 import { getAiMode } from "./services/externalChat";
 import type { ExternalAgentTurn } from "./services/externalTripReply";
 import { appendErrorDetail } from "./services/errorMessage";
@@ -42,15 +42,15 @@ import {
   mergeEnhancedActivities,
 } from "./services/tripEnhance";
 import {
-  addSharedTripAdmin,
+  claimDeviceData,
   getCurrentSession,
   loadSharedTrip,
   onAuthChange,
-  saveSharedTrip,
+  saveSharedEdit,
   saveTrip,
   shareTrip,
   signInWithGoogle,
-  type CloudSession,
+  SharedTripUnavailableError,
 } from "./services/tripsStore";
 import { setLangIfUnset, translate } from "./i18n/store";
 import { useI18n } from "./i18n/useI18n";
@@ -73,26 +73,29 @@ function StepFallback() {
 // standalone generated app (no builder chrome), so people the trip is
 // shared with see something that looks like the real app, not the editor.
 const SHARED_TRIP_ID = new URLSearchParams(window.location.search).get("shared");
+// The decryption key rides in the #fragment, which browsers never send to a server.
+const SHARED_TRIP_KEY = new URLSearchParams(window.location.hash.slice(1)).get("k");
+// Present only on an edit link; lets this visitor save changes back to the link.
+const SHARED_EDIT_TOKEN = new URLSearchParams(window.location.hash.slice(1)).get("e");
 
 // Empty starting point — the preview shows an empty state until a trip is parsed.
 const EMPTY_TRIP: TripData = { title: "", dates: "", days: [] };
 
-// The backend surfaces a 429 status when the LLM provider is rate-limiting
-// the configured API key — worth telling the user apart from a generic
+// tripAi.ts reports a 429 status when the LLM provider is rate-limiting
+// every saved API key — worth telling the user apart from a generic
 // "server unreachable" failure, since it's transient and not a config issue.
 const isRateLimited = (err: unknown): boolean => err instanceof ApiError && err.status === 429;
 
 // Turns a failed API call into a specific, honest Hebrew explanation instead of a
-// generic "something went wrong" — but doesn't show most backend `detail` text
-// verbatim, since that's often a developer-facing string (sometimes an entire
-// Pydantic validation dump) that isn't fit for a chat bubble. Instead, classify by
+// generic "something went wrong" — but doesn't show most `detail` text
+// verbatim, since that's often a developer-facing string that isn't fit for a
+// chat bubble. Instead, classify by
 // HTTP status into a short, clean explanation a non-technical user can act on.
 //
-// 502/504 (the provider/every-key-failed case) is the one exception: its `detail`
-// is always our own short, already-user-facing summary (which key/provider failed
-// and why — see LLMService._summarize_failures on the backend), not a raw dump, and
-// it's exactly the case people otherwise have to dig through server logs to
-// diagnose. Appending it here means the actual cause is visible right in the app.
+// 502 (the provider/every-key-failed case) is the one exception: its `detail`
+// is our own short summary of which provider failed and why (see classify in
+// services/tripAi.ts), not a raw dump, and it's exactly the case people otherwise
+// have to dig through the browser console to diagnose. Appending it here means the actual cause is visible right in the app.
 const describeApiError = (err: unknown, fallback: string): string => {
   if (isRateLimited(err)) {
     return translate("apiError.rateLimited");
@@ -111,7 +114,6 @@ const describeApiError = (err: unknown, fallback: string): string => {
       case 409:
         return translate("apiError.truncated");
       case 502:
-      case 504:
         return appendErrorDetail(translate("apiError.providerDown"), err.detail);
       default:
         return fallback;
@@ -120,8 +122,8 @@ const describeApiError = (err: unknown, fallback: string): string => {
   return fallback;
 };
 
-// Generic sample trip used as an offline demo / fallback when the backend is
-// unreachable (e.g. no GEMINI_API_KEY). Intentionally not tied to a specific
+// Generic sample trip used as an offline demo / fallback when the AI call
+// fails (e.g. no saved key). Intentionally not tied to a specific
 // real destination; coordinates are clustered so the auto-fit map looks sensible.
 // Built lazily so the activity titles/descriptions render in the current UI
 // language.
@@ -255,10 +257,9 @@ function TripBuilder() {
   const [preferences, setPreferences] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isEnhancing, setIsEnhancing] = useState(false);
-  const [isGeneratingMedia, setIsGeneratingMedia] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [chatInput, setChatInput] = useState("");
-  // Set when a backend call fails and we fall back to local mock behaviour.
+  // Set when an AI call fails and we fall back to local mock behaviour.
   const [apiNotice, setApiNotice] = useState<string | null>(null);
   // Chat-turn failures stay in the chat panel (with a Retry button) rather than
   // competing with the top ApiNotice used for parse/enhance/media.
@@ -267,7 +268,7 @@ function TripBuilder() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const pdfTargetRef = useRef<HTMLDivElement>(null);
 
-  // Starts empty; populated by /api/trip/parse (or DEMO_TRIP on fallback).
+  // Starts empty; populated by parseTrip (or DEMO_TRIP on fallback).
   const [tripData, setTripData] = useState<TripData>(EMPTY_TRIP);
   // Id of the trip currently being edited, once saved/loaded — null means
   // "not saved yet", so the next deploy/save creates a new trip rather than
@@ -321,13 +322,7 @@ function TripBuilder() {
     setApiNotice(null);
     setFailedEnhanceOptions(null);
     try {
-      const res = await parseTrip(
-        rawText,
-        preferences || null,
-        getApiKeys(),
-        getApiProvider(),
-        getAllCredentials(),
-      );
+      const res = await parseTrip(rawText, preferences || null, getAllCredentials());
       setTripData(normalizeTripForLoad(res.trip_data));
       setTripId(null);
       setAgentMessages(
@@ -349,7 +344,7 @@ function TripBuilder() {
   };
 
   /** Continues exactly as handleProcessText's success path would, but from a
-   * trip parsed out of a pasted external-AI reply instead of a backend call —
+   * trip parsed out of a pasted external-AI reply instead of a keyed AI call —
    * see BuilderStep1's no-key escape hatch. */
   const handleExternalReplyParsed = (tripData: TripData) => {
     setApiNotice(null);
@@ -389,6 +384,28 @@ function TripBuilder() {
     setPendingDraft(null);
   };
 
+  // A different Google account connecting on this device must not inherit the
+  // previous account's trip: its next save would land in the new account's
+  // Drive. claimDeviceData clears the stored draft; this clears the screen.
+  useEffect(
+    () =>
+      onAuthChange((user) => {
+        if (!user || !claimDeviceData(user.uid)) return;
+        rawTextTouchedRef.current = false;
+        setRawText(translate("step1.exampleRawText"));
+        setPreferences("");
+        setTripData(EMPTY_TRIP);
+        setAppDesign(DEFAULT_APP_DESIGN);
+        setTripId(null);
+        setAgentMessages([]);
+        setEnhanceOptions({});
+        setStep(1);
+        setPendingDraft(null);
+        draftReadyRef.current = true;
+      }),
+    [],
+  );
+
   // Debounced local draft so a refresh mid-build can offer recovery.
   useEffect(() => {
     if (!draftReadyRef.current) return;
@@ -412,13 +429,7 @@ function TripBuilder() {
     setEnhanceOptions(options);
     setIsEnhancing(true);
     try {
-      const res = await enhanceTrip(
-        tripData,
-        options,
-        getApiKeys(),
-        getApiProvider(),
-        getAllCredentials(),
-      );
+      const res = await enhanceTrip(tripData, options, getAllCredentials());
       setTripData(normalizeTripForLoad(res.trip_data));
       setFailedEnhanceOptions(null);
       setApiNotice(null);
@@ -433,7 +444,7 @@ function TripBuilder() {
   };
 
   /** Continues exactly as handleEnhance's success path would, but from a trip
-   * parsed out of a pasted external-AI reply instead of a backend call — see
+   * parsed out of a pasted external-AI reply instead of a keyed AI call — see
    * BuilderStep2's no-key escape hatch. */
   const handleExternalEnhanceApplied = (trip: TripData) => {
     setTripData(normalizeTripForLoad(trip));
@@ -456,8 +467,6 @@ function TripBuilder() {
         priorTrip,
         userText,
         preferences || null,
-        getApiKeys(),
-        getApiProvider(),
         getAllCredentials(),
       );
       // Applied right away — the agent's edit is the authoritative new state,
@@ -503,7 +512,7 @@ function TripBuilder() {
   };
 
   /** Applies one chat turn parsed from a pasted external-AI reply — see
-   * BuilderStep3's no-key escape hatch. Skips the backend-only follow-up
+   * BuilderStep3's no-key escape hatch. Skips the keyed follow-up
    * enhance pass sendChatMessage runs for newly added activities (see
    * findNewActivities below); nothing left to fall back to without a key. */
   const handleExternalAgentTurnApplied = (userMessage: string, turn: ExternalAgentTurn) => {
@@ -535,21 +544,6 @@ function TripBuilder() {
     isSuggesting: isSuggestingChecklist,
     error: checklistSuggestError,
   } = useChecklistSuggest(tripData, setTripData);
-
-  const handleContinueToDesign = async () => {
-    setIsGeneratingMedia(true);
-    try {
-      const res = await generateMedia(tripData);
-      setTripData(normalizeTripForLoad(res.trip_data));
-    } catch (err) {
-      console.error(err);
-      setApiNotice(t("notice.mediaFailed"));
-      setFailedEnhanceOptions(null);
-    } finally {
-      setIsGeneratingMedia(false);
-      goToStep(4);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-surface font-sans" dir={dir}>
@@ -688,9 +682,8 @@ function TripBuilder() {
                   chatNotice={chatNotice}
                   onRetryChat={failedChatText ? handleRetryChat : undefined}
                   failedChatText={failedChatText}
-                  onContinue={handleContinueToDesign}
+                  onContinue={() => goToStep(4)}
                   onBack={() => goToStep(2)}
-                  isGeneratingMedia={isGeneratingMedia}
                   tripData={tripData}
                   preferences={preferences}
                   aiMode={getAiMode()}
@@ -829,28 +822,34 @@ function TripBuilder() {
 // Loads a "?shared=<tripId>" link's trip and renders only the generated
 // app — no builder chrome, no AI chat — so it looks like the real
 // mobile/web app trip participants would actually use.
-function SharedTripViewer({ tripId }: { tripId: string }) {
+function SharedTripViewer({
+  tripId,
+  shareKey,
+  editToken,
+}: {
+  tripId: string;
+  shareKey: string | null;
+  editToken: string | null;
+}) {
   const { t, dir } = useI18n();
   const [trip, setTrip] = useState<TripData | null>(null);
   const [appDesign, setAppDesign] = useState<AppDesign>(DEFAULT_APP_DESIGN);
   const [error, setError] = useState<string | null>(null);
 
-  // Edits below (chat or manual) only ever call setTrip — this is local-only
-  // state, never backed by Firestore. adminEmails/session exist purely to
-  // decide whether to show admin controls (save-in-place, add-admin); the
-  // actual writes go through saveSharedTrip/addSharedTripAdmin, gated by
-  // firestore.rules on the server side.
+  // Edits below (chat or manual) only ever call setTrip — local-only state.
+  // Share links are read-only; only the owner re-publishes, from their account.
   const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [chatNotice, setChatNotice] = useState<string | null>(null);
   const [failedChatText, setFailedChatText] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const [session, setSession] = useState<CloudSession | null>(getCurrentSession());
-  const [adminEmails, setAdminEmails] = useState<string[]>([]);
-
   useEffect(() => {
-    loadSharedTrip(tripId)
+    if (!shareKey) {
+      setError(translate("shared.loadFailed"));
+      return;
+    }
+    loadSharedTrip(tripId, shareKey)
       .then((result) => {
         // A visitor opening a shared link for the first time has no language
         // preference of their own yet — default the UI (including the
@@ -860,51 +859,32 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
         setLangIfUnset(result.trip.language);
         setTrip(result.trip);
         setAppDesign(result.appDesign);
-        setAdminEmails(result.meta.adminEmails);
         setAgentMessages([{ role: "agent", text: translate("agent.sharedIntro") }]);
       })
       .catch((err) => {
         console.error(err);
         setError(
-          err instanceof Error && err.message.includes("expired")
+          err instanceof SharedTripUnavailableError
             ? translate("shared.expired")
             : translate("shared.loadFailed"),
         );
       });
-  }, [tripId]);
-
-  useEffect(
-    () =>
-      onAuthChange((user) =>
-        setSession(
-          user ? { uid: user.uid, email: user.email, displayName: user.displayName } : null,
-        ),
-      ),
-    [],
-  );
+  }, [tripId, shareKey]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [agentMessages]);
 
-  const isAdmin = Boolean(session?.email && adminEmails.includes(session.email.toLowerCase()));
-
   const handleSaveChanges = async () => {
-    if (!trip) throw new Error("Trip not loaded yet.");
-    await saveSharedTrip(tripId, trip, appDesign);
-  };
-
-  const handleAddAdmin = async (email: string) => {
-    await addSharedTripAdmin(tripId, email);
-    const normalized = email.trim().toLowerCase();
-    setAdminEmails((prev) => (prev.includes(normalized) ? prev : [...prev, normalized]));
+    if (!trip || !shareKey || !editToken) throw new Error("Not an edit link.");
+    await saveSharedEdit(tripId, shareKey, editToken, trip, appDesign);
   };
 
   const handleCreateNewLink = async (): Promise<string> => {
     if (!trip) throw new Error("Trip not loaded yet.");
-    const currentSession = session ?? (await signInWithGoogle());
-    const newTripId = await saveTrip(currentSession.uid, trip, { appDesign, stage: "final" });
-    return shareTrip(currentSession.uid, newTripId, trip, appDesign);
+    await (getCurrentSession() ?? signInWithGoogle());
+    const newTripId = await saveTrip(trip, { appDesign, stage: "final" });
+    return shareTrip(newTripId, trip, appDesign);
   };
 
   const sendChatMessage = async (userText: string) => {
@@ -917,14 +897,7 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
     setChatNotice(null);
 
     try {
-      const res = await agentInteract(
-        priorTrip,
-        userText,
-        null,
-        getApiKeys(),
-        getApiProvider(),
-        getAllCredentials(),
-      );
+      const res = await agentInteract(priorTrip, userText, null, getAllCredentials());
       // See TripBuilder's own handleSendMessage for why this is normalized and
       // applied immediately, with new activities enhanced (and merged in) as a
       // separate, non-blocking step below.
@@ -1043,15 +1016,25 @@ function SharedTripViewer({ tripId }: { tripId: string }) {
           setTrip(importedTrip);
           setAppDesign(importedAppDesign);
         }}
-        isAdmin={isAdmin}
-        onSaveChanges={handleSaveChanges}
-        onAddAdmin={handleAddAdmin}
         onCreateNewLink={handleCreateNewLink}
+        onSaveChanges={editToken ? handleSaveChanges : undefined}
       />
     </Suspense>
   );
 }
 
 export default function App() {
-  return <>{SHARED_TRIP_ID ? <SharedTripViewer tripId={SHARED_TRIP_ID} /> : <TripBuilder />}</>;
+  return (
+    <>
+      {SHARED_TRIP_ID ? (
+        <SharedTripViewer
+          tripId={SHARED_TRIP_ID}
+          shareKey={SHARED_TRIP_KEY}
+          editToken={SHARED_EDIT_TOKEN}
+        />
+      ) : (
+        <TripBuilder />
+      )}
+    </>
+  );
 }

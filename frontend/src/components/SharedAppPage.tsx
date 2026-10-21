@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { Home, Save, Share2, UserCog, UserPlus, X } from "lucide-react";
+import { Home, Save, Share2, UserPlus, X } from "lucide-react";
 import type { Activity, TripData } from "../api";
 import { useDismissable } from "../hooks/useDismissable";
 import { useBackToClose } from "../hooks/useBackToClose";
@@ -22,10 +22,9 @@ import type { AgentMessage } from "./ChatPanel";
  * look like the real mobile/web app trip participants would use. For most
  * visitors, edits made here (chat or manual) are local-only and never
  * written back to the owner's saved trip — the export/import/save-as-new-copy
- * toolbar exists so a recipient can still keep changes they like. Admins
- * (the owner, or anyone the owner added via onAddAdmin) additionally get a
- * "save changes" button that writes straight back to this same link, and an
- * "add admin" form to grant that same ability to someone else by email.
+ * toolbar exists so a recipient can still keep changes they like. A view
+ * link is read-only; an edit link (see tripsStore's createEditLink) also
+ * gets a "save changes" button that writes back to this same link.
  */
 export default function SharedAppPage({
   tripData,
@@ -54,10 +53,8 @@ export default function SharedAppPage({
   isSuggestingChecklist,
   checklistSuggestError,
   onImportTrip,
-  isAdmin,
-  onSaveChanges,
-  onAddAdmin,
   onCreateNewLink,
+  onSaveChanges,
 }: {
   tripData: TripData;
   appDesign: AppDesign;
@@ -85,11 +82,9 @@ export default function SharedAppPage({
   isSuggestingChecklist?: boolean;
   checklistSuggestError?: string | null;
   onImportTrip: (tripData: TripData, appDesign: AppDesign) => void;
-  /** Whether the signed-in visitor may save changes back to this link and add other admins. */
-  isAdmin: boolean;
-  onSaveChanges: () => Promise<void>;
-  onAddAdmin: (email: string) => Promise<void>;
   onCreateNewLink: () => Promise<string>;
+  /** Present only when the page was opened through an edit link. */
+  onSaveChanges?: () => Promise<void>;
 }) {
   const { t, dir } = useI18n();
   useTripBranding(appDesign, tripData.title);
@@ -99,16 +94,12 @@ export default function SharedAppPage({
   useBackToClose(saveShareOpen, closeSaveShare);
   const [saveStatus, setSaveStatus] = useState<"idle" | "working" | "done" | "error">("idle");
   const pdfTargetRef = useRef<HTMLDivElement>(null);
-  const [saveChangesStatus, setSaveChangesStatus] = useState<"idle" | "working" | "done" | "error">(
-    "idle",
-  );
   const [newLinkStatus, setNewLinkStatus] = useState<
     "idle" | "working" | "done" | "copy-failed" | "error"
   >("idle");
-  const [addAdminStatus, setAddAdminStatus] = useState<"idle" | "working" | "done" | "error">(
+  const [saveChangesStatus, setSaveChangesStatus] = useState<"idle" | "working" | "done" | "error">(
     "idle",
   );
-  const [adminEmailInput, setAdminEmailInput] = useState("");
   const [saveName, setSaveName] = useState(tripData.title);
   const [saveUrl, setSaveUrl] = useState<string | null>(null);
   const [newLinkUrl, setNewLinkUrl] = useState<string | null>(null);
@@ -126,18 +117,18 @@ export default function SharedAppPage({
     setSaveStatus("working");
     setSaveUrl(null);
     try {
-      const session = getCurrentSession() ?? (await signInWithGoogle());
+      await (getCurrentSession() ?? signInWithGoogle());
       const namedTrip = { ...tripData, title: saveName.trim() || tripData.title };
       // "Final app" must actually be the finished/shared app, not just a
       // label — publish it for real (same as the builder's Share button),
       // otherwise opening it later 404s exactly like a broken share link.
-      const savedId = await saveTrip(session.uid, namedTrip, {
+      const savedId = await saveTrip(namedTrip, {
         appDesign,
         tripId: savedCopyId ?? undefined,
         stage: "final",
       });
       setSavedCopyId(savedId);
-      const url = await shareTrip(session.uid, savedId, namedTrip, appDesign);
+      const url = await shareTrip(savedId, namedTrip, appDesign);
       setSaveUrl(url);
       setSaveStatus("done");
     } catch (err) {
@@ -147,6 +138,7 @@ export default function SharedAppPage({
   };
 
   const handleSaveChanges = async () => {
+    if (!onSaveChanges) return;
     setSaveChangesStatus("working");
     try {
       await onSaveChanges();
@@ -176,20 +168,6 @@ export default function SharedAppPage({
     } catch (err) {
       console.error(err);
       setNewLinkStatus("error");
-    }
-  };
-
-  const handleAddAdmin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!adminEmailInput.trim()) return;
-    setAddAdminStatus("working");
-    try {
-      await onAddAdmin(adminEmailInput);
-      setAdminEmailInput("");
-      setAddAdminStatus("done");
-    } catch (err) {
-      console.error(err);
-      setAddAdminStatus("error");
     }
   };
 
@@ -316,7 +294,7 @@ export default function SharedAppPage({
                   <p className="text-red-700 px-1">{t("sharedPage.newLinkFailed")}</p>
                 )}
 
-                {isAdmin && (
+                {onSaveChanges && (
                   <div className="border-t border-outline/20 mt-1 pt-1.5 flex flex-col gap-1.5">
                     <button
                       onClick={handleSaveChanges}
@@ -333,32 +311,6 @@ export default function SharedAppPage({
                     )}
                     {saveChangesStatus === "error" && (
                       <p className="text-red-700 px-1">{t("sharedPage.saveChangesFailed")}</p>
-                    )}
-
-                    <form onSubmit={handleAddAdmin} className="flex items-center gap-1.5">
-                      <UserCog size={14} className="text-ink-muted shrink-0" />
-                      <input
-                        type="email"
-                        value={adminEmailInput}
-                        onChange={(e) => setAdminEmailInput(e.target.value)}
-                        placeholder={t("sharedPage.addAdminPlaceholder")}
-                        className="flex-1 min-w-0 border border-outline/40 rounded-md px-2 py-1 bg-surface"
-                      />
-                      <button
-                        type="submit"
-                        disabled={addAdminStatus === "working"}
-                        className="flex items-center gap-1 text-ink-muted hover:text-primary bg-surface-container hover:bg-surface-container-high disabled:opacity-60 px-2.5 py-1.5 rounded-lg shrink-0"
-                      >
-                        {addAdminStatus === "working"
-                          ? t("sharedPage.saving")
-                          : t("sharedPage.addAdmin")}
-                      </button>
-                    </form>
-                    {addAdminStatus === "done" && (
-                      <p className="text-green-700 px-1">{t("sharedPage.addAdminDone")}</p>
-                    )}
-                    {addAdminStatus === "error" && (
-                      <p className="text-red-700 px-1">{t("sharedPage.addAdminFailed")}</p>
                     )}
                   </div>
                 )}
@@ -399,7 +351,9 @@ export default function SharedAppPage({
             isSuggestingChecklist={isSuggestingChecklist}
             checklistSuggestError={checklistSuggestError}
             isLocalOnly
-            localOnlyNoticeText={t(isAdmin ? "sharedPage.adminHint" : "sharedPage.localOnlyNotice")}
+            localOnlyNoticeText={t(
+              onSaveChanges ? "sharedPage.editorHint" : "sharedPage.localOnlyNotice",
+            )}
             welcomeStorageKey={tripId}
           />
         </div>

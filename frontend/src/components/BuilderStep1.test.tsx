@@ -25,7 +25,7 @@ function baseProps(overrides: Partial<Parameters<typeof BuilderStep1>[0]> = {}) 
 }
 
 describe("BuilderStep1 — apiKey mode", () => {
-  it("submits to the backend and hides the external-AI section", () => {
+  it("submits to the AI and hides the external-AI section", () => {
     const onSubmit = vi.fn();
     render(<BuilderStep1 {...baseProps({ aiMode: "apiKey", onSubmit })} />);
     expect(screen.queryByText("שליחה ל-AI חיצוני")).toBeNull();

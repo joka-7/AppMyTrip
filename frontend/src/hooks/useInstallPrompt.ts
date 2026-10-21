@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -27,7 +28,8 @@ function isIos(): boolean {
  */
 export function useInstallPrompt() {
   const [deferredEvent, setDeferredEvent] = useState<BeforeInstallPromptEvent | null>(null);
-  const [installed, setInstalled] = useState(isStandalone());
+  // The Android app is already installed; offering to install it again would be wrong.
+  const [installed, setInstalled] = useState(() => isStandalone() || Capacitor.isNativePlatform());
 
   useEffect(() => {
     const onBeforeInstallPrompt = (e: Event) => {

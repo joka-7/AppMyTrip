@@ -1,36 +1,13 @@
 // Building the link (and the message) a trip gets shared with.
 //
-// A shared link used to be a bare "?shared=<id>" — pasted into WhatsApp it shows
-// as an opaque URL with nothing identifying the trip, because a static SPA
-// serves the same Open Graph tags for every link and chat apps only render what
-// the crawler sees. Putting a readable slug in the URL itself is what makes the
-// trip's name visible wherever the link lands, no server rendering involved.
+// A link is `?shared=<shareId>#k=<key>`, and an edit link adds `&e=<editToken>`.
+// Both secrets sit in the #fragment, which
+// browsers never send to any server, so neither the host's logs nor the
+// database ever see it. Nothing readable about the trip goes in the URL: the
+// title is in the message text instead (see shareMessage), which the sender
+// chooses to send.
 
 import type { TripData } from "../api";
-
-/** Longest slug we'll put in a URL — enough to read, short enough not to wrap. */
-const MAX_SLUG_LENGTH = 60;
-
-/**
- * A readable, URL-safe fragment of the trip's title.
- *
- * Hebrew (and any other non-Latin) letters are kept as-is: they survive
- * `URLSearchParams` percent-encoding and chat apps and browsers display them
- * decoded, which is the entire point. Only characters that would make the link
- * awkward to read or paste are dropped.
- */
-export function tripSlug(title: string): string {
-  const slug = title
-    .trim()
-    .replace(/["'`]/g, "")
-    // Anything that isn't a letter, number or mark becomes a separator.
-    .replace(/[^\p{L}\p{N}\p{M}]+/gu, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, MAX_SLUG_LENGTH)
-    // A trailing separator left by the slice reads like a truncation artefact.
-    .replace(/-+$/g, "");
-  return slug;
-}
 
 /**
  * The URL to share for a trip.
@@ -40,13 +17,11 @@ export function tripSlug(title: string): string {
  * link from an already-open "?shared=..." page used to drag the old parameters
  * along with it.
  */
-export function buildShareUrl(tripId: string, title: string): string {
+export function buildShareUrl(shareId: string, key: string, editToken?: string): string {
   const url = new URL(window.location.pathname, window.location.origin);
-  // Slug first, so the trip's name is visible before the opaque id even when a
-  // chat app truncates the middle of a long link.
-  const slug = tripSlug(title);
-  if (slug) url.searchParams.set("trip", slug);
-  url.searchParams.set("shared", tripId);
+  url.searchParams.set("shared", shareId);
+  // The edit token rides in the fragment too, so it never reaches a server log.
+  url.hash = new URLSearchParams(editToken ? { k: key, e: editToken } : { k: key }).toString();
   return url.toString();
 }
 

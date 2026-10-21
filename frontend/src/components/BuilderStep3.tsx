@@ -24,7 +24,6 @@ export default function BuilderStep3({
   failedChatText,
   onContinue,
   onBack,
-  isGeneratingMedia,
   tripData,
   tripDates,
   onChangeTripDates,
@@ -44,7 +43,6 @@ export default function BuilderStep3({
   failedChatText?: string | null;
   onContinue: () => void;
   onBack: () => void;
-  isGeneratingMedia: boolean;
   /** Needed (alongside `chatInput`) to build the external-AI prompt below —
    * this step's own chat form still goes through `onSendMessage` unchanged
    * (see App.tsx's sendChatMessage), same as the live-preview's own chat tab
@@ -58,8 +56,8 @@ export default function BuilderStep3({
   aiMode: AiMode;
   /** Called with the user's message and the updated trip + reply parsed from
    * a pasted external-AI reply — applies the turn exactly as a successful
-   * backend chat turn would (minus the follow-up auto-enhance pass, which
-   * needs its own backend key). */
+   * keyed chat turn would (minus the follow-up auto-enhance pass, which
+   * needs a saved key). */
   onExternalTurnApplied: (userMessage: string, turn: ExternalAgentTurn) => void;
 }) {
   const { t, lang } = useI18n();
@@ -138,7 +136,6 @@ export default function BuilderStep3({
       <div className="flex gap-3 mt-auto">
         <button
           onClick={onBack}
-          disabled={isGeneratingMedia}
           className="bg-surface-container hover:bg-surface-container-high disabled:opacity-60 text-ink-muted px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-colors"
         >
           <ChevronLeft size={20} />
@@ -146,11 +143,10 @@ export default function BuilderStep3({
         </button>
         <button
           onClick={onContinue}
-          disabled={isGeneratingMedia}
           className="bg-primary hover:bg-primary-dark disabled:opacity-60 text-white px-8 py-3 rounded-xl font-medium flex items-center gap-2 flex-1 justify-center transition-colors shadow-md"
         >
-          {isGeneratingMedia ? t("step3.generating") : t("step3.continue")}
-          {!isGeneratingMedia && <ChevronRight size={20} />}
+          {t("step3.continue")}
+          <ChevronRight size={20} />
         </button>
       </div>
     </div>

@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   addApiKey,
   removeApiKey,
-  getApiKeys,
   getApiKeysForProvider,
   getAllCredentials,
   getApiProvider,
@@ -35,7 +34,6 @@ describe("apiKey storage (multiple keys per provider)", () => {
   it("makes the very first key ever saved the active provider", () => {
     addApiKey("gem", "gemini");
     expect(getApiProvider()).toBe("gemini");
-    expect(getApiKeys()).toEqual(["gem"]);
   });
 
   it("does not silently reassign the active provider once one is already set", () => {

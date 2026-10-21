@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Cloud, CloudOff, LogOut, Save, Share2, X } from "lucide-react";
+import { Cloud, CloudOff, LogOut, PencilLine, Save, Share2, Trash2, X } from "lucide-react";
 import type { TripData } from "../api";
 import { useDismissable } from "../hooks/useDismissable";
 import { useBackToClose } from "../hooks/useBackToClose";
@@ -9,7 +9,10 @@ import { appendErrorDetail } from "../services/errorMessage";
 import { shareMessage } from "../services/shareLink";
 import {
   type TripStage,
-  completeRedirectSignIn,
+  createEditLink,
+  deleteAllMyData,
+  disableEditLink,
+  editLinkFor,
   onAuthChange,
   saveTrip,
   shareTrip,
@@ -40,7 +43,7 @@ function stageForStep(step: number): TripStage {
 }
 import type { AppDesign } from "../services/appDesign";
 
-/** Sign-in + Save/Share controls backed by Firestore — see MyTripsButton for
+/** Sign-in + Save/Share controls backed by the user's Google Drive — see MyTripsButton for
  * viewing/loading/deleting past trips, split out into its own nav entry. */
 export default function CloudMenu({
   tripData,
@@ -74,6 +77,23 @@ export default function CloudMenu({
   const [notice, setNotice] = useState<string | null>(null);
   const [shareDays, setShareDays] = useState(0);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [editUrl, setEditUrl] = useState<string | null>(null);
+  // Show the trip's existing edit link, if any, whenever the menu opens.
+  useEffect(() => {
+    if (!isOpen || !uid || !tripId) {
+      setEditUrl(null);
+      return;
+    }
+    let cancelled = false;
+    editLinkFor(tripId)
+      .then((link) => {
+        if (!cancelled) setEditUrl(link);
+      })
+      .catch((err) => console.error(err));
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, uid, tripId]);
   const [saveStage, setSaveStage] = useState<TripStage>(() => stageForStep(currentStep));
   useEffect(() => {
     setSaveStage(stageForStep(currentStep));
@@ -104,14 +124,10 @@ export default function CloudMenu({
     });
   }, []);
 
-  // Firebase auth errors carry a stable `.code` (see
-  // https://firebase.google.com/docs/reference/js/auth#autherrorcodes) worth
-  // telling apart instead of one generic "sign-in failed" for every case:
-  // the user closing the Google popup themselves isn't a failure at all, a
-  // blocked popup and an unauthorized domain (e.g. a preview deployment
-  // that was never added to the Firebase console's authorized domains list)
-  // each need a different fix, and anything else still gets the actual
-  // code/message appended so it's diagnosable instead of a dead end.
+  // Google sign-in errors (see driveSync.ts) carry a stable `.code` worth
+  // telling apart: the user closing the popup isn't a failure at all, a
+  // blocked popup and an unreachable Google each need a different fix, and
+  // anything else gets the actual message appended so it's diagnosable.
   const describeSignInError = useCallback(
     (err: unknown): string | null => {
       const code =
@@ -119,18 +135,13 @@ export default function CloudMenu({
           ? String((err as { code: unknown }).code)
           : null;
       switch (code) {
-        case "auth/popup-closed-by-user":
-        case "auth/cancelled-popup-request":
+        case "popup_closed":
+        case "access_denied":
           return null;
-        case "auth/popup-blocked":
+        case "popup_failed_to_open":
           return t("cloud.signInPopupBlocked");
-        case "auth/unauthorized-domain":
-          // The domain itself is the one actionable fact here (it's what
-          // someone needs to add to the Firebase console's authorized-domains
-          // list) — show it directly instead of sending the user hunting for
-          // their own address bar.
-          return t("cloud.signInUnauthorizedDomain", { domain: window.location.hostname });
-        case "auth/network-request-failed":
+        case "gis-load-failed":
+        case "offline":
           return t("cloud.signInNetworkFailed");
         default:
           return appendErrorDetail(
@@ -142,30 +153,11 @@ export default function CloudMenu({
     [t],
   );
 
-  // Collects the result of a redirect sign-in kicked off by handleSignIn's
-  // popup-failure fallback (see tripsStore's signInWithGoogle) — a no-op
-  // unless one is actually pending, since the redirect navigated the page
-  // away and this is the next load landing back. A successful result also
-  // reaches onAuthChange above via Firebase's own auth-state listener; this
-  // is only here to surface a redirect-specific failure the popup path
-  // never would have hit.
-  useEffect(() => {
-    completeRedirectSignIn().catch((err) => {
-      console.error(err);
-      setNotice(describeSignInError(err));
-    });
-  }, [describeSignInError]);
-
   const handleSignIn = async () => {
     setBusy(true);
     setNotice(null);
     try {
       const session = await signInWithGoogle();
-      // null means signInWithGoogle fell back to a full-page redirect
-      // instead of a popup (see shouldFallbackToRedirect) — the page is
-      // about to navigate away, and completeRedirectSignIn() above picks up
-      // the result on the next load, so there's no session to apply yet.
-      if (!session) return;
       setEmail(session.email);
       setUid(session.uid);
       setDisplayName(session.displayName);
@@ -186,6 +178,31 @@ export default function CloudMenu({
     setIsOpen(false);
   };
 
+  // Two-step confirm, like deleting a single trip: the first click arms it.
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+  const handleDeleteAllData = async () => {
+    if (!confirmDeleteAll) {
+      setConfirmDeleteAll(true);
+      return;
+    }
+    setConfirmDeleteAll(false);
+    setBusy(true);
+    setNotice(null);
+    try {
+      await deleteAllMyData();
+      setEmail(null);
+      setUid(null);
+      setDisplayName(null);
+      onTripIdChange(null);
+      setIsOpen(false);
+    } catch (err) {
+      console.error(err);
+      setNotice(t("cloud.deleteMyDataFailed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!uid) return;
     setBusy(true);
@@ -193,7 +210,7 @@ export default function CloudMenu({
     setShareUrl(null);
     try {
       const namedTrip = { ...tripData, title: saveName.trim() || tripData.title };
-      const savedId = await saveTrip(uid, namedTrip, {
+      const savedId = await saveTrip(namedTrip, {
         appDesign,
         tripId: tripId ?? undefined,
         stage: saveStage,
@@ -204,13 +221,46 @@ export default function CloudMenu({
       // so publish it for real, the same as the Share button does, instead of
       // just labeling it "final" without anything backing that up.
       if (saveStage === "final") {
-        const link = await shareTrip(uid, savedId, namedTrip, appDesign, shareDays || undefined);
+        const link = await shareTrip(savedId, namedTrip, appDesign, shareDays || undefined);
         setShareUrl(link);
       }
       setNotice(t("cloud.saved"));
     } catch (err) {
       console.error(err);
       setNotice(t("cloud.saveFailed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCreateEditLink = async () => {
+    if (!uid || !tripId) {
+      setNotice(t("cloud.shareBeforeSave"));
+      return;
+    }
+    setBusy(true);
+    setNotice(null);
+    try {
+      setEditUrl(await createEditLink(tripId));
+    } catch (err) {
+      console.error(err);
+      setNotice(t("cloud.editLinkFailed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDisableEditLink = async () => {
+    if (!tripId) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      await disableEditLink(tripId);
+      setEditUrl(null);
+      setNotice(t("cloud.editLinkDisabled"));
+    } catch (err) {
+      console.error(err);
+      setNotice(t("cloud.editLinkFailed"));
     } finally {
       setBusy(false);
     }
@@ -225,7 +275,7 @@ export default function CloudMenu({
     setNotice(null);
     setShareUrl(null);
     try {
-      const link = await shareTrip(uid, tripId, tripData, appDesign, shareDays || undefined);
+      const link = await shareTrip(tripId, tripData, appDesign, shareDays || undefined);
       setShareUrl(link);
       // The share itself succeeded regardless of whether the clipboard write
       // does — LinkDisplay renders the link below either way, so a clipboard
@@ -335,6 +385,38 @@ export default function CloudMenu({
             </div>
           )}
 
+          {tripId && (
+            <div className="mb-3 border border-outline/20 rounded-lg p-2">
+              <p className="text-xs font-semibold text-ink-muted mb-1">{t("cloud.editLink")}</p>
+              {editUrl ? (
+                <>
+                  <p className="text-xs text-amber-700 mb-1">{t("cloud.editLinkWarning")}</p>
+                  <LinkDisplay
+                    url={editUrl}
+                    shareTitle={tripData.title}
+                    shareText={shareMessage(tripData, editUrl)}
+                  />
+                  <button
+                    onClick={handleDisableEditLink}
+                    disabled={busy}
+                    className="mt-1 text-xs text-red-700 hover:text-red-800"
+                  >
+                    {t("cloud.disableEditLink")}
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={handleCreateEditLink}
+                  disabled={busy}
+                  className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-primary"
+                >
+                  <PencilLine size={14} />
+                  {t("cloud.createEditLink")}
+                </button>
+              )}
+            </div>
+          )}
+
           <input
             type="text"
             value={saveName}
@@ -390,13 +472,23 @@ export default function CloudMenu({
             </select>
           </label>
 
-          <button
-            onClick={handleSignOut}
-            className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-ink"
-          >
-            <LogOut size={14} />
-            {t("cloud.signOut")}
-          </button>
+          <div className="flex items-center justify-between gap-2">
+            <button
+              onClick={handleSignOut}
+              className="flex items-center gap-1.5 text-xs text-ink-muted hover:text-ink"
+            >
+              <LogOut size={14} />
+              {t("cloud.signOut")}
+            </button>
+            <button
+              onClick={handleDeleteAllData}
+              disabled={busy}
+              className="flex items-center gap-1.5 text-xs text-red-700 hover:text-red-800"
+            >
+              <Trash2 size={14} />
+              {confirmDeleteAll ? t("cloud.deleteMyDataConfirm") : t("cloud.deleteMyData")}
+            </button>
+          </div>
         </div>
       )}
     </div>

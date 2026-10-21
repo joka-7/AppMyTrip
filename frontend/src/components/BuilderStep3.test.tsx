@@ -31,7 +31,6 @@ function baseProps(overrides: Partial<Parameters<typeof BuilderStep3>[0]> = {}) 
     failedChatText: null,
     onContinue: vi.fn(),
     onBack: vi.fn(),
-    isGeneratingMedia: false,
     tripData: sampleTrip,
     tripDates: "",
     onChangeTripDates: vi.fn(),

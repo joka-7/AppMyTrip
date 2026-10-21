@@ -1,12 +1,12 @@
-// API client for the TripWeaver backend.
+// The app's AI steps: parse, enhance and chat.
 //
-// Base URL is configurable via VITE_API_URL (see .env.example); it defaults to
-// the local FastAPI dev server.
-import { cleanEnvVar } from "./services/env";
+// They run on this device: each call goes from the browser straight to the
+// user's own AI provider with the user's own key (see services/tripAi.ts).
+// There is no AppMyTrip server in between.
+import { complete } from "modeldispatcher-browser-agent";
+import { agentConfigFrom, createTripAi, type ProviderKeys } from "./services/tripAi";
 
-export const API_BASE_URL: string = (
-  cleanEnvVar(import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000"
-).replace(/\/+$/, "");
+export { ApiError } from "./services/tripAi";
 
 export interface Activity {
   id: string;
@@ -89,14 +89,6 @@ export interface EnhanceOptions {
   travel_mode?: boolean;
 }
 
-/** One saved provider + its key(s). Sent as the `credentials` list so the backend
- * can fall through to another saved provider when one is exhausted/invalid, and
- * only errors once every one has failed. */
-export interface ProviderCredentials {
-  provider: string;
-  api_keys: string[];
-}
-
 export interface ParseResponse {
   trip_data: TripData;
   initial_agent_message: string | null;
@@ -107,106 +99,49 @@ export interface AgentResponse {
   agent_reply: string;
 }
 
-export interface GenerateMediaResponse {
-  trip_data: TripData;
-  status: string;
-}
-
-/** Thrown by postJSON on a non-OK response; carries the parsed status/detail
- * so callers can explain the actual failure instead of guessing from the
- * message string. */
-export class ApiError extends Error {
-  constructor(
-    public readonly status: number,
-    public readonly detail: string,
-  ) {
-    super(`API request failed (${status}): ${detail}`);
-    this.name = "ApiError";
-  }
-}
-
-async function postJSON<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    let detail = text;
-    try {
-      const parsed = JSON.parse(text) as { detail?: unknown };
-      if (typeof parsed?.detail === "string" && parsed.detail) {
-        detail = parsed.detail;
-      }
-    } catch {
-      // Response body wasn't JSON (e.g. a proxy/502 HTML page) — keep the raw text.
-    }
-    throw new ApiError(res.status, detail);
-  }
-  return (await res.json()) as T;
-}
-
-/** Stage 1: parse free trip text into a structured itinerary. */
-export function parseTrip(
-  rawText: string,
-  preferences?: string | null,
-  apiKeys?: string[] | null,
-  provider?: string | null,
-  credentials?: ProviderCredentials[] | null,
-): Promise<ParseResponse> {
-  return postJSON<ParseResponse>("/api/trip/parse", {
-    raw_text: rawText,
-    preferences: preferences ?? null,
-    credentials: credentials ?? null,
-    api_keys: apiKeys ?? null,
-    provider: provider ?? null,
-  });
-}
-
-/** Stage 3: send a chat message + current itinerary, get an updated itinerary. */
-export function agentInteract(
-  tripData: TripData,
-  userMessage: string,
-  preferences?: string | null,
-  apiKeys?: string[] | null,
-  provider?: string | null,
-  credentials?: ProviderCredentials[] | null,
-): Promise<AgentResponse> {
-  return postJSON<AgentResponse>("/api/trip/agent", {
-    trip_data: tripData,
-    user_message: userMessage,
-    preferences: preferences ?? null,
-    credentials: credentials ?? null,
-    api_keys: apiKeys ?? null,
-    provider: provider ?? null,
-  });
-}
-
-/** Stage 4: generate rich media (TTS podcasts) for flagged activities. */
-export function generateMedia(tripData: TripData): Promise<GenerateMediaResponse> {
-  return postJSON<GenerateMediaResponse>("/api/trip/generate-media", {
-    trip_data: tripData,
-  });
-}
-
 export interface EnhanceResponse {
   trip_data: TripData;
 }
 
+const tripAi = createTripAi({ complete });
+
+/**
+ * Stage 1: parse free trip text into a structured itinerary.
+ *
+ * Args:
+ *   credentials: every saved provider and its keys, tried in order.
+ */
+export async function parseTrip(
+  rawText: string,
+  preferences: string | null,
+  credentials: readonly ProviderKeys[],
+): Promise<ParseResponse> {
+  const trip = await tripAi.parseTripText(rawText, preferences, agentConfigFrom(credentials));
+  return { trip_data: trip, initial_agent_message: null };
+}
+
+/** Stage 3: send a chat message + current itinerary, get an updated itinerary. */
+export async function agentInteract(
+  tripData: TripData,
+  userMessage: string,
+  preferences: string | null,
+  credentials: readonly ProviderKeys[],
+): Promise<AgentResponse> {
+  const { trip, reply } = await tripAi.agentTurn(
+    tripData,
+    userMessage,
+    preferences,
+    agentConfigFrom(credentials),
+  );
+  return { trip_data: trip, agent_reply: reply };
+}
+
 /** Stage 2: fills in the optional extras (directions, prices, podcast briefs, links) the user opted into. */
-export function enhanceTrip(
+export async function enhanceTrip(
   tripData: TripData,
   options: EnhanceOptions,
-  apiKeys?: string[] | null,
-  provider?: string | null,
-  credentials?: ProviderCredentials[] | null,
+  credentials: readonly ProviderKeys[],
 ): Promise<EnhanceResponse> {
-  return postJSON<EnhanceResponse>("/api/trip/enhance", {
-    trip_data: tripData,
-    options,
-    credentials: credentials ?? null,
-    api_keys: apiKeys ?? null,
-    provider: provider ?? null,
-  });
+  const trip = await tripAi.enhanceTrip(tripData, options, agentConfigFrom(credentials));
+  return { trip_data: trip };
 }

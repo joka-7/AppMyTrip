@@ -1,26 +1,17 @@
-// Each user supplies their own LLM provider API key(s) (e.g. Gemini, OpenAI,
-// Claude, or Groq) instead of the app sharing the developer's key/quota across
-// everyone who uses it. Several keys can be stored per provider: they're sent to
-// the backend as a list and rotated through when one hits its rate limit, which
-// lets a few free-tier keys together outlast any single key's quota. Stored only
-// in the browser's localStorage — never sent anywhere but our own backend.
+// Each user supplies their own LLM provider API key(s) (Gemini, OpenAI, Claude
+// or Groq) instead of the app sharing the developer's key/quota across everyone
+// who uses it. Several keys can be stored per provider: they're rotated through
+// when one hits its rate limit, which lets a few free-tier keys together outlast
+// any single key's quota. Stored only in this browser's localStorage and sent
+// only to the provider itself (see tripAi.ts) — there is no AppMyTrip server.
 
-export type LLMProvider =
-  "gemini" | "openai" | "anthropic" | "groq" | "openrouter" | "cerebras" | "mistral";
+export type LLMProvider = "gemini" | "openai" | "anthropic" | "groq";
 
 // `free` marks providers with a usable free tier, surfaced in the key menu so
 // users can find a no-cost option quickly.
 export const PROVIDERS: { value: LLMProvider; label: string; keyUrl: string; free?: boolean }[] = [
   { value: "gemini", label: "Gemini", keyUrl: "https://aistudio.google.com/apikey", free: true },
   { value: "groq", label: "Groq", keyUrl: "https://console.groq.com/keys", free: true },
-  {
-    value: "openrouter",
-    label: "OpenRouter",
-    keyUrl: "https://openrouter.ai/keys",
-    free: true,
-  },
-  { value: "cerebras", label: "Cerebras", keyUrl: "https://cloud.cerebras.ai", free: true },
-  { value: "mistral", label: "Mistral", keyUrl: "https://console.mistral.ai/api-keys", free: true },
   { value: "openai", label: "OpenAI (GPT)", keyUrl: "https://platform.openai.com/api-keys" },
   { value: "anthropic", label: "Claude", keyUrl: "https://console.anthropic.com/settings/keys" },
 ];
@@ -85,15 +76,9 @@ export function getApiKeysForProvider(provider: LLMProvider): string[] {
   return loadKeyMap()[provider] ?? [];
 }
 
-/** All keys for the currently-selected provider, sent to the backend to rotate through. */
-export function getApiKeys(): string[] {
-  return getApiKeysForProvider(getApiProvider());
-}
-
-/** Every saved provider + its keys, active provider first, sent to the backend as
- * `credentials` so it can fall through to another saved provider when one is
- * exhausted/invalid — the request only errors once every one has failed. Providers
- * with no saved keys are omitted. */
+/** Every saved provider + its keys, active provider first, so an AI call can fall
+ * through to another saved provider when one is exhausted/invalid — it only errors
+ * once every one has failed. Providers with no saved keys are omitted. */
 export function getAllCredentials(): { provider: LLMProvider; api_keys: string[] }[] {
   const map = loadKeyMap();
   const active = getApiProvider();

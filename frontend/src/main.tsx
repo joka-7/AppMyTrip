@@ -1,11 +1,16 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { Capacitor } from "@capacitor/core";
 import App from "./App";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { installStaleChunkRecovery } from "./services/staleChunkRecovery";
 import "./index.css";
 
 installStaleChunkRecovery();
+
+if (import.meta.env.PROD && !Capacitor.isNativePlatform()) {
+  void import("virtual:pwa-register").then(({ registerSW }) => registerSW({ immediate: true }));
+}
 
 // Mobile browsers skip :active/tap-highlight rendering on pages with no
 // touch listeners (treated as passively scrollable) -- this one-time no-op

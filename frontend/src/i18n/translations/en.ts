@@ -80,7 +80,6 @@ export const en: Record<TranslationKey, string> = {
   "step3.subtitle": "Our AI reviews the itinerary and makes sure you didn't forget anything.",
   "step3.datesLabel": "Trip dates",
   "step3.datesPlaceholder": "For example: July 12–19",
-  "step3.generating": "Generating media (podcasts)...",
   "step3.continue": "Continue to app design",
   "step3.external.heading": "Send to external AI",
   "step3.external.intro":
@@ -307,7 +306,7 @@ export const en: Record<TranslationKey, string> = {
   "apiKey.descriptionAfter":
     ". You can add several keys; when one hits its rate limit we switch to the next automatically. Everything is stored only in your browser.",
   "apiKey.trustNote":
-    "Each key is sent with your requests to this app's own backend (never to a third party), only to be forwarded to the provider you picked — it's never stored on the server or logged in full.",
+    "Each key goes from this device straight to the provider you picked — never through an AppMyTrip server, and it's never logged.",
   "apiKey.removeAria": "Remove key {key}",
   "apiKey.showAria": "Show the key",
   "apiKey.hideAria": "Hide the key",
@@ -336,8 +335,6 @@ export const en: Record<TranslationKey, string> = {
   "cloud.signInFailed": "Signing in with Google failed. Please try again.",
   "cloud.signInPopupBlocked":
     "Your browser blocked the Google sign-in popup. Allow popups for this site and try again.",
-  "cloud.signInUnauthorizedDomain":
-    "The address {domain} isn't authorized for Google sign-in. If this is the site's main address, it needs to be added to the authorized domains list in the Firebase console; if not, try the site's main address instead.",
   "cloud.signInNetworkFailed":
     "A network problem prevented sign-in. Check your connection and try again.",
   "cloud.saved": "The trip was saved to your account.",
@@ -352,6 +349,23 @@ export const en: Record<TranslationKey, string> = {
   "cloud.deleteAria": "Delete trip {name}",
   "cloud.deleteConfirmAria": "Confirm delete trip {name}",
   "cloud.deleteConfirm": "Delete?",
+  "cloud.deleteMyData": "Delete all my data",
+  "cloud.deleteMyDataConfirm": "Delete everything for good?",
+  "cloud.deleteMyDataFailed":
+    "Deleting your data failed. Nothing was removed from Google Drive; please try again.",
+  "cloud.editLink": "Edit link",
+  "cloud.createEditLink": "Create edit link",
+  "cloud.editLinkWarning":
+    "Anyone with this link can change the shared trip. Sharing again from My trips replaces changes saved through it.",
+  "cloud.disableEditLink": "Turn off edit link",
+  "cloud.editLinkDisabled": "The edit link is off. The view link still works.",
+  "cloud.editLinkFailed":
+    "The edit link action failed. Make sure the trip is shared, then try again.",
+  "sharedPage.saveChanges": "Save changes",
+  "sharedPage.saveChangesDone": "Changes saved to this link.",
+  "sharedPage.saveChangesFailed": "Saving changes failed. The edit link may have been turned off.",
+  "sharedPage.editorHint":
+    "You opened an edit link — you can save changes here, and everyone with the link will see them.",
   "cloud.export": "Export",
   "cloud.exportIcs": "Export calendar",
   "cloud.print": "Print",
@@ -396,15 +410,6 @@ export const en: Record<TranslationKey, string> = {
   "sharedPage.saveFailed": "Saving to your account failed. Please try again.",
   "sharedPage.localOnlyNotice":
     "Changes you make here (including via chat) are saved only in this browser and are not sent to the server.",
-  "sharedPage.adminHint":
-    "You're an admin of this trip — you can save changes here, or add another admin by email.",
-  "sharedPage.saveChanges": "Save changes",
-  "sharedPage.saveChangesDone": "Changes saved to this link.",
-  "sharedPage.saveChangesFailed": "Saving changes failed. Please try again.",
-  "sharedPage.addAdminPlaceholder": "Add an admin by email...",
-  "sharedPage.addAdmin": "Add admin",
-  "sharedPage.addAdminDone": "Added — they can now save changes to this link too.",
-  "sharedPage.addAdminFailed": "Adding that admin failed. Please try again.",
   "sharedPage.shareNewLink": "Share new link",
   "sharedPage.newLinkCopied": "A new link with your changes was copied to the clipboard.",
   "sharedPage.newLinkCopyFailed":
@@ -446,12 +451,11 @@ export const en: Record<TranslationKey, string> = {
   // App-level notices & agent messages
   "notice.rateLimitedDemo":
     "The AI provider is rate-limiting requests right now — try again in a minute. In the meantime, a sample trip was loaded.",
-  "notice.unreachableDemo": "We couldn't connect to the AI server — a sample trip was loaded.",
+  "notice.unreachableDemo": "We couldn't reach the AI provider — a sample trip was loaded.",
   "notice.enhanceFailed":
     "Adding the extra details failed — continuing with the current itinerary.",
   "notice.retry": "Retry",
   "notice.updateFailed": "The update failed — the itinerary didn't change.",
-  "notice.mediaFailed": "Generating media on the server failed — continuing without audio files.",
   "agent.initial": "I recognized the trip! Go over the itinerary and fix anything you need.",
   "agent.demo":
     "I loaded a sample trip so you can see how the app works. To parse real text, set your own Gemini API key (the 'Set API key' button above) — or keep editing manually.",
@@ -459,11 +463,11 @@ export const en: Record<TranslationKey, string> = {
   "agent.imported": "The trip was imported from a file. You can keep editing.",
   "agent.sharedIntro":
     "Send a message to change the itinerary — changes here stay only in your browser.",
-  "shared.expired": "This share link has expired.",
+  "shared.expired": "This share link has expired or was removed.",
   "shared.loadFailed": "Loading the shared trip failed. The link may be wrong or the trip removed.",
   "shared.loading": "Loading the trip...",
 
-  // Offline demo trip (shown when the backend is unreachable)
+  // Offline demo trip (shown when an AI call fails)
   "demo.title": "Sample trip ✨",
   "demo.dates": "Sun – Tue",
   "demo.d1a1.title": "Hotel check-in",

@@ -2,7 +2,7 @@ import { useCallback, useState, type Dispatch, type SetStateAction } from "react
 import type { ChecklistItem, TripData } from "../api";
 import { enhanceTrip } from "../api";
 import { translate } from "../i18n/store";
-import { getAllCredentials, getApiKeys, getApiProvider } from "../services/apiKey";
+import { getAllCredentials } from "../services/apiKey";
 import { newActivityId } from "../services/id";
 
 type TripUpdater = Dispatch<SetStateAction<TripData>>;
@@ -31,8 +31,8 @@ function mergeSuggestions(existing: ChecklistItem[], suggested: ChecklistItem[])
 }
 
 /**
- * Asks the backend to fill the packing checklists, reusing the Stage-2 enhance
- * endpoint rather than adding an endpoint just for this.
+ * Asks the AI to fill the packing checklists, reusing the Stage-2 enhance
+ * step rather than adding a step just for this.
  */
 export function useChecklistSuggest(trip: TripData, setTrip: TripUpdater) {
   const [isSuggesting, setIsSuggesting] = useState(false);
@@ -42,13 +42,7 @@ export function useChecklistSuggest(trip: TripData, setTrip: TripUpdater) {
     setIsSuggesting(true);
     setError(null);
     try {
-      const res = await enhanceTrip(
-        trip,
-        { packing: true },
-        getApiKeys(),
-        getApiProvider(),
-        getAllCredentials(),
-      );
+      const res = await enhanceTrip(trip, { packing: true }, getAllCredentials());
       const next = res.trip_data;
       setTrip((prev) => ({
         ...prev,

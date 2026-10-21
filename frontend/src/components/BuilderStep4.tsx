@@ -140,19 +140,13 @@ export default function BuilderStep4({
     setShareUrl(null);
     try {
       const namedTrip = { ...tripData, title: tripName.trim() || tripData.title };
-      const session = getCurrentSession() ?? (await signInWithGoogle());
-      const savedId = await saveTrip(session.uid, namedTrip, {
+      await (getCurrentSession() ?? signInWithGoogle());
+      const savedId = await saveTrip(namedTrip, {
         appDesign,
         tripId: asNewCopy ? undefined : (tripId ?? undefined),
         stage: "final",
       });
-      const url = await shareTrip(
-        session.uid,
-        savedId,
-        namedTrip,
-        appDesign,
-        shareDays || undefined,
-      );
+      const url = await shareTrip(savedId, namedTrip, appDesign, shareDays || undefined);
       setShareUrl(url);
       setStatus("done");
       onSaved(savedId, namedTrip.title);

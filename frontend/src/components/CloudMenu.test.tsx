@@ -7,7 +7,10 @@ import { DEFAULT_APP_DESIGN } from "../services/appDesign";
 
 vi.mock("../services/tripsStore", () => ({
   onAuthChange: vi.fn(),
-  completeRedirectSignIn: vi.fn(),
+  deleteAllMyData: vi.fn(),
+  editLinkFor: vi.fn(),
+  createEditLink: vi.fn(),
+  disableEditLink: vi.fn(),
   signInWithGoogle: vi.fn(),
   signOutOfGoogle: vi.fn(),
   saveTrip: vi.fn(),
@@ -21,9 +24,7 @@ describe("CloudMenu", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(trips.onAuthChange).mockImplementation(() => () => {});
-    // No redirect sign-in pending by default (see tripsStore's completeRedirectSignIn) —
-    // individual tests override this to exercise the redirect-completion path.
-    vi.mocked(trips.completeRedirectSignIn).mockResolvedValue(null);
+    vi.mocked(trips.editLinkFor).mockResolvedValue(null);
   });
 
   function renderCloudMenu(overrides: Partial<Parameters<typeof CloudMenu>[0]> = {}) {
@@ -89,7 +90,7 @@ describe("CloudMenu", () => {
 
     it("shows a specific message for a blocked popup", async () => {
       vi.mocked(trips.signInWithGoogle).mockRejectedValue(
-        Object.assign(new Error("blocked"), { code: "auth/popup-blocked" }),
+        Object.assign(new Error("blocked"), { code: "popup_failed_to_open" }),
       );
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -106,28 +107,9 @@ describe("CloudMenu", () => {
       consoleErrorSpy.mockRestore();
     });
 
-    it("shows a specific message naming the actual domain, for an unauthorized domain (e.g. an unauthorized preview deployment)", async () => {
-      vi.mocked(trips.signInWithGoogle).mockRejectedValue(
-        Object.assign(new Error("domain"), { code: "auth/unauthorized-domain" }),
-      );
-      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-
-      renderCloudMenu();
-      fireEvent.click(screen.getByRole("button", { name: /התחברות עם Google/ }));
-      await waitFor(() => {
-        // jsdom's default location is localhost — this asserts the actual
-        // hostname is interpolated in, not that it's this specific value.
-        expect(
-          screen.getByText(new RegExp(`הכתובת ${window.location.hostname} אינה מורשית`)),
-        ).toBeInTheDocument();
-      });
-
-      consoleErrorSpy.mockRestore();
-    });
-
     it("shows a specific message for a network failure", async () => {
       vi.mocked(trips.signInWithGoogle).mockRejectedValue(
-        Object.assign(new Error("offline"), { code: "auth/network-request-failed" }),
+        Object.assign(new Error("offline"), { code: "offline" }),
       );
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -142,7 +124,7 @@ describe("CloudMenu", () => {
 
     it("shows no notice at all when the user just closes the Google popup themselves", async () => {
       vi.mocked(trips.signInWithGoogle).mockRejectedValue(
-        Object.assign(new Error("closed"), { code: "auth/popup-closed-by-user" }),
+        Object.assign(new Error("closed"), { code: "popup_closed" }),
       );
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -238,7 +220,7 @@ describe("CloudMenu", () => {
     fireEvent.click(screen.getByRole("button", { name: /שמירה/ }));
 
     await waitFor(() => {
-      expect(trips.saveTrip).toHaveBeenCalledWith("uid-123", sampleTrip, {
+      expect(trips.saveTrip).toHaveBeenCalledWith(sampleTrip, {
         appDesign: DEFAULT_APP_DESIGN,
         tripId: undefined,
         stage: "step3",
@@ -274,7 +256,6 @@ describe("CloudMenu", () => {
 
     await waitFor(() => {
       expect(trips.saveTrip).toHaveBeenCalledWith(
-        "uid-123",
         { ...sampleTrip, title: "Rome Family Trip" },
         { appDesign: DEFAULT_APP_DESIGN, tripId: undefined, stage: "step1" },
       );
@@ -305,7 +286,7 @@ describe("CloudMenu", () => {
     fireEvent.click(screen.getByRole("button", { name: /שמירה/ }));
 
     await waitFor(() => {
-      expect(trips.saveTrip).toHaveBeenCalledWith("uid-123", sampleTrip, {
+      expect(trips.saveTrip).toHaveBeenCalledWith(sampleTrip, {
         appDesign: DEFAULT_APP_DESIGN,
         tripId: undefined,
         stage: "final",
@@ -315,7 +296,6 @@ describe("CloudMenu", () => {
     // trip really is the finished app when opened, not a look-alike preview.
     await waitFor(() => {
       expect(trips.shareTrip).toHaveBeenCalledWith(
-        "uid-123",
         "trip-1",
         sampleTrip,
         DEFAULT_APP_DESIGN,
@@ -359,5 +339,75 @@ describe("CloudMenu", () => {
       configurable: true,
     });
     consoleErrorSpy.mockRestore();
+  });
+
+  it("deletes all data only after a second, confirming click, then shows the user signed out", async () => {
+    vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
+      callback({ uid: "uid-123", email: "user@example.com", displayName: "User" });
+      return () => {};
+    });
+    vi.mocked(trips.deleteAllMyData).mockResolvedValue();
+    const onTripIdChange = vi.fn();
+
+    renderCloudMenu({ onTripIdChange });
+    await waitFor(() => {
+      expect(screen.getByText("User")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("User"));
+
+    fireEvent.click(screen.getByRole("button", { name: "מחיקת כל הנתונים שלי" }));
+    expect(trips.deleteAllMyData).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "למחוק הכול לצמיתות?" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /התחברות עם Google/ })).toBeInTheDocument();
+    });
+    expect(trips.deleteAllMyData).toHaveBeenCalledTimes(1);
+    expect(onTripIdChange).toHaveBeenCalledWith(null);
+  });
+
+  it("creates an edit link with a warning, and can turn it off again", async () => {
+    vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
+      callback({ uid: "uid-123", email: "user@example.com", displayName: "User" });
+      return () => {};
+    });
+    const editLink = "https://example.com/?shared=s#k=key&e=edit";
+    vi.mocked(trips.createEditLink).mockResolvedValue(editLink);
+    vi.mocked(trips.disableEditLink).mockResolvedValue();
+
+    renderCloudMenu({ tripId: "trip-1" });
+    await waitFor(() => {
+      expect(screen.getByText("User")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("User"));
+
+    fireEvent.click(await screen.findByRole("button", { name: /יצירת קישור עריכה/ }));
+    expect(await screen.findByText(editLink)).toBeInTheDocument();
+    expect(trips.createEditLink).toHaveBeenCalledWith("trip-1");
+    expect(screen.getByText(/כל מי שמחזיק בקישור הזה יכול לשנות/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "ביטול קישור העריכה" }));
+    await waitFor(() => {
+      expect(screen.queryByText(editLink)).not.toBeInTheDocument();
+    });
+    expect(trips.disableEditLink).toHaveBeenCalledWith("trip-1");
+  });
+
+  it("shows the trip's existing edit link when the menu opens", async () => {
+    vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
+      callback({ uid: "uid-123", email: "user@example.com", displayName: "User" });
+      return () => {};
+    });
+    vi.mocked(trips.editLinkFor).mockResolvedValue("https://example.com/?shared=s#k=key&e=old");
+
+    renderCloudMenu({ tripId: "trip-1" });
+    await waitFor(() => {
+      expect(screen.getByText("User")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("User"));
+
+    expect(
+      await screen.findByText("https://example.com/?shared=s#k=key&e=old"),
+    ).toBeInTheDocument();
   });
 });

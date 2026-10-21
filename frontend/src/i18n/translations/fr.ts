@@ -79,7 +79,6 @@ export const fr: Record<TranslationKey, string> = {
   "step3.subtitle": "Notre IA parcourt l'itinéraire et s'assure que vous n'avez rien oublié.",
   "step3.datesLabel": "Dates du voyage",
   "step3.datesPlaceholder": "Par exemple : 12–19 juillet",
-  "step3.generating": "Génération des médias (podcasts)...",
   "step3.continue": "Continuer vers le design de l'app",
   "step3.external.heading": "Envoyer à une IA externe",
   "step3.external.intro":
@@ -316,7 +315,7 @@ export const fr: Record<TranslationKey, string> = {
   "apiKey.descriptionAfter":
     ". Vous pouvez ajouter plusieurs clés ; quand l'une atteint sa limite, nous passons automatiquement à la suivante. Tout est stocké uniquement dans votre navigateur.",
   "apiKey.trustNote":
-    "Chaque clé est envoyée avec vos requêtes au serveur de cette application (jamais à un tiers), uniquement pour être transmise au fournisseur choisi — elle n'est jamais stockée sur le serveur ni journalisée en entier.",
+    "Chaque clé va directement de cet appareil au fournisseur choisi — jamais par un serveur AppMyTrip, et elle n'est jamais journalisée.",
   "apiKey.removeAria": "Supprimer la clé {key}",
   "apiKey.showAria": "Afficher la clé",
   "apiKey.hideAria": "Masquer la clé",
@@ -346,8 +345,6 @@ export const fr: Record<TranslationKey, string> = {
   "cloud.signInFailed": "La connexion avec Google a échoué. Réessayez.",
   "cloud.signInPopupBlocked":
     "Votre navigateur a bloqué la fenêtre de connexion Google. Autorisez les fenêtres pop-up pour ce site et réessayez.",
-  "cloud.signInUnauthorizedDomain":
-    "L'adresse {domain} n'est pas autorisée pour la connexion Google. S'il s'agit de l'adresse principale du site, elle doit être ajoutée à la liste des domaines autorisés dans la console Firebase ; sinon, essayez depuis l'adresse principale du site.",
   "cloud.signInNetworkFailed":
     "Un problème réseau a empêché la connexion. Vérifiez votre connexion internet et réessayez.",
   "cloud.saved": "Le voyage a été enregistré sur votre compte.",
@@ -362,6 +359,25 @@ export const fr: Record<TranslationKey, string> = {
   "cloud.deleteAria": "Supprimer le voyage {name}",
   "cloud.deleteConfirmAria": "Confirmer la suppression du voyage {name}",
   "cloud.deleteConfirm": "Supprimer ?",
+  "cloud.deleteMyData": "Supprimer toutes mes données",
+  "cloud.deleteMyDataConfirm": "Tout supprimer définitivement ?",
+  "cloud.deleteMyDataFailed":
+    "La suppression a échoué. Rien n'a été retiré de Google Drive ; veuillez réessayer.",
+  "cloud.editLink": "Lien de modification",
+  "cloud.createEditLink": "Créer un lien de modification",
+  "cloud.editLinkWarning":
+    "Toute personne disposant de ce lien peut modifier le voyage partagé. Partager à nouveau depuis Mes voyages remplace les modifications enregistrées par ce lien.",
+  "cloud.disableEditLink": "Désactiver le lien de modification",
+  "cloud.editLinkDisabled":
+    "Le lien de modification est désactivé. Le lien de consultation fonctionne toujours.",
+  "cloud.editLinkFailed":
+    "L'action sur le lien de modification a échoué. Vérifiez que le voyage est partagé, puis réessayez.",
+  "sharedPage.saveChanges": "Enregistrer les modifications",
+  "sharedPage.saveChangesDone": "Modifications enregistrées sur ce lien.",
+  "sharedPage.saveChangesFailed":
+    "L'enregistrement a échoué. Le lien de modification a peut-être été désactivé.",
+  "sharedPage.editorHint":
+    "Vous avez ouvert un lien de modification : vous pouvez enregistrer des modifications ici, et toute personne disposant du lien les verra.",
   "cloud.export": "Exporter",
   "cloud.exportIcs": "Exporter le calendrier",
   "cloud.print": "Imprimer",
@@ -406,16 +422,6 @@ export const fr: Record<TranslationKey, string> = {
   "sharedPage.saveFailed": "L'enregistrement sur votre compte a échoué. Réessayez.",
   "sharedPage.localOnlyNotice":
     "Les modifications faites ici (y compris via le chat) sont enregistrées uniquement dans ce navigateur et ne sont pas envoyées au serveur.",
-  "sharedPage.adminHint":
-    "Vous êtes administrateur de ce voyage — vous pouvez enregistrer les modifications ici, ou ajouter un autre administrateur par e-mail.",
-  "sharedPage.saveChanges": "Enregistrer les modifications",
-  "sharedPage.saveChangesDone": "Modifications enregistrées sur ce lien.",
-  "sharedPage.saveChangesFailed": "L'enregistrement des modifications a échoué. Réessayez.",
-  "sharedPage.addAdminPlaceholder": "Ajouter un administrateur par e-mail...",
-  "sharedPage.addAdmin": "Ajouter un administrateur",
-  "sharedPage.addAdminDone":
-    "Ajouté — cette personne peut désormais aussi enregistrer des modifications sur ce lien.",
-  "sharedPage.addAdminFailed": "L'ajout de cet administrateur a échoué. Réessayez.",
   "sharedPage.shareNewLink": "Partager un nouveau lien",
   "sharedPage.newLinkCopied":
     "Un nouveau lien avec vos modifications a été copié dans le presse-papiers.",
@@ -460,13 +466,11 @@ export const fr: Record<TranslationKey, string> = {
   "notice.rateLimitedDemo":
     "Le fournisseur d'IA limite les requêtes en ce moment — réessayez dans une minute. En attendant, un voyage d'exemple a été chargé.",
   "notice.unreachableDemo":
-    "Impossible de se connecter au serveur d'IA — un voyage d'exemple a été chargé.",
+    "Impossible de joindre le fournisseur d'IA — un voyage d'exemple a été chargé.",
   "notice.enhanceFailed":
     "L'ajout des détails supplémentaires a échoué — nous continuons avec l'itinéraire actuel.",
   "notice.retry": "Réessayer",
   "notice.updateFailed": "La mise à jour a échoué — l'itinéraire n'a pas changé.",
-  "notice.mediaFailed":
-    "La génération des médias sur le serveur a échoué — nous continuons sans fichiers audio.",
   "agent.initial": "J'ai reconnu le voyage ! Parcourez l'itinéraire et corrigez ce qu'il faut.",
   "agent.demo":
     "J'ai chargé un voyage d'exemple pour vous montrer comment l'app fonctionne. Pour analyser un vrai texte, configurez votre propre clé API Gemini (bouton « Configurer la clé API » ci-dessus) — ou continuez à éditer manuellement.",
@@ -474,12 +478,12 @@ export const fr: Record<TranslationKey, string> = {
   "agent.imported": "Le voyage a été importé depuis un fichier. Vous pouvez continuer à éditer.",
   "agent.sharedIntro":
     "Envoyez un message pour modifier l'itinéraire — les modifications restent uniquement dans votre navigateur.",
-  "shared.expired": "Ce lien de partage a expiré.",
+  "shared.expired": "Ce lien de partage a expiré ou a été supprimé.",
   "shared.loadFailed":
     "Le chargement du voyage partagé a échoué. Le lien est peut-être erroné ou le voyage a été supprimé.",
   "shared.loading": "Chargement du voyage...",
 
-  // Offline demo trip (shown when the backend is unreachable)
+  // Offline demo trip (shown when an AI call fails)
   "demo.title": "Voyage d'exemple ✨",
   "demo.dates": "dim. – mar.",
   "demo.d1a1.title": "Enregistrement à l'hôtel",

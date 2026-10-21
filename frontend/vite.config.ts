@@ -8,6 +8,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
+      // Registered by hand in main.tsx, and never inside the Android app: a
+      // service worker in the APK keeps serving the previous version's files
+      // after an update.
+      injectRegister: false,
       includeAssets: ["logo.png"],
       manifest: {
         id: "/",
