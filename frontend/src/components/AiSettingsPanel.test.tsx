@@ -117,6 +117,19 @@ describe("AiSettingsPanel — dropped providers", () => {
     });
   });
 
+  it("drops the notice once adding a key has cleared the old keys", () => {
+    localStorage.setItem("tripweaver_api_keys", JSON.stringify({ mistral: ["m"] }));
+    render(<AiSettingsPanel />);
+    expect(screen.getByRole("status")).toHaveTextContent("Mistral");
+
+    fireEvent.change(screen.getByPlaceholderText("API Key..."), {
+      target: { value: "new-key" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "הוספת מפתח" }));
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
   it("shows no notice when every saved key is for a supported provider", () => {
     localStorage.setItem("tripweaver_api_keys", JSON.stringify({ gemini: ["k"] }));
     render(<AiSettingsPanel />);

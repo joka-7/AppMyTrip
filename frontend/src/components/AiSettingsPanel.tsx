@@ -104,6 +104,8 @@ export default function AiSettingsPanel() {
     if (!trimmed) return;
     addApiKey(trimmed, provider);
     setLlmKeys(getApiKeysForProvider(provider));
+    // Saving any key rewrites storage without the dropped providers' keys.
+    setRetiredProviders(getRetiredProviderNames());
     setLlmDraft("");
     setActiveProvider(getApiProvider());
   };
@@ -116,6 +118,7 @@ export default function AiSettingsPanel() {
   const handleRemoveLlmKey = (key: string) => {
     removeApiKey(key, provider);
     setLlmKeys(getApiKeysForProvider(provider));
+    setRetiredProviders(getRetiredProviderNames());
   };
 
   const handleForgetRetired = () => {

@@ -282,7 +282,7 @@ flowchart TB
 
 | Service | Exports | Notes |
 |---------|---------|-------|
-| `apiKey.ts` | `LLMProvider`, `PROVIDERS`, `getApiProvider`, `setApiProvider`, `getApiKeysForProvider`, `getAllCredentials`, `addApiKey`, `removeApiKey`, `getRetiredProviderNames`, `forgetRetiredProviderKeys` | Several keys per provider (`gemini`/`groq`/`openai`/`anthropic`) in `localStorage`; `getAllCredentials` lists the active provider first and omits providers with no key. Keys saved for the dropped OpenRouter/Cerebras/Mistral stay stored, unused, until `forgetRetiredProviderKeys`; `AiSettingsPanel` names them in a notice with a button that calls it |
+| `apiKey.ts` | `LLMProvider`, `PROVIDERS`, `getApiProvider`, `setApiProvider`, `getApiKeysForProvider`, `getAllCredentials`, `addApiKey`, `removeApiKey`, `getRetiredProviderNames`, `forgetRetiredProviderKeys` | Several keys per provider (`gemini`/`groq`/`openai`/`anthropic`) in `localStorage`; `getAllCredentials` lists the active provider first and omits providers with no key. Keys saved for the dropped OpenRouter/Cerebras/Mistral stay stored, unused, until `forgetRetiredProviderKeys` or the next `addApiKey`/`removeApiKey` (both rewrite storage without them); `AiSettingsPanel` names them in a notice with a button that calls it |
 | `tripAi.ts` | see section 2 | The AI steps, run in the browser |
 | `tripEnhance.ts` | `ALL_ENHANCE_OPTIONS`, `effectiveEnhanceOptions`, `findNewActivities`, `enhanceActivities` | Per-activity top-up of Step 2 extras for newly added activities |
 | `firebase.ts` | `getFirebaseApp`, `isFirebaseConfigured` | Initializes only when `VITE_FIREBASE_*` are set; else `null` (app still runs, sharing off). Used only for Firestore |
