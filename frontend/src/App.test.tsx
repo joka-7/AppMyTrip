@@ -320,6 +320,33 @@ describe("App builder flow", () => {
     expect(screen.getByText("₪20")).toBeInTheDocument();
   });
 
+  it("offers a retry for a chat message whose answer was cancelled", async () => {
+    vi.mocked(api.parseTrip).mockResolvedValue({
+      trip_data: sampleTrip,
+      initial_agent_message: "Welcome!",
+    });
+    vi.mocked(api.agentInteract).mockRejectedValue(new AiCancelledError());
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /צור מבנה אפליקציה ראשוני/ }));
+    await waitFor(() => {
+      expect(screen.getByText("שיפורים נוספים (אופציונלי)")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /דלג, המשך לסוכן/ }));
+    await waitFor(() => {
+      expect(screen.getByText("סוכן השלמות AI")).toBeInTheDocument();
+    });
+    fireEvent.change(screen.getByPlaceholderText(/ענה לסוכן/), {
+      target: { value: "תוסיף מסעדה" },
+    });
+    fireEvent.submit(screen.getByPlaceholderText(/ענה לסוכן/).closest("form")!);
+
+    await waitFor(() => {
+      expect(screen.getByText(/ההודעה האחרונה לא נענתה/)).toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "נסו שוב" })).toBeInTheDocument();
+  });
+
   it("shows the provider's actual failure detail alongside the friendly message on a 502", async () => {
     vi.mocked(api.parseTrip).mockResolvedValue({
       trip_data: sampleTrip,

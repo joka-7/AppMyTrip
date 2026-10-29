@@ -501,7 +501,13 @@ function TripBuilder() {
         }
       }
     } catch (err) {
-      if (err instanceof AiCancelledError) return;
+      if (err instanceof AiCancelledError) {
+        // The user left the step mid-answer; when they come back, their
+        // unanswered message gets a Retry instead of hanging there.
+        setChatNotice(t("notice.chatCancelled"));
+        setFailedChatText(userText);
+        return;
+      }
       console.error(err);
       const message = describeApiError(err, t("notice.updateFailed"));
       setChatNotice(message);

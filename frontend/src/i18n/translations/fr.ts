@@ -473,6 +473,8 @@ export const fr: Record<TranslationKey, string> = {
   "notice.enhanceFailed":
     "L'ajout des détails supplémentaires a échoué — nous continuons avec l'itinéraire actuel.",
   "notice.retry": "Réessayer",
+  "notice.chatCancelled":
+    "Votre dernier message n'a pas reçu de réponse, car vous avez quitté cette étape.",
   "notice.updateFailed": "La mise à jour a échoué — l'itinéraire n'a pas changé.",
   "agent.initial": "J'ai reconnu le voyage ! Parcourez l'itinéraire et corrigez ce qu'il faut.",
   "agent.demo":

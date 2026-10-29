@@ -458,6 +458,7 @@ export const en: Record<TranslationKey, string> = {
   "notice.enhanceFailed":
     "Adding the extra details failed — continuing with the current itinerary.",
   "notice.retry": "Retry",
+  "notice.chatCancelled": "Your last message wasn't answered because you left this step.",
   "notice.updateFailed": "The update failed — the itinerary didn't change.",
   "agent.initial": "I recognized the trip! Go over the itinerary and fix anything you need.",
   "agent.demo":

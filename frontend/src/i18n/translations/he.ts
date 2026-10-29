@@ -447,6 +447,7 @@ export const he = {
   "notice.unreachableDemo": "לא הצלחנו להגיע לספק ה-AI — נטען טיול לדוגמה.",
   "notice.enhanceFailed": 'הוספת הפרטים הנוספים נכשלה — ממשיכים עם הלו"ז הנוכחי.',
   "notice.retry": "נסו שוב",
+  "notice.chatCancelled": "ההודעה האחרונה לא נענתה כי עברתם למסך אחר.",
   "notice.updateFailed": 'העדכון נכשל — הלו"ז לא השתנה.',
   "agent.initial": 'זיהיתי את הטיול! עברו על הלו"ז ותקנו מה שצריך.',
   "agent.demo":
