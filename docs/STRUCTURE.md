@@ -188,9 +188,11 @@ AppMyTrip/
 │   │   │   ├── agentResponseSchema.json
 │   │   │   ├── agentScopedResponseSchema.json
 │   │   │   └── tripDataSchema.json
-│   │   ├── hooks/                                # Podcast player, install prompt, trip branding, checklist, editing
+│   │   ├── hooks/                                # Podcast player, install prompt, trip branding, checklist, editing, AI-call…
 │   │   │   ├── useBackToClose.test.ts
 │   │   │   ├── useBackToClose.ts
+│   │   │   ├── useCancellableCalls.test.ts
+│   │   │   ├── useCancellableCalls.ts
 │   │   │   ├── useChecklistSuggest.ts
 │   │   │   ├── useChecklistTicks.ts
 │   │   │   ├── useDismissable.test.ts

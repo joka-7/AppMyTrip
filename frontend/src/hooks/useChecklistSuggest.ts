@@ -1,6 +1,7 @@
 import { useCallback, useState, type Dispatch, type SetStateAction } from "react";
 import type { ChecklistItem, TripData } from "../api";
-import { enhanceTrip } from "../api";
+import { AiCancelledError, enhanceTrip } from "../api";
+import { useCancellableCalls } from "./useCancellableCalls";
 import { translate } from "../i18n/store";
 import { getAllCredentials } from "../services/apiKey";
 import { newActivityId } from "../services/id";
@@ -37,12 +38,13 @@ function mergeSuggestions(existing: ChecklistItem[], suggested: ChecklistItem[])
 export function useChecklistSuggest(trip: TripData, setTrip: TripUpdater) {
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const nextSignal = useCancellableCalls();
 
   const suggest = useCallback(async () => {
     setIsSuggesting(true);
     setError(null);
     try {
-      const res = await enhanceTrip(trip, { packing: true }, getAllCredentials());
+      const res = await enhanceTrip(trip, { packing: true }, getAllCredentials(), nextSignal());
       const next = res.trip_data;
       setTrip((prev) => ({
         ...prev,
@@ -54,12 +56,13 @@ export function useChecklistSuggest(trip: TripData, setTrip: TripUpdater) {
         }),
       }));
     } catch (err) {
+      if (err instanceof AiCancelledError) return;
       console.error("Failed to suggest checklist items:", err);
       setError(translate("checklist.suggestFailed"));
     } finally {
       setIsSuggesting(false);
     }
-  }, [trip, setTrip]);
+  }, [trip, setTrip, nextSignal]);
 
   return { suggest, isSuggesting, error };
 }

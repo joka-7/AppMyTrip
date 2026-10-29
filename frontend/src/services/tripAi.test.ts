@@ -6,6 +6,7 @@ import {
 import type { AgentConfig, RequestOptions } from "modeldispatcher-browser-agent";
 import type { Activity, TripData } from "../api";
 import {
+  AiCancelledError,
   ApiError,
   agentConfigFrom,
   createTripAi,
@@ -20,6 +21,13 @@ import {
 
 const CFG: AgentConfig = {
   providers: [{ provider: "gemini", model: "gemini-2.5-flash", apiKeys: ["k"] }],
+  ollamaUrl: "",
+};
+const TWO_PROVIDERS: AgentConfig = {
+  providers: [
+    { provider: "gemini", model: "gemini-2.5-flash", apiKeys: ["k"] },
+    { provider: "groq", model: "openai/gpt-oss-120b", apiKeys: ["g"] },
+  ],
   ollamaUrl: "",
 };
 
@@ -45,18 +53,20 @@ const tripOf = (days: number, perDay = 1): TripData => ({
 });
 
 interface Call {
+  provider: string;
   system: string;
   prompt: string;
   options: RequestOptions | undefined;
 }
 
 /** A fake AI: answers each call from `reply(system, prompt)`, recording every call. */
-function fakeAi(reply: (system: string, prompt: string) => unknown) {
+function fakeAi(reply: (system: string, prompt: string, provider: string) => unknown) {
   const calls: Call[] = [];
-  const complete: CompleteFn = async (_cfg, prompt, options) => {
+  const complete: CompleteFn = async (cfg, prompt, options) => {
     const system = options?.systemInstruction ?? "";
-    calls.push({ system, prompt, options });
-    const answer = reply(system, prompt);
+    const provider = cfg.providers.map((p) => p.provider).join(",");
+    calls.push({ system, prompt, options, provider });
+    const answer = reply(system, prompt, provider);
     if (answer instanceof Error) throw answer;
     return typeof answer === "string" ? answer : JSON.stringify(answer);
   };
@@ -281,6 +291,56 @@ describe("createTripAi().parseTripText", () => {
     );
   });
 
+  it.each([
+    ["an empty reply", ""],
+    ["a reply that is not JSON", "Sorry, I can't help with that."],
+    ["JSON that is not a trip", { error: "blocked" }],
+  ])("moves on to the next saved provider after %s", async (_label, badReply) => {
+    const { ai, calls } = fakeAi((_system, _prompt, provider) =>
+      provider === "gemini" ? badReply : { title: "From Groq", dates: "", days: [] },
+    );
+    const trip = await ai.parseTripText("x", null, TWO_PROVIDERS);
+    expect(trip.title).toBe("From Groq");
+    expect(calls.map((c) => c.provider)).toEqual(["gemini", "groq"]);
+  });
+
+  it("moves on to the next provider after a provider error, and reports 422 when no reply was usable", async () => {
+    const { ai, calls } = fakeAi((_system, _prompt, provider) =>
+      provider === "gemini"
+        ? new AllProvidersExhaustedError([{ provider: "gemini", error: "HTTP 500" }])
+        : "",
+    );
+    await expect(ai.parseTripText("x", null, TWO_PROVIDERS)).rejects.toEqual(
+      expect.objectContaining({ status: 422 }),
+    );
+    expect(calls.map((c) => c.provider)).toEqual(["gemini", "groq"]);
+  });
+
+  it("tries no further provider once cancelled after an unusable reply", async () => {
+    const controller = new AbortController();
+    const { ai, calls } = fakeAi(() => {
+      controller.abort();
+      return "";
+    });
+    await expect(
+      ai.parseTripText("x", null, { ...TWO_PROVIDERS, signal: controller.signal }),
+    ).rejects.toBeInstanceOf(AiCancelledError);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("stops with AiCancelledError once cancelled, trying no further provider", async () => {
+    const controller = new AbortController();
+    const { ai, calls } = fakeAi(() => {
+      controller.abort();
+      return new Error("The operation was aborted.");
+    });
+    await expect(
+      ai.parseTripText("x", null, { ...TWO_PROVIDERS, signal: controller.signal }),
+    ).rejects.toBeInstanceOf(AiCancelledError);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.options?.signal).toBe(controller.signal);
+  });
+
   it("names the failing provider in a 502's detail", async () => {
     const { ai } = fakeAi(
       () => new AllProvidersExhaustedError([{ provider: "groq", error: "HTTP 500 boom" }]),
@@ -339,6 +399,18 @@ describe("createTripAi().agentTurn", () => {
     expect(calls[0].options?.maxTokens).toBe(1024);
     // A missing reply keeps the edit and says so in the trip's language.
     expect(result.reply).toBe("Done!");
+  });
+
+  it("does not treat a cancelled triage as 'general' and carry on", async () => {
+    const controller = new AbortController();
+    const { ai, calls } = fakeAi(() => {
+      controller.abort();
+      return new Error("aborted");
+    });
+    await expect(
+      ai.agentTurn(tripOf(2), "make it more relaxed", null, { ...CFG, signal: controller.signal }),
+    ).rejects.toBeInstanceOf(AiCancelledError);
+    expect(calls).toHaveLength(1);
   });
 
   it("does not retry a provider failure through the whole-trip turn", async () => {
@@ -426,6 +498,18 @@ describe("createTripAi().enhanceTrip", () => {
     });
     const result = await ai.enhanceTrip(trip, { prices: true, links: true }, CFG);
     expect(result.days[0].activities[0].price).toBe(5);
+  });
+
+  it("stops with AiCancelledError instead of merging when cancelled", async () => {
+    const controller = new AbortController();
+    const trip = tripOf(1);
+    const { ai } = fakeAi((system) => {
+      if (system.includes("Fill 'url'")) controller.abort();
+      return structuredClone(trip);
+    });
+    await expect(
+      ai.enhanceTrip(trip, { prices: true, links: true }, { ...CFG, signal: controller.signal }),
+    ).rejects.toBeInstanceOf(AiCancelledError);
   });
 
   it("fails when every extra failed", async () => {

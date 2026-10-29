@@ -6,7 +6,7 @@
 import { complete } from "modeldispatcher-browser-agent";
 import { agentConfigFrom, createTripAi, type ProviderKeys } from "./services/tripAi";
 
-export { ApiError } from "./services/tripAi";
+export { AiCancelledError, ApiError } from "./services/tripAi";
 
 export interface Activity {
   id: string;
@@ -110,13 +110,18 @@ const tripAi = createTripAi({ complete });
  *
  * Args:
  *   credentials: every saved provider and its keys, tried in order.
+ *   signal: cancels the call; it then rejects with AiCancelledError.
  */
 export async function parseTrip(
   rawText: string,
   preferences: string | null,
   credentials: readonly ProviderKeys[],
+  signal?: AbortSignal,
 ): Promise<ParseResponse> {
-  const trip = await tripAi.parseTripText(rawText, preferences, agentConfigFrom(credentials));
+  const trip = await tripAi.parseTripText(rawText, preferences, {
+    ...agentConfigFrom(credentials),
+    signal,
+  });
   return { trip_data: trip, initial_agent_message: null };
 }
 
@@ -126,13 +131,12 @@ export async function agentInteract(
   userMessage: string,
   preferences: string | null,
   credentials: readonly ProviderKeys[],
+  signal?: AbortSignal,
 ): Promise<AgentResponse> {
-  const { trip, reply } = await tripAi.agentTurn(
-    tripData,
-    userMessage,
-    preferences,
-    agentConfigFrom(credentials),
-  );
+  const { trip, reply } = await tripAi.agentTurn(tripData, userMessage, preferences, {
+    ...agentConfigFrom(credentials),
+    signal,
+  });
   return { trip_data: trip, agent_reply: reply };
 }
 
@@ -141,7 +145,11 @@ export async function enhanceTrip(
   tripData: TripData,
   options: EnhanceOptions,
   credentials: readonly ProviderKeys[],
+  signal?: AbortSignal,
 ): Promise<EnhanceResponse> {
-  const trip = await tripAi.enhanceTrip(tripData, options, agentConfigFrom(credentials));
+  const trip = await tripAi.enhanceTrip(tripData, options, {
+    ...agentConfigFrom(credentials),
+    signal,
+  });
   return { trip_data: trip };
 }

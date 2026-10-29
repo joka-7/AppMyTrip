@@ -9,7 +9,7 @@
 "frontend/src/App.tsx" = "4-step builder UI + live preview / shared-trip viewer"
 "frontend/src/firebase.ts" = "Firebase init (Google sign-in + Firestore)"
 "frontend/src/i18n" = "UI language store + he/en/fr dictionaries"
-"frontend/src/hooks" = "Podcast player, install prompt, trip branding, checklist, editing"
+"frontend/src/hooks" = "Podcast player, install prompt, trip branding, checklist, editing, AI-call cancellation"
 "frontend/src/services" = "tripsStore, appDesign, tripFile, apiKey, and other pure/service logic"
 "frontend/src/components" = "Builder steps (1-4), AppFrame, MapView, CloudMenu, and shared UI"
 "frontend/firestore.rules" = "Firestore security rules (per-user + public shares)"

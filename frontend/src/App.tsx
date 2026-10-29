@@ -8,7 +8,7 @@ import React, {
   type SetStateAction,
 } from "react";
 import { ChevronLeft, Globe, Smartphone, Wand2 } from "lucide-react";
-import { parseTrip, agentInteract, enhanceTrip, ApiError } from "./api";
+import { parseTrip, agentInteract, enhanceTrip, AiCancelledError, ApiError } from "./api";
 import type { EnhanceOptions, TripData } from "./api";
 import ApiNotice from "./components/ApiNotice";
 import BuilderStep1 from "./components/BuilderStep1";
@@ -19,6 +19,7 @@ import MyTripsButton from "./components/MyTripsButton";
 import ProgressBar from "./components/ProgressBar";
 import SettingsMenu from "./components/SettingsMenu";
 import { useBackToClose } from "./hooks/useBackToClose";
+import { useCancellableCalls } from "./hooks/useCancellableCalls";
 import { useChecklistSuggest } from "./hooks/useChecklistSuggest";
 import { useTripEditing } from "./hooks/useTripEditing";
 import { DEFAULT_APP_DESIGN, type AppDesign } from "./services/appDesign";
@@ -233,6 +234,8 @@ function AppCreditFooter() {
 function TripBuilder() {
   const { t, dir, lang } = useI18n();
   const [step, setStep] = useState(1);
+  // Leaving a step cancels the AI calls it started, so their results can't land later.
+  const nextSignal = useCancellableCalls(step);
   // Furthest step reached this session — lets ProgressBar's numbered circles
   // link back to a step the user already visited (its content still exists,
   // since going back doesn't clear later steps' state) without also letting
@@ -322,7 +325,7 @@ function TripBuilder() {
     setApiNotice(null);
     setFailedEnhanceOptions(null);
     try {
-      const res = await parseTrip(rawText, preferences || null, getAllCredentials());
+      const res = await parseTrip(rawText, preferences || null, getAllCredentials(), nextSignal());
       setTripData(normalizeTripForLoad(res.trip_data));
       setTripId(null);
       setAgentMessages(
@@ -332,6 +335,7 @@ function TripBuilder() {
       );
       goToStep(2);
     } catch (err) {
+      if (err instanceof AiCancelledError) return;
       console.error(err);
       setApiNotice(isRateLimited(err) ? t("notice.rateLimitedDemo") : t("notice.unreachableDemo"));
       setFailedEnhanceOptions(null);
@@ -428,18 +432,23 @@ function TripBuilder() {
   const handleEnhance = async (options: EnhanceOptions) => {
     setEnhanceOptions(options);
     setIsEnhancing(true);
+    let cancelled = false;
     try {
-      const res = await enhanceTrip(tripData, options, getAllCredentials());
+      const res = await enhanceTrip(tripData, options, getAllCredentials(), nextSignal());
       setTripData(normalizeTripForLoad(res.trip_data));
       setFailedEnhanceOptions(null);
       setApiNotice(null);
     } catch (err) {
-      console.error(err);
-      setApiNotice(t("notice.enhanceFailed"));
-      setFailedEnhanceOptions(options);
+      cancelled = err instanceof AiCancelledError;
+      if (!cancelled) {
+        console.error(err);
+        setApiNotice(t("notice.enhanceFailed"));
+        setFailedEnhanceOptions(options);
+      }
     } finally {
       setIsEnhancing(false);
-      goToStep(3);
+      // A cancelled call means the user already moved to another step.
+      if (!cancelled) goToStep(3);
     }
   };
 
@@ -468,6 +477,7 @@ function TripBuilder() {
         userText,
         preferences || null,
         getAllCredentials(),
+        nextSignal(),
       );
       // Applied right away — the agent's edit is the authoritative new state,
       // not something to hold back while the (slower) enhancement pass below
@@ -484,12 +494,14 @@ function TripBuilder() {
           newActivities,
           res.trip_data,
           effectiveEnhanceOptions(enhanceOptions),
+          nextSignal(),
         );
         if (enhancedById.size > 0) {
           setTripData((prev) => normalizeTripForLoad(mergeEnhancedActivities(prev, enhancedById)));
         }
       }
     } catch (err) {
+      if (err instanceof AiCancelledError) return;
       console.error(err);
       const message = describeApiError(err, t("notice.updateFailed"));
       setChatNotice(message);
@@ -832,6 +844,7 @@ function SharedTripViewer({
   editToken: string | null;
 }) {
   const { t, dir } = useI18n();
+  const nextSignal = useCancellableCalls();
   const [trip, setTrip] = useState<TripData | null>(null);
   const [appDesign, setAppDesign] = useState<AppDesign>(DEFAULT_APP_DESIGN);
   const [error, setError] = useState<string | null>(null);
@@ -897,7 +910,7 @@ function SharedTripViewer({
     setChatNotice(null);
 
     try {
-      const res = await agentInteract(priorTrip, userText, null, getAllCredentials());
+      const res = await agentInteract(priorTrip, userText, null, getAllCredentials(), nextSignal());
       // See TripBuilder's own handleSendMessage for why this is normalized and
       // applied immediately, with new activities enhanced (and merged in) as a
       // separate, non-blocking step below.
@@ -914,6 +927,7 @@ function SharedTripViewer({
           newActivities,
           res.trip_data,
           ALL_ENHANCE_OPTIONS,
+          nextSignal(),
         );
         if (enhancedById.size > 0) {
           setTrip((prev) =>
@@ -922,6 +936,7 @@ function SharedTripViewer({
         }
       }
     } catch (err) {
+      if (err instanceof AiCancelledError) return;
       console.error(err);
       setChatNotice(describeApiError(err, t("notice.updateFailed")));
       setFailedChatText(userText);

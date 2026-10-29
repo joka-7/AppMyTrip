@@ -31,15 +31,17 @@ describe("api", () => {
   });
 
   it("parseTrip calls the user's providers directly, in order, and never an app server", async () => {
-    dispatcher.complete.mockResolvedValue(JSON.stringify(trip));
+    // The first provider is down, so the second one answers.
+    dispatcher.complete
+      .mockRejectedValueOnce(new Error("HTTP 503"))
+      .mockResolvedValueOnce(JSON.stringify(trip));
 
     const result = await parseTrip("two days in Rome", null, CREDENTIALS);
 
-    const cfg = dispatcher.complete.mock.calls[0]?.[0] as AgentConfig;
-    expect(cfg.providers.map((p) => [p.provider, p.apiKeys])).toEqual([
-      ["groq", ["g1"]],
-      ["gemini", ["k1", "k2"]],
-    ]);
+    const tried = dispatcher.complete.mock.calls.map((call) =>
+      (call[0] as AgentConfig).providers.map((p) => [p.provider, p.apiKeys]),
+    );
+    expect(tried).toEqual([[["groq", ["g1"]]], [["gemini", ["k1", "k2"]]]]);
     expect(result).toEqual({
       trip_data: expect.objectContaining({ title: "Trip" }),
       initial_agent_message: null,

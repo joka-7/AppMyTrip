@@ -1,5 +1,5 @@
 import type { Activity, EnhanceOptions, TripData } from "../api";
-import { enhanceTrip } from "../api";
+import { AiCancelledError, enhanceTrip } from "../api";
 import { getAllCredentials } from "./apiKey";
 
 /**
@@ -46,6 +46,7 @@ export async function enhanceActivities(
   activities: Activity[],
   tripMeta: Pick<TripData, "title" | "dates" | "language">,
   options: EnhanceOptions,
+  signal?: AbortSignal,
 ): Promise<Map<string, Activity>> {
   if (activities.length === 0) return new Map();
   try {
@@ -58,9 +59,11 @@ export async function enhanceActivities(
       },
       options,
       getAllCredentials(),
+      signal,
     );
     return new Map(res.trip_data.days.flatMap((d) => d.activities).map((a) => [a.id, a]));
   } catch (err) {
+    if (err instanceof AiCancelledError) return new Map();
     console.error("Failed to enhance newly added activities:", err);
     return new Map();
   }

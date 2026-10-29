@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import App from "./App";
 import * as tripsStore from "./services/tripsStore";
 import * as api from "./api";
-import { ApiError } from "./api";
+import { AiCancelledError, ApiError } from "./api";
 import type { TripData } from "./api";
 import { setLang } from "./i18n/store";
 
@@ -170,8 +170,45 @@ describe("App builder flow", () => {
           packing: true,
         },
         [],
+        expect.any(AbortSignal),
       );
     });
+  });
+
+  it("cancels a running enhancement when the user leaves Step 2, with no error and no jump to Step 3", async () => {
+    vi.mocked(api.parseTrip).mockResolvedValue({
+      trip_data: sampleTrip,
+      initial_agent_message: "Welcome!",
+    });
+    let enhanceSignal: AbortSignal | undefined;
+    vi.mocked(api.enhanceTrip).mockImplementation(
+      (_trip, _options, _credentials, signal) =>
+        new Promise((_resolve, reject) => {
+          enhanceSignal = signal;
+          signal?.addEventListener("abort", () => reject(new AiCancelledError()));
+        }),
+    );
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /צור מבנה אפליקציה ראשוני/ }));
+    await waitFor(() => {
+      expect(screen.getByText("שיפורים נוספים (אופציונלי)")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("הוספת מחירים משוערים"));
+    fireEvent.click(screen.getByRole("button", { name: /הוסף את הפרטים שנבחרו/ }));
+    await waitFor(() => expect(enhanceSignal).toBeDefined());
+
+    // The browser's back button returns to Step 1 while the call is still running.
+    act(() => {
+      window.dispatchEvent(new PopStateEvent("popstate", { state: { appStep: 1 } }));
+    });
+
+    await waitFor(() => expect(enhanceSignal?.aborted).toBe(true));
+    await waitFor(() => {
+      expect(screen.getByText("שלב 1 מתוך 4")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("סוכן השלמות AI")).not.toBeInTheDocument();
+    expect(screen.queryByText(/הוספת הפרטים הנוספים נכשלה/)).not.toBeInTheDocument();
   });
 
   it("offers a one-click retry when Step 2's enhancement call fails, and it works", async () => {
@@ -210,6 +247,7 @@ describe("App builder flow", () => {
         expect.objectContaining(sampleTrip),
         { prices: true },
         [],
+        expect.any(AbortSignal),
       );
     });
     await waitFor(() => {

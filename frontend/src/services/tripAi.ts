@@ -72,8 +72,19 @@ export class ApiError extends Error {
   }
 }
 
+/** Thrown when the caller cancelled the call (left the screen); not a failure to report. */
+export class AiCancelledError extends Error {
+  constructor() {
+    super("The AI request was cancelled.");
+    this.name = "AiCancelledError";
+  }
+}
+
+/** The providers to try, plus an optional signal that cancels the whole call. */
+export type CallConfig = AgentConfig & { readonly signal?: AbortSignal | undefined };
+
 export type CompleteFn = (
-  cfg: AgentConfig,
+  cfg: CallConfig,
   prompt: string,
   options?: RequestOptions,
 ) => Promise<string>;
@@ -488,6 +499,12 @@ const JSON_ONLY = "Respond with ONLY valid JSON — no markdown fences, no prose
 const schemaText = (schema: unknown) =>
   `Output strict JSON matching this schema: ${JSON.stringify(schema)}`;
 
+const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
+function throwIfCancelled(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw new AiCancelledError();
+}
+
 /** Turns the dispatcher's failures into the statuses the app explains to users. */
 function classify(err: unknown): ApiError {
   if (err instanceof ApiError) return err;
@@ -514,23 +531,53 @@ function classify(err: unknown): ApiError {
 }
 
 export function createTripAi({ complete }: { complete: CompleteFn }) {
-  async function ask(
-    cfg: AgentConfig,
+  /**
+   * One AI step. Providers are tried one at a time, in the saved order, so a
+   * reply that is empty or not usable (`read` throws a 422) moves on to the
+   * next provider instead of failing the step, as a provider error would.
+   */
+  async function ask<T>(
+    cfg: CallConfig,
     system: string,
     user: string,
+    read: (raw: unknown) => T,
     maxTokens = MAX_TOKENS_FULL_TRIP,
-  ): Promise<unknown> {
-    let text: string;
-    try {
-      text = await complete(cfg, user, {
-        systemInstruction: `${system} ${JSON_ONLY}`,
-        jsonMode: true,
-        maxTokens,
-      });
-    } catch (err) {
-      throw classify(err);
+  ): Promise<T> {
+    const { signal, ...agentCfg } = cfg;
+    const options = {
+      systemInstruction: `${system} ${JSON_ONLY}`,
+      jsonMode: true,
+      maxTokens,
+      signal,
+    };
+    const attempts: { provider: string; error: string }[] = [];
+    let unusable: ApiError | null = null;
+    for (const provider of agentCfg.providers) {
+      throwIfCancelled(signal);
+      let text: string;
+      try {
+        text = await complete({ ...agentCfg, providers: [provider] }, user, options);
+      } catch (err) {
+        throwIfCancelled(signal);
+        if (err instanceof AllProvidersExhaustedError) attempts.push(...err.attempts);
+        else if (!(err instanceof NoProviderConfiguredError)) {
+          attempts.push({ provider: provider.provider, error: errorText(err) });
+        }
+        continue;
+      }
+      try {
+        return read(extractJson(text));
+      } catch (err) {
+        if (!(err instanceof ApiError) || err.status !== 422) throw err;
+        unusable ??= err;
+      }
     }
-    return extractJson(text);
+    if (unusable) throw unusable;
+    throw classify(
+      attempts.length > 0
+        ? new AllProvidersExhaustedError(attempts)
+        : new NoProviderConfiguredError(),
+    );
   }
 
   const prefs = (preferences?: string | null) => (preferences ? `IMPORTANT: ${preferences} ` : "");
@@ -538,7 +585,7 @@ export function createTripAi({ complete }: { complete: CompleteFn }) {
   async function parseTripText(
     rawText: string,
     preferences: string | null | undefined,
-    cfg: AgentConfig,
+    cfg: CallConfig,
   ): Promise<TripData> {
     const system =
       "You are an expert travel planner AI. Your task is to parse the user's free text into a " +
@@ -552,12 +599,12 @@ export function createTripAi({ complete }: { complete: CompleteFn }) {
       "('he' for Hebrew, 'en' for English, etc.). Write the title, activity titles/descriptions, and " +
       "all other generated text in that same detected language.";
     const user = `User Request: ${rawText}\n\n${schemaText(tripDataSchema)}`;
-    return sanitizeTrip(await ask(cfg, system, user));
+    return ask(cfg, system, user, sanitizeTrip);
   }
 
   type Intent = { action: "add_days" | "edit_days" | "general"; dayNumbers: number[] };
 
-  async function resolveIntent(trip: TripData, message: string, cfg: AgentConfig): Promise<Intent> {
+  async function resolveIntent(trip: TripData, message: string, cfg: CallConfig): Promise<Intent> {
     const existing = new Set(trip.days.map((d) => d.dayNum));
     const mentioned = detectDayNumbers(message);
     if (mentioned.length > 0) {
@@ -593,17 +640,28 @@ export function createTripAi({ complete }: { complete: CompleteFn }) {
       const user =
         `Existing days:\n${summaries}\n\nUser message: ${message}\n\n` +
         schemaText(agentDayIntentSchema);
-      const raw = await ask(cfg, system, user, MAX_TOKENS_CLASSIFY);
-      if (!isObject(raw)) return { action: "general", dayNumbers: [] };
-      const action =
-        raw.action === "add_days" || raw.action === "edit_days" ? raw.action : "general";
-      const dayNumbers = Array.isArray(raw.day_numbers)
-        ? raw.day_numbers.filter((n): n is number => Number.isInteger(n))
-        : [];
-      return { action, dayNumbers };
+      return await ask(cfg, system, user, readIntent, MAX_TOKENS_CLASSIFY);
     } catch {
+      // A cancelled call stops at the next step's own cancel check.
       return { action: "general", dayNumbers: [] };
     }
+  }
+
+  function readIntent(raw: unknown): Intent {
+    if (!isObject(raw)) return { action: "general", dayNumbers: [] };
+    const action = raw.action === "add_days" || raw.action === "edit_days" ? raw.action : "general";
+    const dayNumbers = Array.isArray(raw.day_numbers)
+      ? raw.day_numbers.filter((n): n is number => Number.isInteger(n))
+      : [];
+    return { action, dayNumbers };
+  }
+
+  function readFullTurn(raw: unknown): { trip: TripData; reply: string } {
+    if (!isObject(raw)) throw new ApiError(422, "The AI's reply was not an object.");
+    const updated = sanitizeTrip(raw.updated_trip);
+    // A missing reply text is a formatting slip, not a failed edit: keep the edit.
+    const reply = str(raw.agent_reply, 4000) || (updated.language === "he" ? "בוצע!" : "Done!");
+    return { trip: updated, reply };
   }
 
   function scopedReply(raw: unknown): { days: TripDay[]; reply: string } {
@@ -617,7 +675,7 @@ export function createTripAi({ complete }: { complete: CompleteFn }) {
     trip: TripData,
     message: string,
     preferences: string | null | undefined,
-    cfg: AgentConfig,
+    cfg: CallConfig,
   ) {
     const existing = new Set(trip.days.map((d) => d.dayNum));
     const next = Math.max(0, ...existing) + 1;
@@ -641,8 +699,14 @@ export function createTripAi({ complete }: { complete: CompleteFn }) {
     const user =
       `Trip context: ${JSON.stringify(context)}\nUser Message: ${message}\n\n` +
       schemaText(agentScopedResponseSchema);
-    const { days, reply } = scopedReply(await ask(cfg, system, user, MAX_TOKENS_SCOPED_EDIT));
-    if (days.some((d) => existing.has(d.dayNum))) throw new ApiError(422, "Day-number collision.");
+    const readNewDays = (raw: unknown) => {
+      const scoped = scopedReply(raw);
+      if (scoped.days.some((d) => existing.has(d.dayNum))) {
+        throw new ApiError(422, "Day-number collision.");
+      }
+      return scoped;
+    };
+    const { days, reply } = await ask(cfg, system, user, readNewDays, MAX_TOKENS_SCOPED_EDIT);
     return { trip: { ...trip, days: [...trip.days, ...days] }, reply };
   }
 
@@ -651,7 +715,7 @@ export function createTripAi({ complete }: { complete: CompleteFn }) {
     message: string,
     dayNumbers: number[],
     preferences: string | null | undefined,
-    cfg: AgentConfig,
+    cfg: CallConfig,
   ) {
     const targets = trip.days.filter((d) => dayNumbers.includes(d.dayNum));
     if (targets.length === 0) throw new ApiError(422, "None of the classified days exist.");
@@ -672,10 +736,14 @@ export function createTripAi({ complete }: { complete: CompleteFn }) {
     const user =
       `Days: ${JSON.stringify(targets)}\nUser Message: ${message}\n\n` +
       schemaText(agentScopedResponseSchema);
-    const { days, reply } = scopedReply(await ask(cfg, system, user, MAX_TOKENS_SCOPED_EDIT));
-    if (!days.every((d) => dayNumbers.includes(d.dayNum))) {
-      throw new ApiError(422, "Unexpected day number.");
-    }
+    const readEditedDays = (raw: unknown) => {
+      const scoped = scopedReply(raw);
+      if (!scoped.days.every((d) => dayNumbers.includes(d.dayNum))) {
+        throw new ApiError(422, "Unexpected day number.");
+      }
+      return scoped;
+    };
+    const { days, reply } = await ask(cfg, system, user, readEditedDays, MAX_TOKENS_SCOPED_EDIT);
     const byNum = new Map(days.map((d) => [d.dayNum, d]));
     return { trip: { ...trip, days: trip.days.map((d) => byNum.get(d.dayNum) ?? d) }, reply };
   }
@@ -684,7 +752,7 @@ export function createTripAi({ complete }: { complete: CompleteFn }) {
     trip: TripData,
     message: string,
     preferences: string | null | undefined,
-    cfg: AgentConfig,
+    cfg: CallConfig,
   ) {
     const system =
       "You are a helpful travel assistant AI. The user is reviewing their current trip itinerary. " +
@@ -714,19 +782,14 @@ export function createTripAi({ complete }: { complete: CompleteFn }) {
     const user =
       `Current Itinerary: ${JSON.stringify(trip)}\nUser Message: ${message}\n\n` +
       `Update the itinerary and reply. ${schemaText(agentResponseSchema)}`;
-    const raw = await ask(cfg, system, user);
-    if (!isObject(raw)) throw new ApiError(422, "The AI's reply was not an object.");
-    const updated = sanitizeTrip(raw.updated_trip);
-    // A missing reply text is a formatting slip, not a failed edit: keep the edit.
-    const reply = str(raw.agent_reply, 4000) || (updated.language === "he" ? "בוצע!" : "Done!");
-    return { trip: updated, reply };
+    return ask(cfg, system, user, readFullTurn);
   }
 
   async function agentTurnOnce(
     trip: TripData,
     message: string,
     preferences: string | null | undefined,
-    cfg: AgentConfig,
+    cfg: CallConfig,
   ) {
     const intent = await resolveIntent(trip, message, cfg);
     try {
@@ -747,7 +810,7 @@ export function createTripAi({ complete }: { complete: CompleteFn }) {
     trip: TripData,
     message: string,
     preferences: string | null | undefined,
-    cfg: AgentConfig,
+    cfg: CallConfig,
   ): Promise<{ trip: TripData; reply: string }> {
     let result = await agentTurnOnce(trip, message, preferences, cfg);
     if (looksTruncated(trip, result.trip, message)) {
@@ -762,11 +825,7 @@ export function createTripAi({ complete }: { complete: CompleteFn }) {
     return result;
   }
 
-  async function enhanceOne(
-    trip: TripData,
-    spec: EnhanceSpec,
-    cfg: AgentConfig,
-  ): Promise<TripData> {
+  async function enhanceOne(trip: TripData, spec: EnhanceSpec, cfg: CallConfig): Promise<TripData> {
     const system =
       "You are an expert travel planner AI enriching an existing trip itinerary with one extra " +
       "detail the user explicitly opted into. The 'Current Itinerary' is the full source of truth " +
@@ -778,7 +837,7 @@ export function createTripAi({ complete }: { complete: CompleteFn }) {
       "items) — do not switch to English or any other language. " +
       spec.instruction;
     const user = `Current Itinerary: ${JSON.stringify(trip)}\n\n${schemaText(tripDataSchema)}`;
-    return sanitizeTrip(await ask(cfg, system, user));
+    return ask(cfg, system, user, sanitizeTrip);
   }
 
   /**
@@ -790,7 +849,7 @@ export function createTripAi({ complete }: { complete: CompleteFn }) {
   async function enhanceTrip(
     trip: TripData,
     options: EnhanceOptions,
-    cfg: AgentConfig,
+    cfg: CallConfig,
   ): Promise<TripData> {
     const selected = ENHANCE_SPECS.filter((spec) => options[spec.flag as keyof EnhanceOptions]);
     if (trip.days.some((d) => d.activities.some((a) => !a.map_coordinates))) {
@@ -798,6 +857,7 @@ export function createTripAi({ complete }: { complete: CompleteFn }) {
     }
     if (selected.length === 0) return trip;
     const results = await Promise.allSettled(selected.map((spec) => enhanceOne(trip, spec, cfg)));
+    throwIfCancelled(cfg.signal);
     const merged: TripData = structuredClone(trip);
     const activitiesById = new Map(
       merged.days.flatMap((d) => d.activities.map((a) => [a.id, a] as const)),

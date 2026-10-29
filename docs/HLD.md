@@ -303,10 +303,16 @@ top-up (see `ALL_ENHANCE_OPTIONS`).
   65% of an itinerary with at least 6 activities is retried once, then rejected with
   `409` (the itinerary is left unchanged), unless the user asked to delete things.
   This defends against the LLM hitting a token limit mid-echo.
-- **Retries / fallback**: `modeldispatcher-browser-agent` retries a 429/5xx or
-  network failure once and falls through the saved keys and providers; when all
-  fail, `classify` reports `429` (all rate-limited or out of quota), `413` (request too
-  large), `401` (no key worked) or `502`.
+- **Retries / fallback**: `tripAi.ts`'s `ask` tries the saved providers one at a
+  time, moving on when one fails or its reply is empty or not usable (`422`);
+  within a provider, `modeldispatcher-browser-agent` rotates through its keys and
+  retries a 429/5xx or network failure once. When no reply was usable it reports
+  `422`; when every provider failed, `classify` reports `429` (all rate-limited or
+  out of quota), `413` (request too large), `401` (no key worked) or `502`.
+- **Cancellation**: each AI call carries an `AbortSignal` from
+  `hooks/useCancellableCalls.ts`. Leaving the builder step that started it (or
+  closing the page) cancels it; the call then rejects with `AiCancelledError`,
+  which the screens ignore: no error notice and no jump to the next step.
 - **Client fallback**: a failed parse loads a local demo trip plus a dismissible
   notice; a failed chat turn keeps the itinerary and offers Retry; a failed
   enhancement keeps the current trip, so the prototype stays live.

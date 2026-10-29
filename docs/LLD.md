@@ -28,7 +28,9 @@ quick jump to the files each concern lives in.
 
 | Export | Signature | Contract |
 |--------|-----------|----------|
-| `CompleteFn` | `(cfg: AgentConfig, prompt: string, options?: RequestOptions) => Promise<string>` | The injected provider call; `tripAi` always passes `{ systemInstruction, jsonMode: true, maxTokens }` |
+| `CompleteFn` | `(cfg: AgentConfig, prompt: string, options?: RequestOptions) => Promise<string>` | The injected provider call; `tripAi` calls it once per provider and always passes `{ systemInstruction, jsonMode: true, maxTokens, signal }` |
+| `CallConfig` | `AgentConfig & { signal?: AbortSignal }` | What every step takes as `cfg`: the providers to try, plus a signal that cancels the whole call |
+| `AiCancelledError` | `class extends Error` | Thrown instead of any result once `cfg.signal` is aborted; not a failure to report |
 | `ProviderKeys` | `{ provider: string; api_keys: string[] }` | One saved provider and its keys (`getAllCredentials()` in `services/apiKey.ts`) |
 | `agentConfigFrom` | `(credentials: readonly ProviderKeys[]) => AgentConfig` | Keeps only `gemini`/`openai`/`anthropic`/`groq` entries with ≥1 key, in order, each with its `TRIP_MODELS` model; `ollamaUrl: ""` |
 | `createTripAi` | `({ complete }) => { parseTripText, agentTurn, enhanceTrip }` | Factory; no module-level state |
@@ -133,7 +135,34 @@ One error type: `ApiError(status, detail)` (`tripAi.ts`, re-exported by `api.ts`
 
 `App.tsx`'s `describeApiError` turns the status into a localized message (and
 appends `detail` for `502`). Provider HTTP, the per-request timeout, one retry on
-429/5xx and key/provider fall-through live in `modeldispatcher-browser-agent`.
+429/5xx and rotation through one provider's keys live in
+`modeldispatcher-browser-agent`.
+
+### 2.7 Provider order and cancellation — `ask`
+
+```text
+ask(cfg, system, user, read):
+  for provider in cfg.providers:           # saved order, active provider first
+    if cancelled: throw AiCancelledError
+    text = complete({providers: [provider]}, user, {..., signal})
+      on error: if cancelled throw AiCancelledError; remember it; next provider
+    return read(extractJson(text))
+      on ApiError(422): remember it; next provider   # empty / not JSON / not usable
+  if any reply was unusable: throw that 422
+  throw classify(AllProvidersExhaustedError(remembered errors))   # 401 if none tried
+```
+
+Each step's `read` does its own shape checks (`sanitizeTrip`, the scoped-day
+checks, the whole-trip reply), so an unusable reply from one provider is retried on
+the next before a scoped edit falls back to the whole-trip turn. `enhanceTrip`
+throws `AiCancelledError` after its concurrent calls settle if the signal was
+aborted, instead of merging partial results.
+
+The screens get signals from `useCancellableCalls(scope)` (`hooks/`): it aborts
+every signal it handed out when `scope` changes or the component unmounts.
+`TripBuilder` passes its `step`, so changing step (including the browser's back
+button) cancels that step's calls; `SharedTripViewer` and `useChecklistSuggest`
+cancel on unmount. Handlers return quietly on `AiCancelledError`.
 
 ---
 
