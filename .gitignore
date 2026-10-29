@@ -43,3 +43,6 @@ frontend/playwright/.cache/
 .agents/skills/
 .cursor/skills/
 .github/skills/
+
+# Firebase emulator logs (frontend/firestore-tests)
+*-debug.log

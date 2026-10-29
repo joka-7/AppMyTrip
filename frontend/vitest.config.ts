@@ -7,6 +7,7 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
-    exclude: ["**/node_modules/**", "e2e/**"],
+    // firestore-tests needs the Firestore emulator; CI runs it in its own job.
+    exclude: ["**/node_modules/**", "e2e/**", "firestore-tests/**"],
   },
 });

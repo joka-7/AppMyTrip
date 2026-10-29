@@ -124,6 +124,13 @@ AppMyTrip/
 │   │   ├── mobile-layout.spec.ts
 │   │   ├── mockAi.ts
 │   │   └── screenshots.spec.ts
+│   ├── firestore-tests/                          # Firestore.rules tests against the Firestore emulator (own package; CI job…
+│   │   ├── firebase.json
+│   │   ├── package-lock.json
+│   │   ├── package.json
+│   │   ├── shareEdits.test.mjs
+│   │   ├── sharedTrips.test.mjs
+│   │   └── testEnv.mjs
 │   ├── public/
 │   │   ├── apple-touch-icon.png
 │   │   ├── favicon-64.png
@@ -285,7 +292,7 @@ AppMyTrip/
 │   ├── .prettierrc
 │   ├── capacitor.config.json                     # Capacitor app id, name and web build directory
 │   ├── eslint.config.js
-│   ├── firestore.rules                           # Firestore security rules (per-user + public shares)
+│   ├── firestore.rules                           # Firestore security rules: encrypted shares and edit receipts only
 │   ├── index.html
 │   ├── package-lock.json
 │   ├── package.json

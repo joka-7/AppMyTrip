@@ -431,8 +431,9 @@ cannot replay or forge an edit. A revoked share must drop `editTokenHash`.
 
 `get` without `list` means a share is reachable only by its id. The stored
 `proof` is the previous token, which no longer matches the rotated hash. The
-rules were verified against the Firestore emulator, including a filtered `list`
-query that the old `allow read` rule let through. API keys never touch
+rules are tested against the Firestore emulator (`frontend/firestore-tests/`, run
+in CI), including a filtered `list` query that the old `allow read` rule let
+through. API keys never touch
 Firestore — they live only in the caller's `localStorage` and are sent only to the
 user's AI provider.
 
@@ -465,7 +466,14 @@ user's AI provider.
   `AiSettingsPanel`, `CloudMenu`, `ItineraryList`, `MapView`, `PriceSummary`,
   `ThemeSelector`).
 - **E2E** (`frontend/e2e/`, Playwright): real browser + dev server — exercises the
-  full 4-step flow and shared-link view.
+  full 4-step flow and shared-link view, with the AI provider faked by
+  `e2e/mockAi.ts`.
+- **Firestore rules** (`frontend/firestore-tests/`, Node's built-in test runner):
+  `firestore.rules` loaded into the Firestore emulator and exercised with a
+  client that has no sign-in, as the app has — `sharedTrips.test.mjs` (get-only
+  reads, create checks, the owner-token chain) and `shareEdits.test.mjs` (the
+  edit-link receipts). A separate package with its own lockfile; CI's
+  `firestore-rules` job runs it.
 - **Suggested addition:** a contract test asserting the prompt schemas in
   `frontend/src/data/` stay in sync with the TS `TripData`/`Activity` interfaces.
 

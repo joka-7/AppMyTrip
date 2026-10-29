@@ -12,8 +12,9 @@
 "frontend/src/hooks" = "Podcast player, install prompt, trip branding, checklist, editing, AI-call cancellation"
 "frontend/src/services" = "tripsStore, appDesign, tripFile, apiKey, and other pure/service logic"
 "frontend/src/components" = "Builder steps (1-4), AppFrame, MapView, CloudMenu, and shared UI"
-"frontend/firestore.rules" = "Firestore security rules (per-user + public shares)"
+"frontend/firestore.rules" = "Firestore security rules: encrypted shares and edit receipts only"
 "frontend/e2e" = "Playwright end-to-end tests (real browser, AI provider mocked)"
+"frontend/firestore-tests" = "firestore.rules tests against the Firestore emulator (own package; CI job firestore-rules)"
 
 "docs" = "Design documentation"
 "docs/HLD.md" = "High-Level Design (architecture + flows)"

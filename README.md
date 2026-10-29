@@ -11,7 +11,8 @@ with a live phone preview. The AI steps run in the browser: each call goes from 
 user's device straight to their own AI provider, with their own key — there is no
 AppMyTrip server. The flow runs end to end — parse, enrich, iterate with the AI
 agent, customise and deploy — behind CI (lint, format check, Vitest unit tests,
-build, Playwright end-to-end) with grouped Dependabot updates.
+build, Playwright end-to-end, Firestore rules tests against the emulator) with
+grouped Dependabot updates.
 
 **Android app:** the same web app in a Capacitor shell (`frontend/android/`), built
 and signed by `.github/workflows/android.yml`. See "Android app" below.
@@ -190,6 +191,10 @@ npm run test
 # end-to-end tests (Playwright — real browser, real dev server)
 npx playwright install chromium   # one-time browser download
 npm run test:e2e
+
+# Firestore rules tests (firestore.rules against the emulator; needs Java 21).
+# Their own package, so the emulator tooling stays out of the app's install.
+cd firestore-tests && npm ci && npm test
 ```
 
 ### Trip storage (save / load / share trips)
