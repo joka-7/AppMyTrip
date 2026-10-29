@@ -98,3 +98,28 @@ describe("AiSettingsPanel — mode toggle", () => {
     expect(geminiKeyLink).toHaveAttribute("href", "https://aistudio.google.com/apikey");
   });
 });
+
+describe("AiSettingsPanel — dropped providers", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("says when saved keys belong to a provider the app no longer supports, and clears them", () => {
+    localStorage.setItem("tripweaver_api_keys", JSON.stringify({ cerebras: ["c"], gemini: ["k"] }));
+    render(<AiSettingsPanel />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Cerebras");
+    fireEvent.click(screen.getByRole("button", { name: "מחיקת המפתחות הישנים" }));
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem("tripweaver_api_keys") ?? "{}")).toEqual({
+      gemini: ["k"],
+    });
+  });
+
+  it("shows no notice when every saved key is for a supported provider", () => {
+    localStorage.setItem("tripweaver_api_keys", JSON.stringify({ gemini: ["k"] }));
+    render(<AiSettingsPanel />);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+});

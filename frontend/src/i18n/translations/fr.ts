@@ -314,6 +314,9 @@ export const fr: Record<TranslationKey, string> = {
     "Choisissez un fournisseur et collez votre propre clé API — gratuite sur ",
   "apiKey.descriptionAfter":
     ". Vous pouvez ajouter plusieurs clés ; quand l'une atteint sa limite, nous passons automatiquement à la suivante. Tout est stocké uniquement dans votre navigateur.",
+  "apiKey.retiredProviders":
+    "Les clés enregistrées pour {providers} ne sont plus prises en charge. Ajoutez plutôt une clé Gemini, Groq, OpenAI ou Claude.",
+  "apiKey.forgetRetired": "Supprimer les anciennes clés",
   "apiKey.trustNote":
     "Chaque clé va directement de cet appareil au fournisseur choisi — jamais par un serveur AppMyTrip, et elle n'est jamais journalisée.",
   "apiKey.removeAria": "Supprimer la clé {key}",

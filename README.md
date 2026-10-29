@@ -150,7 +150,9 @@ Each user supplies their **own** key(s) from the navbar's settings menu
 `groq`, `openai` and `anthropic`. Several keys per provider can be saved; every saved
 provider is tried in turn (active one first, `getAllCredentials()`), moving on when a
 provider fails or its reply is empty or not a usable trip, so a call only fails once
-all of them have. Leaving a builder step cancels the AI calls it started
+all of them have. Keys saved for providers the app no longer supports (OpenRouter,
+Cerebras, Mistral) are not used; the AI settings say so and offer to delete them.
+Leaving a builder step cancels the AI calls it started
 (`hooks/useCancellableCalls.ts`). Models per provider are fixed in `TRIP_MODELS`
 (`tripAi.ts`). There is no server-side rate limiting — there is nothing to
 rate-limit; each user's own provider quota applies.

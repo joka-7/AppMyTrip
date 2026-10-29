@@ -305,6 +305,9 @@ export const en: Record<TranslationKey, string> = {
   "apiKey.descriptionBefore": "Choose a provider and paste your own API key — free at ",
   "apiKey.descriptionAfter":
     ". You can add several keys; when one hits its rate limit we switch to the next automatically. Everything is stored only in your browser.",
+  "apiKey.retiredProviders":
+    "Keys you saved for {providers} are no longer supported. Add a Gemini, Groq, OpenAI or Claude key instead.",
+  "apiKey.forgetRetired": "Delete the old keys",
   "apiKey.trustNote":
     "Each key goes from this device straight to the provider you picked — never through an AppMyTrip server, and it's never logged.",
   "apiKey.removeAria": "Remove key {key}",

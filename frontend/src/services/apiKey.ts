@@ -63,6 +63,38 @@ function saveKeyMap(map: KeyMap): void {
   localStorage.setItem(KEYS_STORAGE_KEY, JSON.stringify(map));
 }
 
+// Providers the app supported before the AI moved on-device. Their saved keys
+// stay in storage until the user clears them, so the settings can say why they
+// stopped working instead of silently ignoring them.
+const RETIRED_PROVIDERS: Record<string, string> = {
+  openrouter: "OpenRouter",
+  cerebras: "Cerebras",
+  mistral: "Mistral",
+};
+
+/** Display names of no-longer-supported providers that still have keys saved. */
+export function getRetiredProviderNames(): string[] {
+  let stored: unknown;
+  try {
+    stored = JSON.parse(localStorage.getItem(KEYS_STORAGE_KEY) ?? "{}");
+  } catch {
+    return [];
+  }
+  if (!stored || typeof stored !== "object") return [];
+  const map = stored as Record<string, unknown>;
+  return Object.entries(RETIRED_PROVIDERS)
+    .filter(([id]) => {
+      const keys = map[id];
+      return Array.isArray(keys) ? keys.length > 0 : typeof keys === "string" && keys !== "";
+    })
+    .map(([, name]) => name);
+}
+
+/** Deletes the saved keys of no-longer-supported providers, keeping every other key. */
+export function forgetRetiredProviderKeys(): void {
+  saveKeyMap(loadKeyMap());
+}
+
 export function getApiProvider(): LLMProvider {
   const stored = localStorage.getItem(PROVIDER_STORAGE_KEY);
   return PROVIDERS.some((p) => p.value === stored) ? (stored as LLMProvider) : "gemini";

@@ -16,8 +16,10 @@ import { useI18n } from "../i18n/useI18n";
 import GithubIcon from "./GithubIcon";
 import {
   addApiKey,
+  forgetRetiredProviderKeys,
   getApiKeysForProvider,
   getApiProvider,
+  getRetiredProviderNames,
   PROVIDERS,
   removeApiKey,
   setApiProvider,
@@ -80,6 +82,7 @@ export default function AiSettingsPanel() {
   const [llmKeys, setLlmKeys] = useState<string[]>(() => getApiKeysForProvider(provider));
   const [llmDraft, setLlmDraft] = useState("");
   const [showLlmDraft, setShowLlmDraft] = useState(false);
+  const [retiredProviders, setRetiredProviders] = useState<string[]>(getRetiredProviderNames);
 
   const handleModeChange = (next: AiMode) => {
     setAiMode(next);
@@ -113,6 +116,11 @@ export default function AiSettingsPanel() {
   const handleRemoveLlmKey = (key: string) => {
     removeApiKey(key, provider);
     setLlmKeys(getApiKeysForProvider(provider));
+  };
+
+  const handleForgetRetired = () => {
+    forgetRetiredProviderKeys();
+    setRetiredProviders(getRetiredProviderNames());
   };
 
   const keyUrl = PROVIDERS.find((p) => p.value === provider)?.keyUrl ?? PROVIDERS[0].keyUrl;
@@ -150,6 +158,21 @@ export default function AiSettingsPanel() {
 
       {mode === "apiKey" ? (
         <>
+          {retiredProviders.length > 0 && (
+            <div
+              role="status"
+              className="bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-3 py-2 mb-3"
+            >
+              <p>{t("apiKey.retiredProviders", { providers: retiredProviders.join(", ") })}</p>
+              <button
+                type="button"
+                onClick={handleForgetRetired}
+                className="mt-1.5 font-semibold underline hover:text-amber-900"
+              >
+                {t("apiKey.forgetRetired")}
+              </button>
+            </div>
+          )}
           <p className="text-xs text-ink-muted mb-3">
             {t("apiKey.descriptionBefore")}
             <a href={keyUrl} target="_blank" rel="noreferrer" className="text-primary underline">

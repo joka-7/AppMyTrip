@@ -303,6 +303,9 @@ export const he = {
   "apiKey.descriptionBefore": "בחרו ספק והדביקו מפתח API משלכם — חינמי ב-",
   "apiKey.descriptionAfter":
     ". אפשר להוסיף כמה מפתחות; כשאחד מגיע למגבלת הקצב נעבור אוטומטית לבא. הכול נשמר רק בדפדפן שלכם.",
+  "apiKey.retiredProviders":
+    "אין יותר תמיכה במפתחות ששמרתם עבור {providers}. הוסיפו מפתח של Gemini, Groq, OpenAI או Claude.",
+  "apiKey.forgetRetired": "מחיקת המפתחות הישנים",
   "apiKey.trustNote":
     "כל מפתח נשלח מהמכשיר הזה ישירות לספק שבחרתם — אף פעם לא דרך שרת של AppMyTrip, והוא לעולם לא נרשם ביומן.",
   "apiKey.removeAria": "הסרת מפתח {key}",
