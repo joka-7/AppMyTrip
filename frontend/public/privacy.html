@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="index" />
+    <title>Privacy — AppMyTrip</title>
+    <style>
+      body { font: 16px/1.6 system-ui, sans-serif; color: #1f2937; background: #f8fafc; margin: 0; }
+      main { max-width: 42rem; margin: 0 auto; padding: 2rem 1rem 4rem; }
+      h1 { font-size: 1.75rem; margin: 0 0 .25rem; }
+      h2 { font-size: 1.15rem; margin: 2rem 0 .5rem; }
+      a { color: #0f766e; }
+      .updated { color: #4b5563; font-size: .9rem; margin: 0 0 1.5rem; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p><a href="/">&larr; Back to AppMyTrip</a></p>
+      <h1>Privacy</h1>
+      <p class="updated">Last updated 4 November 2026</p>
+
+      <p>
+        AppMyTrip turns the messages where you planned a trip into a day-by-day plan, in your browser or in the Android app. It has no accounts of its own and no database that holds your trips, so the person who runs AppMyTrip cannot read them.
+      </p>
+
+      <h2>What stays on your device</h2>
+      <p>
+        Your trips, settings and AI keys are saved in this browser's (or the app's) storage. Nothing leaves the device unless you use one of the optional features below.
+      </p>
+
+      <h2>Optional: sync with your Google Drive</h2>
+      <p>
+        If you choose <strong>Connect Drive</strong>, you sign in with Google and AppMyTrip saves
+        your data to a hidden app folder in your own Google Drive. It asks only for access to
+        that folder (the <code>drive.appdata</code> permission) plus your name and email so it
+        can show who is connected. It cannot see, list or change any other file in your Drive,
+        and the hidden folder is not visible to anyone but you and this app. Your sign-in token
+        and email are kept on your device.
+      </p>
+      <p>
+        AppMyTrip's use of information received from Google APIs adheres to the
+        <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>,
+        including the Limited Use requirements. Data from your Drive is used only to sync your
+        data between your devices.
+      </p>
+
+      <h2>Optional: AI features</h2>
+      <p>
+        If you add an AI provider and your own API key, the text you send to it (for example the trip messages you paste and what you type in the chat)
+        goes straight from your device to the AI provider you choose, under your account with
+        them. It does not pass through anything run by AppMyTrip, and that provider's own privacy
+        terms apply. Your API key is stored on your device only. Avoid typing other people's
+        personal details into AI features.
+      </p>
+
+      <h2>Optional: share links</h2>
+      <p>
+        When you share a trip, it is encrypted on your device with a new random key before it is uploaded to a Firebase database. The key is only in the link itself, after the <code>#</code>, a part of the address that browsers never send to any server, so neither Firebase nor the person who runs AppMyTrip can read the trip. Anyone you give the link to can. A share link lasts as long as you chose (7, 30 or 90 days, or forever); expired links are deleted automatically. An optional edit link lets people with it save changes, which are encrypted the same way.
+      </p>
+
+      <h2>The website</h2>
+      <p>
+        This site is a set of static files on Vercel. Like any web host, Vercel may keep
+        standard request logs (such as your IP address). Maps load their tiles from OpenStreetMap and Esri, so those services see your IP address and the map area you view. AppMyTrip itself does
+        not use analytics, advertising or tracking cookies.
+      </p>
+
+      <h2>Removing your data</h2>
+      <ul>
+        <li>In the cloud menu, choose <strong>Delete all my data</strong>. It removes every share link you made, deletes AppMyTrip's files from your Drive, revokes the app's access, and signs you out on this device.</li>
+        <li>To remove one shared trip, delete it in <strong>My trips</strong>; its share link stops working. <strong>Turn off edit link</strong> stops only the edit link.</li>
+        <li>You can also remove AppMyTrip's access and its hidden data yourself in your Google Account under <em>Security &rarr; Your connections to third-party apps and services</em>.</li>
+        <li>Clearing the site's data in your browser, or uninstalling the Android app, removes the copy on that device.</li>
+      </ul>
+
+      <h2>Contact</h2>
+      <p>
+        Questions about privacy: <a href="mailto:joka.dev.7@gmail.com">joka.dev.7@gmail.com</a>.
+        If this page changes, the date above changes with it.
+      </p>
+    </main>
+  </body>
+</html>

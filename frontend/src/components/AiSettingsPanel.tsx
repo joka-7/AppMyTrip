@@ -10,6 +10,7 @@ import {
   MessageSquare,
   Plus,
   Send,
+  ShieldCheck,
   Trash2,
 } from "lucide-react";
 import { useI18n } from "../i18n/useI18n";
@@ -329,6 +330,15 @@ export default function AiSettingsPanel() {
           >
             <FolderGit2 size={16} />
             <span className="text-[9px] leading-none">Code</span>
+          </a>
+          <a
+            href="/privacy.html"
+            aria-label="Privacy"
+            title="Privacy"
+            className="tap-fx text-ink-muted hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all inline-flex flex-col items-center justify-center gap-0.5"
+          >
+            <ShieldCheck size={16} />
+            <span className="text-[9px] leading-none">Privacy</span>
           </a>
           <a
             href="mailto:joka.dev.7@gmail.com"

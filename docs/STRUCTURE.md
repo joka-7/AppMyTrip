@@ -123,6 +123,7 @@ AppMyTrip/
 │   │   ├── mixed-day.spec.ts
 │   │   ├── mobile-layout.spec.ts
 │   │   ├── mockAi.ts
+│   │   ├── privacy.spec.ts
 │   │   └── screenshots.spec.ts
 │   ├── firestore-tests/                          # Firestore.rules tests against the Firestore emulator (own package; CI job…
 │   │   ├── firebase.json
@@ -137,7 +138,8 @@ AppMyTrip/
 │   │   ├── icon-192.png
 │   │   ├── icon-512.png
 │   │   ├── icon-maskable-512.png
-│   │   └── logo.png
+│   │   ├── logo.png
+│   │   └── privacy.html
 │   ├── src/
 │   │   ├── components/                           # Builder steps (1-4), AppFrame, MapView, CloudMenu, and shared UI
 │   │   │   ├── AiSettingsPanel.test.tsx
