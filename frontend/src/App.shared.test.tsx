@@ -15,18 +15,12 @@ vi.mock("./services/tripsStore", () => ({
   deleteTrip: vi.fn(),
   shareTrip: vi.fn(),
   loadSharedTrip: vi.fn(),
-  saveSharedTrip: vi.fn(),
-  addSharedTripAdmin: vi.fn(),
+  SharedTripUnavailableError: class SharedTripUnavailableError extends Error {},
 }));
 
-const emptyMeta = {
-  ownerId: "owner-1",
-  ownerEmail: "owner@example.com",
-  adminEmails: [],
-  expiresAt: null,
-};
+const emptyMeta = { expiresAt: null };
 
-// A "?shared=<id>" link must open straight into the standalone generated
+// A "?shared=<id>#k=<key>" link must open straight into the standalone generated
 // app — not the builder — since that's what gets handed to trip
 // participants. The shared-trip-id check happens at module load time off
 // window.location.search, so this file (and its URL) needs to be isolated
@@ -34,7 +28,7 @@ const emptyMeta = {
 describe("App shared-trip viewer", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    window.history.pushState({}, "", "/?shared=trip-1");
+    window.history.pushState({}, "", "/?shared=trip-1#k=key-1");
   });
 
   it("renders only the standalone app for a shared link, without builder chrome", async () => {
@@ -59,8 +53,8 @@ describe("App shared-trip viewer", () => {
 
     expect(screen.queryByText("TripWeaver AI")).not.toBeInTheDocument();
     expect(screen.queryByText(/שלב \d מתוך 4/)).not.toBeInTheDocument();
-    // A non-admin visitor shouldn't see the save-in-place button.
-    expect(screen.queryByText("שמירת שינויים")).not.toBeInTheDocument();
+    // The key comes from the #fragment, never from anything sent to a server.
+    expect(trips.loadSharedTrip).toHaveBeenCalledWith("trip-1", "key-1");
   });
 
   it("shows an error message if the shared trip fails to load", async () => {
@@ -74,50 +68,6 @@ describe("App shared-trip viewer", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/טעינת הטיול המשותף נכשלה/)).toBeInTheDocument();
-    });
-  });
-
-  it("shows admin controls and saves changes in place for a signed-in admin", async () => {
-    const trips = await import("./services/tripsStore");
-    vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
-      callback({ uid: "admin-1", email: "admin@example.com", displayName: "Admin" } as never);
-      return () => {};
-    });
-    vi.mocked(trips.getCurrentSession).mockReturnValue({
-      uid: "admin-1",
-      email: "admin@example.com",
-      displayName: "Admin",
-    });
-    vi.mocked(trips.loadSharedTrip).mockResolvedValue({
-      trip: { title: "Shared Trip", dates: "Mon - Wed", days: [] },
-      appDesign: { ...DEFAULT_APP_DESIGN, theme: "green" },
-      meta: { ...emptyMeta, adminEmails: ["admin@example.com"] },
-    });
-    vi.mocked(trips.saveSharedTrip).mockResolvedValue(undefined);
-
-    const { default: App } = await import("./App");
-    render(<App />);
-
-    await waitFor(() => {
-      expect(screen.getByText("שמירה ושיתוף")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByText("שמירה ושיתוף"));
-
-    await waitFor(() => {
-      expect(screen.getByText("שמירת שינויים")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("שמירת שינויים"));
-
-    await waitFor(() => {
-      expect(trips.saveSharedTrip).toHaveBeenCalledWith(
-        "trip-1",
-        expect.objectContaining({ title: "Shared Trip" }),
-        expect.objectContaining({ theme: "green" }),
-      );
-    });
-    await waitFor(() => {
-      expect(screen.getByText("השינויים נשמרו בקישור הזה.")).toBeInTheDocument();
     });
   });
 
@@ -148,7 +98,6 @@ describe("App shared-trip viewer", () => {
 
     await waitFor(() => {
       expect(trips.saveTrip).toHaveBeenCalledWith(
-        "visitor-1",
         expect.objectContaining({ title: "Shared Trip" }),
         {
           appDesign: expect.objectContaining({ theme: "green" }),
@@ -161,7 +110,6 @@ describe("App shared-trip viewer", () => {
     // does) — not just tagged — otherwise opening it later 404s.
     await waitFor(() => {
       expect(trips.shareTrip).toHaveBeenCalledWith(
-        "visitor-1",
         "copy-1",
         expect.objectContaining({ title: "Shared Trip" }),
         expect.objectContaining({ theme: "green" }),
@@ -177,7 +125,6 @@ describe("App shared-trip viewer", () => {
     fireEvent.click(screen.getByText("שמירה לחשבון שלי"));
     await waitFor(() => {
       expect(trips.saveTrip).toHaveBeenLastCalledWith(
-        "visitor-1",
         expect.objectContaining({ title: "Shared Trip" }),
         {
           appDesign: expect.objectContaining({ theme: "green" }),
@@ -187,57 +134,12 @@ describe("App shared-trip viewer", () => {
       );
     });
   });
-
-  it("lets an admin add another admin by email", async () => {
-    const trips = await import("./services/tripsStore");
-    vi.mocked(trips.onAuthChange).mockImplementation((callback) => {
-      callback({ uid: "admin-1", email: "admin@example.com", displayName: "Admin" } as never);
-      return () => {};
-    });
-    vi.mocked(trips.getCurrentSession).mockReturnValue({
-      uid: "admin-1",
-      email: "admin@example.com",
-      displayName: "Admin",
-    });
-    vi.mocked(trips.loadSharedTrip).mockResolvedValue({
-      trip: { title: "Shared Trip", dates: "Mon - Wed", days: [] },
-      appDesign: { ...DEFAULT_APP_DESIGN, theme: "green" },
-      meta: { ...emptyMeta, adminEmails: ["admin@example.com"] },
-    });
-    vi.mocked(trips.addSharedTripAdmin).mockResolvedValue(undefined);
-
-    const { default: App } = await import("./App");
-    render(<App />);
-
-    await waitFor(() => {
-      expect(screen.getByText("שמירה ושיתוף")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByText("שמירה ושיתוף"));
-
-    const input = await screen.findByPlaceholderText("הוספת מנהל לפי אימייל...");
-    fireEvent.change(input, { target: { value: "Friend@Example.com" } });
-    fireEvent.click(screen.getByText("הוספת מנהל"));
-
-    await waitFor(() => {
-      expect(trips.addSharedTripAdmin).toHaveBeenCalledWith("trip-1", "Friend@Example.com");
-    });
-    await waitFor(() => {
-      expect(
-        screen.getByText("נוסף/ה בהצלחה — עכשיו גם הם יכולים לשמור שינויים בקישור הזה."),
-      ).toBeInTheDocument();
-    });
-  });
 });
 
-// B1/B2/B7: on a shared link there's no Step 2 of its own to remember
-// enhancement choices from, and no wizard state to accidentally clobber — but
-// the same two bugs (missing enrichment, stale-snapshot overwrites) applied
-// here just as much as in the builder, since SharedTripViewer reimplements
-// the same handlers. These lock in the fixes.
 describe("App shared-trip viewer activity enrichment", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    window.history.pushState({}, "", "/?shared=trip-1");
+    window.history.pushState({}, "", "/?shared=trip-1#k=key-1");
   });
 
   it('enriches an activity added via the shared page\'s "+" button', async () => {
@@ -439,7 +341,7 @@ describe("App shared-trip viewer activity enrichment", () => {
 describe("App shared-trip viewer language default", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    window.history.pushState({}, "", "/?shared=trip-1");
+    window.history.pushState({}, "", "/?shared=trip-1#k=key-1");
     localStorage.clear();
     setLang("he");
   });

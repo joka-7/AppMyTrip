@@ -1,6 +1,7 @@
 import { test } from "@playwright/test";
 import path from "path";
 import { fileURLToPath } from "url";
+import { mockAi } from "./mockAi";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = path.resolve(__dirname, "../../docs/screenshots");
@@ -53,19 +54,6 @@ const SAMPLE_TRIP = {
   ],
 };
 
-async function mockBackend(page: import("@playwright/test").Page) {
-  await page.route("**/api/trip/parse", async (route) => {
-    await route.fulfill({
-      json: { trip_data: SAMPLE_TRIP, initial_agent_message: "Your Rome itinerary looks great!" },
-    });
-  });
-  await page.route("**/api/trip/generate-media", async (route) => {
-    await route.fulfill({
-      json: { trip_data: SAMPLE_TRIP, status: "Media generated successfully" },
-    });
-  });
-}
-
 const BASE_URL = process.env.SCREENSHOT_BASE_URL;
 
 async function useEnglishUi(page: import("@playwright/test").Page) {
@@ -97,7 +85,7 @@ test.describe("capture UI screenshots", () => {
 
   test.beforeEach(async ({ page }) => {
     await useEnglishUi(page);
-    await mockBackend(page);
+    await mockAi(page, { parse: SAMPLE_TRIP });
     await page.setViewportSize({ width: 1440, height: 900 });
   });
 
@@ -129,9 +117,8 @@ test.describe("capture UI screenshots", () => {
 
   test("step 3 completion agent screenshot", async ({ page }) => {
     await goToStep3(page);
-    // The mocked /api/trip/parse response's initial_agent_message renders as
-    // the agent's opening chat bubble — wait for it before capturing.
-    await page.getByText("Your Rome itinerary looks great!").waitFor();
+    // The agent's opening chat bubble — wait for it before capturing.
+    await page.getByText("I recognized the trip!").waitFor();
 
     await page.screenshot({
       path: path.join(OUT_DIR, "step3-overview.png"),

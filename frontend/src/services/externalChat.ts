@@ -1,9 +1,9 @@
 // The "nothing left to try" escape hatch: when every saved/pooled credential
 // has failed (see api.ts's ApiError / App.tsx's describeApiError — by the
-// time the frontend sees an error at all, the backend has already rotated
-// through every provider getAllCredentials() sent), offer the user's message
+// time the app sees an error at all, tripAi.ts has already rotated
+// through every provider getAllCredentials() returned), offer the user's message
 // back to them as a link straight into a free, public AI chat product instead
-// of just leaving them stuck. No key, no backend call — it's just a deep
+// of just leaving them stuck. No key, no AI call — it's just a deep
 // link into a product they can already use for free in another tab.
 //
 // Backed by modeldispatcher-browser-agent's own EXTERNAL_CHAT_PROVIDERS
@@ -51,13 +51,13 @@ export function copyToClipboard(text: string): void {
   });
 }
 
-// Which of the two BYOK paths Step 1 uses: "apiKey" calls this app's own
-// backend with a saved key (see services/apiKey.ts), same as always;
-// "external" skips the backend call entirely and hands the parse prompt to
+// Which of the two BYOK paths Step 1 uses: "apiKey" calls the AI provider
+// from this device with a saved key (see services/apiKey.ts);
+// "external" skips the AI call entirely and hands the parse prompt to
 // the visitor's chosen free chat app instead, pasting its reply back in.
 // A persisted, explicit choice (set in AiSettingsPanel) rather than the
 // automatic "no key saved yet" detection this used to be — that made Step 1
-// attempt (and fail) a backend call before ever explaining why.
+// attempt (and fail) an AI call before ever explaining why.
 export type AiMode = "apiKey" | "external";
 const AI_MODE_STORAGE_KEY = "tripweaver_ai_mode";
 

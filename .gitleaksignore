@@ -1,0 +1,4 @@
+# Fake key in a test that asserts keys never reach logs (since renamed to a
+# marker that doesn't look like a key). Listed by fingerprint because gitleaks
+# scans full history, where the original commit still contains it.
+cce09f299205a8032245d71d3798f808d402c090:backend/test_trip_api.py:generic-api-key:506

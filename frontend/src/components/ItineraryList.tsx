@@ -146,7 +146,7 @@ export default function ItineraryList({
 
   const saveAdd = () => {
     if (!draft.title?.trim()) return;
-    // If the user left price/link/location blank, the backend always looks up a
+    // If the user left price/link/location blank, the AI always looks up a
     // real location (and any other enabled extras) for activities missing them
     // (see enhanceNewActivities in App.tsx), so leaving map_coordinates null here
     // is safe — it gets filled in instead of reusing another activity's spot.

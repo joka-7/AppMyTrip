@@ -10,7 +10,7 @@ vi.mock("../services/tripsStore", () => ({
   listTrips: vi.fn(),
   loadTrip: vi.fn(),
   deleteTrip: vi.fn(),
-  deleteSharedTrip: vi.fn(),
+  shareLinkFor: vi.fn(),
 }));
 
 const sampleTrip: TripData = { title: "Trip", dates: "Mon", days: [] };
@@ -51,7 +51,7 @@ describe("MyTripsButton", () => {
     await waitFor(() => {
       expect(screen.getByText("My Trip")).toBeInTheDocument();
     });
-    expect(trips.listTrips).toHaveBeenCalledWith("uid-123");
+    expect(trips.listTrips).toHaveBeenCalled();
   });
 
   it("shows a loading message instead of the empty placeholder while trips are still being fetched", async () => {
@@ -119,13 +119,14 @@ describe("MyTripsButton", () => {
         theme: "green",
       });
     });
-    expect(trips.loadTrip).toHaveBeenCalledWith("uid-123", "trip-1");
+    expect(trips.loadTrip).toHaveBeenCalledWith("trip-1");
   });
 
   it('opening a trip saved as "Final app" goes to its real shared link, not the builder', async () => {
     vi.mocked(trips.listTrips).mockResolvedValue([
       { id: "trip-9", name: "Finished Trip", modifiedTime: "2024-01-01", stage: "final" },
     ]);
+    vi.mocked(trips.shareLinkFor).mockResolvedValue("https://example.com/?shared=share-9#k=key");
     const onLoadTrip = vi.fn();
     const assignSpy = vi.fn();
     const originalLocation = window.location;
@@ -141,8 +142,8 @@ describe("MyTripsButton", () => {
     await waitFor(() => {
       expect(assignSpy).toHaveBeenCalled();
     });
-    const navigatedTo = new URL(assignSpy.mock.calls[0][0] as string);
-    expect(navigatedTo.searchParams.get("shared")).toBe("trip-9");
+    expect(trips.shareLinkFor).toHaveBeenCalledWith("trip-9");
+    expect(assignSpy).toHaveBeenCalledWith("https://example.com/?shared=share-9#k=key");
     // Must not fall back to loading it into the builder as well.
     expect(trips.loadTrip).not.toHaveBeenCalled();
     expect(onLoadTrip).not.toHaveBeenCalled();
@@ -162,7 +163,7 @@ describe("MyTripsButton", () => {
     await waitFor(() => {
       expect(screen.getByText("My Trip")).toBeInTheDocument();
     });
-    expect(trips.listTrips).toHaveBeenCalledWith("uid-123");
+    expect(trips.listTrips).toHaveBeenCalled();
     expect(window.location.search).toBe("");
 
     window.history.replaceState(null, "", originalUrl);
@@ -173,7 +174,6 @@ describe("MyTripsButton", () => {
       { id: "trip-1", name: "My Trip", modifiedTime: "2024-01-01", stage: null },
     ]);
     vi.mocked(trips.deleteTrip).mockResolvedValue(undefined);
-    vi.mocked(trips.deleteSharedTrip).mockResolvedValue(undefined);
 
     renderSignedIn();
     fireEvent.click(await screen.findByRole("button", { name: "הטיולים שלי" }));
@@ -187,9 +187,28 @@ describe("MyTripsButton", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /אישור מחיקת הטיול My Trip/ }));
     await waitFor(() => {
-      expect(trips.deleteTrip).toHaveBeenCalledWith("uid-123", "trip-1");
+      expect(trips.deleteTrip).toHaveBeenCalledWith("trip-1");
     });
-    expect(trips.deleteSharedTrip).toHaveBeenCalledWith("trip-1");
+  });
+
+  it('a "Final app" trip that was never published loads into the builder instead', async () => {
+    vi.mocked(trips.listTrips).mockResolvedValue([
+      { id: "trip-9", name: "Unpublished", modifiedTime: "2024-01-01", stage: "final" },
+    ]);
+    vi.mocked(trips.shareLinkFor).mockResolvedValue(null);
+    vi.mocked(trips.loadTrip).mockResolvedValue({
+      trip: sampleTrip,
+      appDesign: DEFAULT_APP_DESIGN,
+    });
+    const onLoadTrip = vi.fn();
+
+    renderSignedIn({ onLoadTrip });
+    fireEvent.click(await screen.findByRole("button", { name: "הטיולים שלי" }));
+    fireEvent.click(await screen.findByText("Unpublished"));
+
+    await waitFor(() => {
+      expect(onLoadTrip).toHaveBeenCalledWith(sampleTrip, "trip-9", DEFAULT_APP_DESIGN);
+    });
   });
 
   it("clears the currently-edited trip id if that exact trip gets deleted", async () => {
@@ -197,7 +216,6 @@ describe("MyTripsButton", () => {
       { id: "trip-1", name: "My Trip", modifiedTime: "2024-01-01", stage: null },
     ]);
     vi.mocked(trips.deleteTrip).mockResolvedValue(undefined);
-    vi.mocked(trips.deleteSharedTrip).mockResolvedValue(undefined);
     const onTripIdChange = vi.fn();
 
     renderSignedIn({ tripId: "trip-1", onTripIdChange });

@@ -8,6 +8,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
+      // Registered by hand in main.tsx, and never inside the Android app: a
+      // service worker in the APK keeps serving the previous version's files
+      // after an update.
+      injectRegister: false,
       includeAssets: ["logo.png"],
       manifest: {
         id: "/",
@@ -46,6 +50,9 @@ export default defineConfig({
         // Include font files so self-hosted @fontsource faces stay available
         // offline with the rest of the app shell.
         globPatterns: ["**/*.{js,css,html,png,svg,ico,woff,woff2}"],
+        // The privacy page is a separate static file; without this an
+        // installed app would answer /privacy.html with the app shell.
+        navigateFallbackDenylist: [/^\/privacy\.html$/],
       },
     }),
   ],

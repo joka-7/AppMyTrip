@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
+  forgetRetiredProviderKeys,
+  getRetiredProviderNames,
   addApiKey,
   removeApiKey,
-  getApiKeys,
   getApiKeysForProvider,
   getAllCredentials,
   getApiProvider,
@@ -35,7 +36,6 @@ describe("apiKey storage (multiple keys per provider)", () => {
   it("makes the very first key ever saved the active provider", () => {
     addApiKey("gem", "gemini");
     expect(getApiProvider()).toBe("gemini");
-    expect(getApiKeys()).toEqual(["gem"]);
   });
 
   it("does not silently reassign the active provider once one is already set", () => {
@@ -96,5 +96,41 @@ describe("getAllCredentials", () => {
     addApiKey("gem", "gemini");
     setApiProvider("gemini");
     expect(getAllCredentials()).toEqual([{ provider: "gemini", api_keys: ["gem"] }]);
+  });
+});
+
+describe("getRetiredProviderNames / forgetRetiredProviderKeys", () => {
+  beforeEach(() => localStorage.clear());
+
+  it.each([
+    ["no saved keys", null, []],
+    ["only supported providers", { gemini: ["k"] }, []],
+    [
+      "keys for dropped providers",
+      { openrouter: ["o"], mistral: "m", gemini: ["k"] },
+      ["OpenRouter", "Mistral"],
+    ],
+    ["a dropped provider with no keys left", { cerebras: [] }, []],
+    ["unreadable storage", "not json", []],
+  ])("with %s, names the right providers", (_label, stored, expected) => {
+    if (stored !== null) {
+      localStorage.setItem(
+        "tripweaver_api_keys",
+        typeof stored === "string" ? stored : JSON.stringify(stored),
+      );
+    }
+    expect(getRetiredProviderNames()).toEqual(expected);
+  });
+
+  it("forgets only the dropped providers' keys", () => {
+    localStorage.setItem(
+      "tripweaver_api_keys",
+      JSON.stringify({ openrouter: ["o"], gemini: ["k"] }),
+    );
+
+    forgetRetiredProviderKeys();
+
+    expect(getRetiredProviderNames()).toEqual([]);
+    expect(getApiKeysForProvider("gemini")).toEqual(["k"]);
   });
 });

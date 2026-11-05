@@ -1,0 +1,14 @@
+{
+  "name": "appmytrip-firestore-rules-tests",
+  "private": true,
+  "type": "module",
+  "description": "Tests for ../firestore.rules against the Firestore emulator. Kept out of the app's own dependencies: the emulator tooling is large and only CI's rules job needs it.",
+  "scripts": {
+    "test": "firebase emulators:exec --only firestore --project demo-appmytrip \"node --test --test-concurrency=1\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "5.0.2",
+    "firebase": "12.19.0",
+    "firebase-tools": "15.34.0"
+  }
+}

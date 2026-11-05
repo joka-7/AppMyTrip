@@ -1,7 +1,6 @@
 import { test, expect } from "@playwright/test";
+import { mockAi } from "./mockAi";
 
-// Mocks the three backend calls so the flow is deterministic and needs no
-// running FastAPI server, GEMINI_API_KEY, or network access.
 const SAMPLE_TRIP = {
   title: "Trip to Rome",
   dates: "Thu - Sun",
@@ -24,22 +23,15 @@ const SAMPLE_TRIP = {
 };
 
 test.describe("trip builder flow", () => {
-  test.beforeEach(async ({ page }) => {
-    await page.route("**/api/trip/parse", async (route) => {
-      await route.fulfill({
-        json: { trip_data: SAMPLE_TRIP, initial_agent_message: null },
+  test.beforeEach(async ({ page }, testInfo) => {
+    if (testInfo.title.startsWith("falls back")) {
+      await mockAi(page, { parse: "fail" });
+    } else {
+      await mockAi(page, {
+        parse: SAMPLE_TRIP,
+        agent: { trip: SAMPLE_TRIP, reply: "הוספתי מסעדה" },
       });
-    });
-    await page.route("**/api/trip/agent", async (route) => {
-      await route.fulfill({
-        json: { trip_data: SAMPLE_TRIP, agent_reply: "הוספתי מסעדה" },
-      });
-    });
-    await page.route("**/api/trip/generate-media", async (route) => {
-      await route.fulfill({
-        json: { trip_data: SAMPLE_TRIP, status: "Media generated successfully" },
-      });
-    });
+    }
   });
 
   test("walks through steps 1 -> 3 -> 4 with the live preview updating", async ({
@@ -81,17 +73,14 @@ test.describe("trip builder flow", () => {
     await expect(page.getByText("שלב 4 מתוך 4")).toBeVisible();
   });
 
-  test("falls back to the offline demo trip when the backend is unreachable", async ({ page }) => {
-    await page.unroute("**/api/trip/parse");
-    await page.route("**/api/trip/parse", async (route) => {
-      await route.abort("failed");
-    });
-
+  test("falls back to the offline demo trip when the AI provider is unreachable", async ({
+    page,
+  }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "צור מבנה אפליקציה ראשוני" }).click();
 
     await expect(page.getByText("שלב 2 מתוך 4")).toBeVisible();
-    await expect(page.getByText(/לא הצלחנו להתחבר/)).toBeVisible();
+    await expect(page.getByText(/לא הצלחנו להגיע לספק/)).toBeVisible();
     await page.getByRole("button", { name: "דלג, המשך לסוכן" }).click();
 
     await expect(page.getByText("שלב 3 מתוך 4")).toBeVisible();

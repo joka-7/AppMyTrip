@@ -55,9 +55,6 @@ describe("SharedAppPage", () => {
         onAddActivity={vi.fn()}
         onUpdateTrip={vi.fn()}
         onImportTrip={vi.fn()}
-        isAdmin={false}
-        onSaveChanges={vi.fn()}
-        onAddAdmin={vi.fn()}
         onCreateNewLink={vi.fn()}
       />,
     );
@@ -74,7 +71,7 @@ describe("SharedAppPage", () => {
     });
   });
 
-  it("shows admin save-changes controls when isAdmin is true", async () => {
+  it("an edit link gets a save-changes button that writes back to the link", async () => {
     const onSaveChanges = vi.fn().mockResolvedValue(undefined);
     render(
       <SharedAppPage
@@ -90,18 +87,43 @@ describe("SharedAppPage", () => {
         onAddActivity={vi.fn()}
         onUpdateTrip={vi.fn()}
         onImportTrip={vi.fn()}
-        isAdmin
-        onSaveChanges={onSaveChanges}
-        onAddAdmin={vi.fn()}
         onCreateNewLink={vi.fn()}
+        onSaveChanges={onSaveChanges}
       />,
     );
 
     fireEvent.click(screen.getByText("שמירה ושיתוף"));
     fireEvent.click(screen.getByText("שמירת שינויים"));
     await waitFor(() => {
-      expect(onSaveChanges).toHaveBeenCalled();
+      expect(screen.getByText("השינויים נשמרו בקישור הזה.")).toBeInTheDocument();
     });
+    expect(onSaveChanges).toHaveBeenCalledTimes(1);
+  });
+
+  // A view link is read-only: only an edit link can write back to it.
+  it("offers no way to write changes back from a view link", () => {
+    render(
+      <SharedAppPage
+        tripData={trip}
+        appDesign={DEFAULT_APP_DESIGN}
+        tripId="trip-1"
+        agentMessages={[]}
+        chatInput=""
+        onChangeChatInput={vi.fn()}
+        onSendMessage={vi.fn()}
+        chatEndRef={createRef()}
+        onUpdateActivity={vi.fn()}
+        onAddActivity={vi.fn()}
+        onUpdateTrip={vi.fn()}
+        onImportTrip={vi.fn()}
+        onCreateNewLink={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("שמירה ושיתוף"));
+    expect(screen.queryByText("שמירת שינויים")).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /admin|מנהל/i })).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/@/)).not.toBeInTheDocument();
   });
 
   it("lets a visitor pick their own UI language, independent of the trip", () => {
@@ -120,9 +142,6 @@ describe("SharedAppPage", () => {
         onAddActivity={vi.fn()}
         onUpdateTrip={vi.fn()}
         onImportTrip={vi.fn()}
-        isAdmin={false}
-        onSaveChanges={vi.fn()}
-        onAddAdmin={vi.fn()}
         onCreateNewLink={vi.fn()}
       />,
     );

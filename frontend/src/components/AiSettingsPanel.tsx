@@ -10,14 +10,17 @@ import {
   MessageSquare,
   Plus,
   Send,
+  ShieldCheck,
   Trash2,
 } from "lucide-react";
 import { useI18n } from "../i18n/useI18n";
 import GithubIcon from "./GithubIcon";
 import {
   addApiKey,
+  forgetRetiredProviderKeys,
   getApiKeysForProvider,
   getApiProvider,
+  getRetiredProviderNames,
   PROVIDERS,
   removeApiKey,
   setApiProvider,
@@ -66,11 +69,11 @@ function KeyRow({ value, onRemove }: { value: string; onRemove: () => void }) {
  *
  * Leads with a mode choice, same idea as shas-radar's <ModelPicker>: "apiKey"
  * lets the visitor pick a provider (Gemini, OpenAI, Claude, or Groq) and
- * store one or more of their own keys, sent to the backend and rotated
- * through on a rate limit; "external" skips keys entirely and hands Step 1's
+ * store one or more of their own keys, sent only to that provider and
+ * rotated through on a rate limit; "external" skips keys entirely and hands Step 1's
  * parse prompt to a free chat app instead (see BuilderStep1 and
  * services/externalChat.ts's AiMode). Every key is stored only in
- * localStorage and never touches our backend's env vars.
+ * localStorage.
  */
 export default function AiSettingsPanel() {
   const { t } = useI18n();
@@ -80,6 +83,7 @@ export default function AiSettingsPanel() {
   const [llmKeys, setLlmKeys] = useState<string[]>(() => getApiKeysForProvider(provider));
   const [llmDraft, setLlmDraft] = useState("");
   const [showLlmDraft, setShowLlmDraft] = useState(false);
+  const [retiredProviders, setRetiredProviders] = useState<string[]>(getRetiredProviderNames);
 
   const handleModeChange = (next: AiMode) => {
     setAiMode(next);
@@ -101,6 +105,8 @@ export default function AiSettingsPanel() {
     if (!trimmed) return;
     addApiKey(trimmed, provider);
     setLlmKeys(getApiKeysForProvider(provider));
+    // Saving any key rewrites storage without the dropped providers' keys.
+    setRetiredProviders(getRetiredProviderNames());
     setLlmDraft("");
     setActiveProvider(getApiProvider());
   };
@@ -113,6 +119,12 @@ export default function AiSettingsPanel() {
   const handleRemoveLlmKey = (key: string) => {
     removeApiKey(key, provider);
     setLlmKeys(getApiKeysForProvider(provider));
+    setRetiredProviders(getRetiredProviderNames());
+  };
+
+  const handleForgetRetired = () => {
+    forgetRetiredProviderKeys();
+    setRetiredProviders(getRetiredProviderNames());
   };
 
   const keyUrl = PROVIDERS.find((p) => p.value === provider)?.keyUrl ?? PROVIDERS[0].keyUrl;
@@ -150,6 +162,21 @@ export default function AiSettingsPanel() {
 
       {mode === "apiKey" ? (
         <>
+          {retiredProviders.length > 0 && (
+            <div
+              role="status"
+              className="bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-3 py-2 mb-3"
+            >
+              <p>{t("apiKey.retiredProviders", { providers: retiredProviders.join(", ") })}</p>
+              <button
+                type="button"
+                onClick={handleForgetRetired}
+                className="mt-1.5 font-semibold underline hover:text-amber-900"
+              >
+                {t("apiKey.forgetRetired")}
+              </button>
+            </div>
+          )}
           <p className="text-xs text-ink-muted mb-3">
             {t("apiKey.descriptionBefore")}
             <a href={keyUrl} target="_blank" rel="noreferrer" className="text-primary underline">
@@ -303,6 +330,15 @@ export default function AiSettingsPanel() {
           >
             <FolderGit2 size={16} />
             <span className="text-[9px] leading-none">Code</span>
+          </a>
+          <a
+            href="/privacy.html"
+            aria-label="Privacy"
+            title="Privacy"
+            className="tap-fx text-ink-muted hover:text-ink p-2 rounded-lg hover:bg-black/5 active:bg-black/10 active:scale-90 transition-all inline-flex flex-col items-center justify-center gap-0.5"
+          >
+            <ShieldCheck size={16} />
+            <span className="text-[9px] leading-none">Privacy</span>
           </a>
           <a
             href="mailto:joka.dev.7@gmail.com"

@@ -1,6 +1,6 @@
 import type { Activity, EnhanceOptions, TripData } from "../api";
-import { enhanceTrip } from "../api";
-import { getAllCredentials, getApiKeys, getApiProvider } from "./apiKey";
+import { AiCancelledError, enhanceTrip } from "../api";
+import { getAllCredentials } from "./apiKey";
 
 /**
  * Used when Step 2 was skipped (or on the shared-trip viewer, which has no
@@ -39,13 +39,14 @@ export function findNewActivities(before: TripData, after: TripData): Activity[]
 }
 
 /**
- * Sends newly-added activities through /api/trip/enhance. Returns an id →
+ * Sends newly-added activities through enhanceTrip. Returns an id →
  * Activity map (empty on failure) for the caller to merge into current state.
  */
 export async function enhanceActivities(
   activities: Activity[],
   tripMeta: Pick<TripData, "title" | "dates" | "language">,
   options: EnhanceOptions,
+  signal?: AbortSignal,
 ): Promise<Map<string, Activity>> {
   if (activities.length === 0) return new Map();
   try {
@@ -57,12 +58,12 @@ export async function enhanceActivities(
         days: [{ dayNum: 1, activities }],
       },
       options,
-      getApiKeys(),
-      getApiProvider(),
       getAllCredentials(),
+      signal,
     );
     return new Map(res.trip_data.days.flatMap((d) => d.activities).map((a) => [a.id, a]));
   } catch (err) {
+    if (err instanceof AiCancelledError) return new Map();
     console.error("Failed to enhance newly added activities:", err);
     return new Map();
   }

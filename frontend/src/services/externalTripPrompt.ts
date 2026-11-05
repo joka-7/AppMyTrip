@@ -1,26 +1,21 @@
-// The no-key escape hatch for every AI-backed builder step: this app calls its
-// own backend, which calls the LLM server-side (see services/apiKey.ts) —
-// there's no browser-to-provider BYOK call to fall back to the way
-// modeldispatcher-browser-agent's own escape hatch works. Instead, this builds
-// the same prompts the backend would send (see backend/services/llm.py's
-// `parse_trip_text`, `enhance_trip`, and `_agent_interaction_full`), so the
-// user can hand one to a free AI chat app themselves and paste the JSON reply
-// back in — the app then continues exactly as if the backend had answered.
-// Duplicated by hand from the backend; keep both in sync if either changes.
-// `tripDataSchema.json`/`agentResponseSchema.json` are literal dumps of the
-// backend's own `TripData.model_json_schema()` / `AgentResponse.model_json_schema()`,
-// not hand-written, so they can't drift on their own — only a real schema
-// change on either side needs re-syncing.
+// The no-key escape hatch for every AI-backed builder step: with no saved key
+// there is no AI call to make (see services/tripAi.ts). Instead, this builds
+// the same prompts tripAi.ts would send (its `parseTripText`, `enhanceTrip`
+// and whole-trip chat turn), so the user can hand one to a free AI chat app
+// themselves and paste the JSON reply back in — the app then continues
+// exactly as if tripAi.ts had answered. Duplicated by hand from tripAi.ts;
+// keep both in sync if either changes. Both read the same
+// `tripDataSchema.json`/`agentResponseSchema.json`, so the output shape can't
+// drift between them.
 //
-// Step 2 (enhance) and Step 3 (chat) are more involved server-side than Step 1:
+// Step 2 (enhance) and Step 3 (chat) are more involved in tripAi.ts than Step 1:
 // enhance_trip fires one small, narrowly-scoped LLM call per selected option
 // (run concurrently) and merges the results back by activity/day id; the chat
 // agent classifies each message and often scopes its edit to just the day(s)
 // it touches. Neither is something a person can replicate by hand through
 // copy-paste. What follows instead combines every selected option (or the
 // chat turn) into the single request-the-whole-updated-trip-back shape both
-// of those already fall back to internally (enhance's non-parallel case, and
-// the chat agent's own `_agent_interaction_full` safety net) — less scoped
+// of those already fall back to internally (the chat agent's whole-trip turn) — less scoped
 // than the real multi-call pipeline, but a faithful, single-shot stand-in for
 // someone pasting through an external chat app.
 
@@ -41,8 +36,7 @@ const LANG_NAMES: Record<Lang, string> = {
 /** Instruction fragment telling an external AI chat app which language to
  * write its output in: the app's currently selected UI language, not
  * whatever language the user's pasted/typed text happens to be in — the
- * backend's own no-BYOK path used to (and, unlike this external-chat escape
- * hatch, still does) infer it from the text instead, which produces a
+ * keyed path in tripAi.ts infers it from the text instead, which produces a
  * Hebrew-language trip for someone who pasted Hebrew source material while
  * browsing the app in English. */
 function languageInstruction(appLang: Lang): string {
@@ -55,8 +49,8 @@ function languageInstruction(appLang: Lang): string {
 }
 
 /** The full prompt to hand an external AI chat app for Stage 1: parse free
- * trip text into a structured itinerary. Mirrors the backend's system +
- * user prompt for `parse_trip_text`, combined into one message since a
+ * trip text into a structured itinerary. Mirrors tripAi.ts's system +
+ * user prompt for `parseTripText`, combined into one message since a
  * one-off external chat has no separate system-prompt slot. */
 export function buildTripParsePrompt(rawText: string, preferences: string, appLang: Lang): string {
   const preferencesFragment = preferences.trim() ? `IMPORTANT: ${preferences.trim()} ` : "";
@@ -78,8 +72,8 @@ export function buildTripParsePrompt(rawText: string, preferences: string, appLa
   );
 }
 
-/** One instruction per Step 2 option, mirroring backend/services/llm.py's
- * `_ENHANCE_OPTION_SPECS` — each tells the model which field(s) to fill in
+/** One instruction per Step 2 option, mirroring tripAi.ts's
+ * `ENHANCE_SPECS` — each tells the model which field(s) to fill in
  * while leaving everything else untouched. */
 const ENHANCE_OPTION_INSTRUCTIONS: Record<keyof EnhanceOptions, string> = {
   directions_car:
@@ -131,7 +125,7 @@ const MISSING_COORDINATES_INSTRUCTION =
   "'map_coordinates' set, exactly as given.";
 
 /** The full prompt to hand an external AI chat app for Stage 2: fill in the
- * optional extras selected in `options` (mirrors backend's `enhance_trip`,
+ * optional extras selected in `options` (mirrors tripAi.ts's `enhanceTrip`,
  * combined into one request instead of one small call per option — see this
  * file's header comment). Returns `null` when there is nothing to ask for
  * (no option selected and every activity already has coordinates), matching
@@ -168,8 +162,8 @@ export function buildTripEnhancePrompt(
 }
 
 /** The full prompt to hand an external AI chat app for Stage 3: apply one chat
- * turn's requested edit and reply conversationally. Mirrors backend's
- * `_agent_interaction_full` — the safety-net path it already falls back to
+ * turn's requested edit and reply conversationally. Mirrors tripAi.ts's
+ * whole-trip turn — the safety-net path it already falls back to
  * for edits needing full-trip context, so it's the natural single-shot
  * equivalent for a copy-pasted turn (see this file's header comment). */
 export function buildAgentTurnPrompt(

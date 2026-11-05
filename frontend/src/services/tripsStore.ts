@@ -1,108 +1,45 @@
-// Saves/loads/shares trips in Firestore — no Google Drive, no per-account
-// server we run ourselves. Each user's trips live under
-// users/{uid}/trips/{tripId}, readable/writable only by that user (see
-// firestore.rules). Sharing copies the trip into the top-level sharedTrips
-// collection, which anyone can read (no sign-in required) but only the
-// owner can write — that's what makes "anyone with the link" work.
+// Saves, loads and shares trips without the operator being able to read them.
 //
-// Firebase auth/firestore modules are loaded on first use (sign-in, shared
-// trip load, etc.) so the SDK stays out of the critical first-paint path.
-import type { Auth, User as FirebaseUser } from "firebase/auth";
-import type { Firestore, Timestamp as TimestampType } from "firebase/firestore";
-import { getFirebaseApp, isFirebaseConfigured } from "../firebase";
+// - Private trips live in the signed-in user's own Google Drive appDataFolder
+//   (driveSync.ts). There is no AppMyTrip database of trips.
+// - A shared trip is encrypted in the browser (shareCrypto.ts); only the
+//   ciphertext is stored (sharedTripsFirestore.ts) and the key travels in the
+//   link's #fragment. Share links are read-only.
+// - The share's id, key and owner token are kept in the trip's own Drive
+//   record, so only the owner can re-publish or unpublish it, from any device.
 import type { TripData } from "../api";
-import { type AppDesign, type Theme, DEFAULT_APP_DESIGN, normalizeAppDesign } from "./appDesign";
+import { type AppDesign, DEFAULT_APP_DESIGN, normalizeAppDesign } from "./appDesign";
+import { clearDraft } from "./draftStore";
+import type { DriveRecord, DriveSync, DriveUser } from "./driveSync";
 import { ensureStartWeekday, normalizeTripForLoad } from "./normalizeTrip";
+import {
+  decryptJson,
+  encryptJson,
+  generateOwnerToken,
+  generateShareKey,
+  sha256Hex,
+  toBase64Url,
+} from "./shareCrypto";
+import { driveClient } from "./driveClient";
+import { firestoreSharedTrips, type SharedTripsBackend } from "./sharedTripsFirestore";
 import { buildShareUrl } from "./shareLink";
 
-export type { FirebaseUser };
+const TRIPS = "trips";
+const SHARE_ID_BYTES = 16;
+/** Which account the work left on this device belongs to (see claimDeviceData). */
+const DEVICE_OWNER_KEY = "appmytrip_device_owner_v1";
+/** base64url of SHARE_ID_BYTES / 32-byte keys and tokens. */
+const SHARE_ID_PATTERN = /^[A-Za-z0-9_-]{22}$/;
+const SECRET_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+/** Tokens whose write to Firestore may have landed; capped so a long failure streak can't grow a record forever. */
+const MAX_PENDING_TOKENS = 10;
 
-// Marks an in-flight redirect sign-in (see signInWithGoogle/completeRedirectSignIn)
-// so the next page load knows to collect its result — set right before
-// signInWithRedirect navigates away, since nothing in memory survives that.
-const REDIRECT_PENDING_KEY = "amt_auth_redirect_pending";
-
-function readRedirectPendingFlag(): boolean {
-  try {
-    return window.localStorage.getItem(REDIRECT_PENDING_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function writeRedirectPendingFlag(pending: boolean): void {
-  try {
-    if (pending) window.localStorage.setItem(REDIRECT_PENDING_KEY, "1");
-    else window.localStorage.removeItem(REDIRECT_PENDING_KEY);
-  } catch {
-    // Ignore storage failures (private browsing, quota, ...) — worst case is
-    // completeRedirectSignIn() no-ops on the next load and the user just
-    // signs in again.
-  }
-}
-
-/** Google sign-in errors worth retrying as a full-page redirect instead of a
- * popup — mobile browsers (especially an installed/home-screen Safari icon)
- * routinely can't complete the popup handshake and report it in these forms,
- * even though a plain desktop popup would have worked. Matches
- * JobFlowTracker's shouldFallbackToRedirect. */
-function shouldFallbackToRedirect(err: unknown): boolean {
-  const code =
-    err && typeof err === "object" && "code" in err ? String((err as { code: unknown }).code) : "";
-  const message = err instanceof Error ? err.message : String(err);
-  return (
-    code === "auth/popup-blocked" ||
-    code === "auth/popup-closed-by-user" ||
-    code === "auth/internal-error" ||
-    /requested action is invalid/i.test(message) ||
-    /not authorized|auth site/i.test(message)
-  );
-}
-
-let authPromise: Promise<Auth | null> | null = null;
-let dbPromise: Promise<Firestore | null> | null = null;
-let cachedAuth: Auth | null = null;
-
-async function getAuthInstance(): Promise<Auth | null> {
-  if (!isFirebaseConfigured) return null;
-  if (!authPromise) {
-    authPromise = (async () => {
-      const app = await getFirebaseApp();
-      if (!app) return null;
-      const { getAuth } = await import("firebase/auth");
-      cachedAuth = getAuth(app);
-      return cachedAuth;
-    })();
-  }
-  return authPromise;
-}
-
-async function getDb(): Promise<Firestore> {
-  if (!isFirebaseConfigured) throw new Error("Firestore is not configured.");
-  if (!dbPromise) {
-    dbPromise = (async () => {
-      const app = await getFirebaseApp();
-      if (!app) return null;
-      const { getFirestore } = await import("firebase/firestore");
-      return getFirestore(app);
-    })();
-  }
-  const db = await dbPromise;
-  if (!db) throw new Error("Firestore is not configured.");
-  return db;
-}
-
-export interface CloudSession {
-  uid: string;
-  email: string | null;
-  displayName: string | null;
-}
+export type CloudSession = DriveUser;
 
 /**
  * Which point in the builder a trip was saved at — shown next to its name in
  * "My trips" so multiple saves of the same work-in-progress are distinguishable.
- * "final" means it was saved from the finished/shared app view rather than
- * mid-build (e.g. via SharedAppPage's "save to my account", or a Step 4 deploy).
+ * "final" means it was saved from the finished/shared app view.
  */
 export type TripStage = "step1" | "step2" | "step3" | "step4" | "final";
 
@@ -113,306 +50,473 @@ export interface CloudTripSummary {
   stage: TripStage | null;
 }
 
-/** Permission/ownership info for a `?shared=` link, alongside its content. */
 export interface SharedTripMeta {
-  ownerId: string;
-  ownerEmail: string | null;
-  /** Lower-cased sign-in emails allowed to call saveSharedTrip/addSharedTripAdmin on this link. */
-  adminEmails: string[];
   expiresAt: string | null;
 }
 
-export function onAuthChange(callback: (user: FirebaseUser | null) => void): () => void {
-  let unsub = () => {};
-  let cancelled = false;
-  void (async () => {
-    const auth = await getAuthInstance();
-    if (cancelled) return;
-    if (!auth) {
-      callback(null);
-      return;
-    }
-    const { onAuthStateChanged } = await import("firebase/auth");
-    if (cancelled) return;
-    unsub = onAuthStateChanged(auth, callback);
-  })();
-  return () => {
-    cancelled = true;
-    unsub();
-  };
+/** Secrets of a published share, stored only in the owner's Drive. */
+interface ShareSecrets {
+  id: string;
+  key: string;
+  ownerToken: string;
+  /**
+   * New tokens recorded before each Firestore update and dropped only once it
+   * succeeded and the new token was promoted. Any of them may be the one the
+   * stored hash belongs to, so none is ever discarded unconfirmed.
+   */
+  pendingTokens: string[];
+  /** Token of the share's edit link, or null when it has none. Lives only here and in edit links. */
+  editToken: string | null;
 }
 
-/** Returns the signed-in user, if any, without triggering a sign-in popup.
- * Returns null until auth has been initialized (see onAuthChange). */
-export function getCurrentSession(): CloudSession | null {
-  const user = cachedAuth?.currentUser;
-  if (!user) return null;
-  return { uid: user.uid, email: user.email, displayName: user.displayName };
-}
-
-/** Signs in with a popup; falls back to a full-page redirect on mobile-typical
- * popup failures (see shouldFallbackToRedirect). Returns null when it fell
- * back to a redirect — the page navigates away, and completeRedirectSignIn()
- * picks up the result (via onAuthChange) on the next load. */
-export async function signInWithGoogle(): Promise<CloudSession | null> {
-  const auth = await getAuthInstance();
-  if (!auth) {
-    throw new Error(
-      "Google sign-in is not configured — set VITE_FIREBASE_* env vars (see README).",
-    );
-  }
-  const { GoogleAuthProvider, signInWithPopup, signInWithRedirect, browserPopupRedirectResolver } =
-    await import("firebase/auth");
-  const provider = new GoogleAuthProvider();
-  try {
-    const result = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
-    return {
-      uid: result.user.uid,
-      email: result.user.email,
-      displayName: result.user.displayName,
-    };
-  } catch (err) {
-    if (!shouldFallbackToRedirect(err)) throw err;
-    writeRedirectPendingFlag(true);
-    await signInWithRedirect(auth, provider);
-    return null;
-  }
-}
-
-/** Call once on app load to collect the result of a redirect sign-in kicked
- * off by signInWithGoogle's fallback. No-op (and no Firebase SDK load) unless
- * one is actually pending. */
-export async function completeRedirectSignIn(): Promise<CloudSession | null> {
-  if (!readRedirectPendingFlag()) return null;
-  writeRedirectPendingFlag(false);
-  const auth = await getAuthInstance();
-  if (!auth) return null;
-  const { getRedirectResult } = await import("firebase/auth");
-  const result = await getRedirectResult(auth);
-  if (!result) return null;
-  return {
-    uid: result.user.uid,
-    email: result.user.email,
-    displayName: result.user.displayName,
-  };
-}
-
-export async function signOutOfGoogle(): Promise<void> {
-  const auth = await getAuthInstance();
-  if (!auth) return;
-  const { signOut } = await import("firebase/auth");
-  await signOut(auth);
-}
-
-async function tripsCollection(uid: string) {
-  const db = await getDb();
-  const { collection } = await import("firebase/firestore");
-  return collection(db, "users", uid, "trips");
-}
-
-function timestampToIso(value: unknown): string {
-  // Timestamp is only available after the firestore module loads — duck-type
-  // the toDate() method so we don't need a sync import just for this check.
-  if (
-    value &&
-    typeof value === "object" &&
-    "toDate" in value &&
-    typeof (value as TimestampType).toDate === "function"
-  ) {
-    return (value as TimestampType).toDate().toISOString();
-  }
-  return new Date().toISOString();
+interface StoredTrip {
+  id: string;
+  title: string;
+  stage: TripStage | null;
+  updatedAt: string;
+  trip: TripData;
+  appDesign: AppDesign;
+  share: ShareSecrets | null;
 }
 
 const TRIP_STAGES: readonly TripStage[] = ["step1", "step2", "step3", "step4", "final"];
 
-function stageFromStored(value: unknown): TripStage | null {
-  return TRIP_STAGES.includes(value as TripStage) ? (value as TripStage) : null;
-}
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
-export async function listTrips(uid: string): Promise<CloudTripSummary[]> {
-  const { getDocs, orderBy, query } = await import("firebase/firestore");
-  const snap = await getDocs(query(await tripsCollection(uid), orderBy("updatedAt", "desc")));
-  return snap.docs.map((d) => ({
-    id: d.id,
-    name: (d.data().title as string) || "Untitled trip",
-    modifiedTime: timestampToIso(d.data().updatedAt),
-    stage: stageFromStored(d.data().stage),
-  }));
-}
+const isSecret = (value: unknown): value is string =>
+  typeof value === "string" && SECRET_PATTERN.test(value);
 
-type StoredTrip = TripData & { theme?: Theme; appDesign?: Partial<AppDesign> };
-
-function appDesignFromStored(data: StoredTrip): AppDesign {
-  return normalizeAppDesign(data.appDesign, data.theme);
-}
-
-/** Creates a new trip doc, or overwrites an existing one if tripId is given.
- * `stage` records which point in the builder this save represents (or "final"
- * for a save made from the finished/shared app view) — see `TripStage`. */
-export async function saveTrip(
-  uid: string,
-  trip: TripData,
-  options?: { appDesign?: AppDesign; tripId?: string; stage?: TripStage },
-): Promise<string> {
-  const { doc, serverTimestamp, setDoc } = await import("firebase/firestore");
-  const col = await tripsCollection(uid);
-  const ref = options?.tripId ? doc(col, options.tripId) : doc(col);
-  const tripToSave = ensureStartWeekday(trip);
-  const appDesign = options?.appDesign ?? DEFAULT_APP_DESIGN;
-  await setDoc(ref, {
-    ...tripToSave,
-    appDesign,
-    theme: appDesign.theme,
-    updatedAt: serverTimestamp(),
-    ...(options?.stage ? { stage: options.stage } : {}),
-  });
-  return ref.id;
-}
-
-export async function loadTrip(
-  uid: string,
-  tripId: string,
-): Promise<{ trip: TripData; appDesign: AppDesign }> {
-  const { doc, getDoc } = await import("firebase/firestore");
-  const snap = await getDoc(doc(await tripsCollection(uid), tripId));
-  if (!snap.exists()) throw new Error("Trip not found.");
-  const data = snap.data() as StoredTrip;
-  return { trip: normalizeTripForLoad(data), appDesign: appDesignFromStored(data) };
-}
-
-export async function deleteTrip(uid: string, tripId: string): Promise<void> {
-  const { deleteDoc, doc } = await import("firebase/firestore");
-  await deleteDoc(doc(await tripsCollection(uid), tripId));
-}
-
-/**
- * Publishes a read-only copy to the public sharedTrips collection and returns its link.
- * `expiresInDays` is optional — omit it (or pass undefined/0) for a link that lasts forever.
- * When given, an `expiresAt` field is stored so `loadSharedTrip` can reject access once it's
- * past, and so a Firestore TTL policy on that field (configured in the console, see README)
- * can clean up the document automatically.
- *
- * The owner is seeded as the link's first admin (see SharedTripMeta) so they can later call
- * saveSharedTrip/addSharedTripAdmin on it. Re-sharing an already-shared trip (e.g. to change
- * its duration) merges into the existing doc rather than replacing it, so admins added since
- * the first share aren't wiped out.
- */
-export async function shareTrip(
-  uid: string,
-  tripId: string,
-  trip: TripData,
-  appDesign?: AppDesign,
-  expiresInDays?: number,
-): Promise<string> {
-  const db = await getDb();
-  const { deleteField, doc, getDoc, serverTimestamp, setDoc, Timestamp } =
-    await import("firebase/firestore");
-  const design = appDesign ?? DEFAULT_APP_DESIGN;
-  const ref = doc(db, "sharedTrips", tripId);
-  const existing = await getDoc(ref);
-  const existingAdminEmails = existing.exists() ? existing.data().adminEmails : undefined;
-  const hasAdmins = Array.isArray(existingAdminEmails) && existingAdminEmails.length > 0;
-  const ownerEmail = cachedAuth?.currentUser?.email ?? null;
-  await setDoc(
-    ref,
-    {
-      ...trip,
-      appDesign: design,
-      theme: design.theme,
-      ownerId: uid,
-      sharedAt: serverTimestamp(),
-      ...(hasAdmins
-        ? {}
-        : { ownerEmail, adminEmails: ownerEmail ? [ownerEmail.toLowerCase()] : [] }),
-      expiresAt: expiresInDays
-        ? Timestamp.fromMillis(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)
-        : deleteField(),
-    },
-    { merge: true },
-  );
-  return buildShareUrl(tripId, trip.title);
-}
-
-/**
- * Loads a publicly-shared trip — no sign-in required. Used for ?shared=<id> links.
- * Rejects expired links client-side even if Firestore's own TTL deletion (which can lag
- * up to ~24h after expiresAt) hasn't run yet.
- */
-export async function loadSharedTrip(
-  tripId: string,
-): Promise<{ trip: TripData; appDesign: AppDesign; meta: SharedTripMeta }> {
-  const db = await getDb();
-  const { doc, getDoc } = await import("firebase/firestore");
-  const snap = await getDoc(doc(db, "sharedTrips", tripId));
-  if (!snap.exists()) throw new Error("Shared trip not found.");
-  const data = snap.data() as StoredTrip & {
-    expiresAt?: TimestampType;
-    ownerId?: string;
-    ownerEmail?: string | null;
-    adminEmails?: string[];
-  };
-  const { expiresAt } = data;
-  if (expiresAt && expiresAt.toMillis() < Date.now()) {
-    throw new Error("This shared trip link has expired.");
+function parseShare(value: unknown): ShareSecrets | null {
+  if (!isObject(value)) return null;
+  const { id, key, ownerToken, pendingTokens, editToken } = value;
+  if (
+    typeof id !== "string" ||
+    !SHARE_ID_PATTERN.test(id) ||
+    !isSecret(key) ||
+    !isSecret(ownerToken)
+  ) {
+    return null;
   }
   return {
-    trip: normalizeTripForLoad(data),
-    appDesign: appDesignFromStored(data),
-    meta: {
-      ownerId: data.ownerId ?? "",
-      ownerEmail: data.ownerEmail ?? null,
-      adminEmails: Array.isArray(data.adminEmails) ? data.adminEmails : [],
-      expiresAt: expiresAt ? expiresAt.toDate().toISOString() : null,
+    id,
+    key,
+    ownerToken,
+    pendingTokens: Array.isArray(pendingTokens) ? pendingTokens.filter(isSecret) : [],
+    editToken: isSecret(editToken) ? editToken : null,
+  };
+}
+
+/** Drive content is external input: anything malformed is dropped, never trusted. */
+function parseStoredTrip(record: DriveRecord): StoredTrip | null {
+  if (!isObject(record.trip) || !Array.isArray(record.trip.days)) return null;
+  return {
+    id: record.id,
+    title: typeof record.title === "string" ? record.title : "",
+    stage: TRIP_STAGES.includes(record.stage as TripStage) ? (record.stage as TripStage) : null,
+    updatedAt: typeof record.updatedAt === "string" ? record.updatedAt : new Date(0).toISOString(),
+    trip: normalizeTripForLoad(record.trip as unknown as TripData),
+    appDesign: normalizeAppDesign(record.appDesign as Partial<AppDesign> | undefined),
+    share: parseShare(record.share),
+  };
+}
+
+function toRecord(stored: StoredTrip): DriveRecord {
+  return { ...stored };
+}
+
+export class TripNotFoundError extends Error {
+  constructor() {
+    super("Trip not found.");
+    this.name = "TripNotFoundError";
+  }
+}
+
+export class SharedTripUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SharedTripUnavailableError";
+  }
+}
+
+/** The payload a share link decrypts to. */
+interface SharedPayload {
+  trip: TripData;
+  appDesign: AppDesign;
+}
+
+function browserStorage(): Storage | null {
+  try {
+    return typeof window !== "undefined" ? window.localStorage : null;
+  } catch {
+    return null;
+  }
+}
+
+export function createTripsStore({
+  drive,
+  shares,
+  now = () => new Date(),
+  newId = () => crypto.randomUUID(),
+  onSignOut = clearDraft,
+  storage = browserStorage(),
+}: {
+  drive: DriveSync;
+  shares: SharedTripsBackend;
+  now?: () => Date;
+  newId?: () => string;
+  /** Cross-account safety: work left on this device must not be shown to the next account. */
+  onSignOut?: () => void;
+  storage?: Pick<Storage, "getItem" | "setItem"> | null;
+}) {
+  async function loadStoredTrips(): Promise<StoredTrip[]> {
+    const { items } = await drive.loadAll(TRIPS);
+    return items.flatMap((record) => {
+      const parsed = parseStoredTrip(record);
+      return parsed ? [parsed] : [];
+    });
+  }
+
+  async function loadStoredTrip(tripId: string): Promise<StoredTrip> {
+    const found = (await loadStoredTrips()).find((t) => t.id === tripId);
+    if (!found) throw new TripNotFoundError();
+    return found;
+  }
+
+  async function publish(stored: StoredTrip, expiresInDays?: number): Promise<ShareSecrets> {
+    const existing = stored.share;
+    const key = existing?.key ?? generateShareKey();
+    const payload: SharedPayload = { trip: stored.trip, appDesign: stored.appDesign };
+    const encrypted = await encryptJson(payload, key);
+    const expiresAt = expiresInDays ? new Date(now().getTime() + expiresInDays * 86_400_000) : null;
+    if (!existing) {
+      const share: ShareSecrets = {
+        id: toBase64Url(crypto.getRandomValues(new Uint8Array(SHARE_ID_BYTES))),
+        key,
+        ownerToken: generateOwnerToken(),
+        pendingTokens: [],
+        editToken: null,
+      };
+      // Secrets reach Drive before the share exists, so a published link is never orphaned.
+      await drive.upsert(TRIPS, toRecord({ ...stored, share }));
+      await shares.create(share.id, {
+        ...encrypted,
+        ownerTokenHash: await sha256Hex(share.ownerToken),
+        editTokenHash: null,
+        expiresAt,
+        revoked: false,
+      });
+      return share;
+    }
+    return ownerUpdate(stored, existing, {
+      ...encrypted,
+      expiresAt,
+      editToken: existing.editToken,
+    });
+  }
+
+  /**
+   * Every owner write to an existing share: rotates the owner token and sets
+   * the content, expiry and edit link. The next token is recorded in Drive
+   * first, next to every earlier unconfirmed one, so if the Firestore write or
+   * the Drive write after it fails, the owner still holds whichever token the
+   * stored hash belongs to.
+   */
+  async function ownerUpdate(
+    stored: StoredTrip,
+    share: ShareSecrets,
+    data: { ciphertext: string; iv: string; expiresAt: Date | null; editToken: string | null },
+  ): Promise<ShareSecrets> {
+    const next = generateOwnerToken();
+    const pendingTokens = [...share.pendingTokens, next].slice(-MAX_PENDING_TOKENS);
+    await drive.upsert(TRIPS, toRecord({ ...stored, share: { ...share, pendingTokens } }));
+    await updateWithAnyToken(share, next, {
+      ciphertext: data.ciphertext,
+      iv: data.iv,
+      ownerTokenHash: await sha256Hex(next),
+      editTokenHash: data.editToken ? await sha256Hex(data.editToken) : null,
+      expiresAt: data.expiresAt,
+      revoked: false,
+    });
+    const updated: ShareSecrets = {
+      ...share,
+      ownerToken: next,
+      pendingTokens: [],
+      editToken: data.editToken,
+    };
+    await drive.upsert(TRIPS, toRecord({ ...stored, share: updated }));
+    return updated;
+  }
+
+  /** Sets or removes the edit link, keeping the share's current content and expiry. */
+  async function setEditToken(tripId: string, editToken: string | null): Promise<ShareSecrets> {
+    const stored = await loadStoredTrip(tripId);
+    if (!stored.share) throw new Error("Share the trip before creating an edit link.");
+    // Keep what is live now, which may include edits made through the link.
+    const current = await shares.get(stored.share.id);
+    if (!current) {
+      throw new SharedTripUnavailableError("This shared trip link has expired or was removed.");
+    }
+    return ownerUpdate(stored, stored.share, {
+      ciphertext: current.ciphertext,
+      iv: current.iv,
+      expiresAt: current.expiresAt,
+      editToken,
+    });
+  }
+
+  async function updateWithAnyToken(
+    share: ShareSecrets,
+    next: string,
+    data: Omit<Parameters<SharedTripsBackend["update"]>[1], "proof">,
+  ): Promise<void> {
+    const candidates = [share.ownerToken, ...share.pendingTokens].filter((t) => t !== next);
+    let lastError: unknown = null;
+    for (const proof of candidates) {
+      try {
+        await shares.update(share.id, { ...data, proof });
+        return;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    // A share whose first publish never reached Firestore has no document yet;
+    // creating it is allowed only while it does not exist, so this cannot
+    // take over someone else's share.
+    try {
+      await shares.create(share.id, data);
+    } catch {
+      throw lastError ?? new Error("No owner token for this share.");
+    }
+  }
+
+  /**
+   * Revokes the share and gives it an expiry so the TTL policy deletes it. A
+   * share that is already unreadable (removed by TTL, expired, or revoked)
+   * counts as unpublished: otherwise an expired link would block deleting its
+   * trip, and with it "Delete all my data".
+   */
+  async function unpublish(stored: StoredTrip): Promise<void> {
+    if (!stored.share) return;
+    const next = generateOwnerToken();
+    try {
+      await updateWithAnyToken(stored.share, next, {
+        ciphertext: "",
+        iv: "",
+        ownerTokenHash: await sha256Hex(next),
+        editTokenHash: null,
+        expiresAt: now(),
+        revoked: true,
+      });
+    } catch (err) {
+      if ((await shares.get(stored.share.id)) !== null) throw err;
+    }
+  }
+
+  return {
+    isConfigured: () => drive.isCloudConfigured(),
+    getCurrentSession: (): CloudSession | null => drive.currentUser(),
+    onAuthChange: (callback: (user: CloudSession | null) => void) => drive.onAuthChange(callback),
+    signInWithGoogle: (): Promise<CloudSession> => drive.signIn(),
+
+    /**
+     * Call when an account connects. Returns true when the work left on this
+     * device (the builder draft) belonged to a different account: it has been
+     * cleared, and the caller must reset its in-memory trip too, so account A's
+     * trip is never saved into account B's Drive on a shared device.
+     */
+    claimDeviceData(uid: string): boolean {
+      const previous = storage?.getItem(DEVICE_OWNER_KEY) ?? null;
+      try {
+        storage?.setItem(DEVICE_OWNER_KEY, uid);
+      } catch {
+        // Storage blocked: nothing persists on this device to leak anyway.
+      }
+      if (previous === null || previous === uid) return false;
+      onSignOut();
+      return true;
+    },
+
+    async signOutOfGoogle(): Promise<void> {
+      await drive.signOut();
+      onSignOut();
+    },
+
+    async listTrips(): Promise<CloudTripSummary[]> {
+      return (await loadStoredTrips())
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+        .map((t) => ({
+          id: t.id,
+          name: t.title || "Untitled trip",
+          modifiedTime: t.updatedAt,
+          stage: t.stage,
+        }));
+    },
+
+    /** Creates a trip, or overwrites the one with `tripId`, keeping its share secrets. */
+    async saveTrip(
+      trip: TripData,
+      options?: { appDesign?: AppDesign; tripId?: string; stage?: TripStage },
+    ): Promise<string> {
+      const id = options?.tripId ?? newId();
+      const existing = options?.tripId
+        ? (await loadStoredTrips()).find((t) => t.id === id)
+        : undefined;
+      const tripToSave = ensureStartWeekday(trip);
+      await drive.upsert(
+        TRIPS,
+        toRecord({
+          id,
+          title: tripToSave.title,
+          stage: options?.stage ?? existing?.stage ?? null,
+          updatedAt: now().toISOString(),
+          trip: tripToSave,
+          appDesign: options?.appDesign ?? DEFAULT_APP_DESIGN,
+          share: existing?.share ?? null,
+        }),
+      );
+      return id;
+    },
+
+    async loadTrip(tripId: string): Promise<{ trip: TripData; appDesign: AppDesign }> {
+      const stored = await loadStoredTrip(tripId);
+      return { trip: stored.trip, appDesign: stored.appDesign };
+    },
+
+    /** Unpublishes the trip's share link first, so deleting never leaves a live link behind. */
+    async deleteTrip(tripId: string): Promise<void> {
+      const stored = (await loadStoredTrips()).find((t) => t.id === tripId);
+      if (stored) await unpublish(stored);
+      await drive.remove(TRIPS, tripId);
+    },
+
+    /**
+     * Encrypts the saved trip, publishes the ciphertext and returns its link.
+     * Re-sharing keeps the same link (same id and key) with fresh content and
+     * expiry. `expiresInDays` omitted or 0 means no expiry.
+     */
+    async shareTrip(
+      tripId: string,
+      trip: TripData,
+      appDesign?: AppDesign,
+      expiresInDays?: number,
+    ): Promise<string> {
+      if (!shares.isConfigured()) throw new Error("Trip sharing is not configured.");
+      const stored = await loadStoredTrip(tripId);
+      const current: StoredTrip = {
+        ...stored,
+        trip: ensureStartWeekday(trip),
+        appDesign: appDesign ?? stored.appDesign,
+      };
+      const share = await publish(current, expiresInDays);
+      return buildShareUrl(share.id, share.key);
+    },
+
+    /** The trip's current share link, or null if it was never published. */
+    async shareLinkFor(tripId: string): Promise<string | null> {
+      const stored = await loadStoredTrip(tripId);
+      return stored.share ? buildShareUrl(stored.share.id, stored.share.key) : null;
+    },
+
+    /** The trip's edit link, or null if it has none. */
+    async editLinkFor(tripId: string): Promise<string | null> {
+      const { share } = await loadStoredTrip(tripId);
+      return share?.editToken ? buildShareUrl(share.id, share.key, share.editToken) : null;
+    },
+
+    /**
+     * Creates the trip's edit link (or returns the existing one). Anyone who
+     * holds it can change the shared trip; the view link stays read-only.
+     */
+    async createEditLink(tripId: string): Promise<string> {
+      const { share: existing } = await loadStoredTrip(tripId);
+      if (existing?.editToken) return buildShareUrl(existing.id, existing.key, existing.editToken);
+      const share = await setEditToken(tripId, generateOwnerToken());
+      return buildShareUrl(share.id, share.key, share.editToken ?? undefined);
+    },
+
+    /** Turns the edit link off: every copy of it stops being able to save. */
+    async disableEditLink(tripId: string): Promise<void> {
+      const { share } = await loadStoredTrip(tripId);
+      if (!share?.editToken) return;
+      await setEditToken(tripId, null);
+    },
+
+    /** Saves a trip through an edit link. No sign-in: the link's key and edit token are the access. */
+    async saveSharedEdit(
+      shareId: string,
+      key: string,
+      editToken: string,
+      trip: TripData,
+      appDesign: AppDesign,
+    ): Promise<void> {
+      if (!SHARE_ID_PATTERN.test(shareId) || !isSecret(key) || !isSecret(editToken)) {
+        throw new SharedTripUnavailableError("This edit link is not valid.");
+      }
+      const payload: SharedPayload = { trip: ensureStartWeekday(trip), appDesign };
+      const encrypted = await encryptJson(payload, key);
+      const nonce = toBase64Url(crypto.getRandomValues(new Uint8Array(SHARE_ID_BYTES)));
+      await shares.saveEdit(shareId, { ...encrypted, editToken, nonce });
+    },
+
+    async unpublishTrip(tripId: string): Promise<void> {
+      const stored = await loadStoredTrip(tripId);
+      await unpublish(stored);
+      await drive.upsert(TRIPS, toRecord({ ...stored, share: null }));
+    },
+
+    /** Unpublishes every share, then deletes all Drive data and revokes access. */
+    async deleteAllMyData(): Promise<void> {
+      for (const stored of await loadStoredTrips()) await unpublish(stored);
+      await drive.deleteAllSyncedData();
+      onSignOut();
+    },
+
+    /** Opens a share link. No sign-in: the key from the link's #fragment decrypts it. */
+    async loadSharedTrip(
+      shareId: string,
+      key: string,
+    ): Promise<{ trip: TripData; appDesign: AppDesign; meta: SharedTripMeta }> {
+      if (!SHARE_ID_PATTERN.test(shareId)) {
+        throw new SharedTripUnavailableError("This shared trip link is not valid.");
+      }
+      const doc = await shares.get(shareId);
+      if (!doc) {
+        throw new SharedTripUnavailableError("This shared trip link has expired or was removed.");
+      }
+      const payload = await decryptJson(doc, key);
+      if (!isObject(payload) || !isObject(payload.trip) || !Array.isArray(payload.trip.days)) {
+        throw new SharedTripUnavailableError("This shared trip could not be read.");
+      }
+      return {
+        trip: normalizeTripForLoad(payload.trip as unknown as TripData),
+        appDesign: normalizeAppDesign(payload.appDesign as Partial<AppDesign> | undefined),
+        meta: { expiresAt: doc.expiresAt ? doc.expiresAt.toISOString() : null },
+      };
     },
   };
 }
 
-/**
- * Updates an already-shared trip's content in place — lets a trip admin (the owner, or anyone
- * the owner added via addSharedTripAdmin) save edits made on the "?shared=" link back to that
- * same link, instead of forking a private copy. Firestore rules (see firestore.rules) enforce
- * that only a current admin, matched by verified sign-in email, can actually write.
- */
-export async function saveSharedTrip(
-  tripId: string,
-  trip: TripData,
-  appDesign?: AppDesign,
-): Promise<void> {
-  const db = await getDb();
-  const { doc, serverTimestamp, setDoc } = await import("firebase/firestore");
-  const design = appDesign ?? DEFAULT_APP_DESIGN;
-  await setDoc(
-    doc(db, "sharedTrips", tripId),
-    {
-      ...ensureStartWeekday(trip),
-      appDesign: design,
-      theme: design.theme,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true },
-  );
-}
+const store = createTripsStore({ drive: driveClient, shares: firestoreSharedTrips });
 
-/**
- * Grants another signed-in Google account admin rights on a shared trip, so it can also call
- * saveSharedTrip/addSharedTripAdmin on this link. Only an existing admin can add one — the
- * email is matched against the caller's verified sign-in email at write time by firestore.rules,
- * not looked up, so the added account only gains access once they actually sign in with it.
- */
-export async function addSharedTripAdmin(tripId: string, email: string): Promise<void> {
-  const db = await getDb();
-  const { arrayUnion, doc, updateDoc } = await import("firebase/firestore");
-  const normalized = email.trim().toLowerCase();
-  if (!normalized) throw new Error("Enter an email address.");
-  await updateDoc(doc(db, "sharedTrips", tripId), {
-    adminEmails: arrayUnion(normalized),
-  });
-}
-
-/** Revokes a public share link by deleting its sharedTrips doc (no-op if it was never shared). */
-export async function deleteSharedTrip(tripId: string): Promise<void> {
-  const db = await getDb();
-  const { deleteDoc, doc } = await import("firebase/firestore");
-  await deleteDoc(doc(db, "sharedTrips", tripId));
-}
+export const {
+  isConfigured,
+  getCurrentSession,
+  onAuthChange,
+  signInWithGoogle,
+  signOutOfGoogle,
+  claimDeviceData,
+  listTrips,
+  saveTrip,
+  loadTrip,
+  deleteTrip,
+  shareTrip,
+  shareLinkFor,
+  editLinkFor,
+  createEditLink,
+  disableEditLink,
+  saveSharedEdit,
+  unpublishTrip,
+  deleteAllMyData,
+  loadSharedTrip,
+} = store;

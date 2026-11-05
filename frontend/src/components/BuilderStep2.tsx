@@ -55,12 +55,12 @@ export default function BuilderStep2({
   onBack: () => void;
   isEnhancing: boolean;
   /** Which BYOK path this app uses (see services/externalChat.ts's AiMode):
-   * "apiKey" submits to this app's own backend as before; "external" skips
-   * the backend call entirely and hands a combined enrichment prompt to the
+   * "apiKey" calls the AI provider from this device with a saved key;
+   * "external" skips the AI call entirely and hands a combined enrichment prompt to the
    * visitor's chosen free chat app instead. */
   aiMode: AiMode;
   /** Called with the fully enhanced trip parsed from a pasted external-AI
-   * reply — continues exactly as a successful backend enhance would. */
+   * reply — continues exactly as a successful keyed enhance would. */
   onExternalReplyParsed: (tripData: TripData) => void;
 }) {
   const { t, lang } = useI18n();

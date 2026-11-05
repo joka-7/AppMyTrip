@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import App from "./App";
-import * as api from "./api";
-import { ApiError } from "./api";
-import type { TripData } from "./api";
 import * as tripsStore from "./services/tripsStore";
+import * as api from "./api";
+import { AiCancelledError, ApiError } from "./api";
+import type { TripData } from "./api";
 import { setLang } from "./i18n/store";
 
 // Automocking (bare `vi.mock("./api")`) replaces ApiError's constructor too,
@@ -16,20 +16,24 @@ vi.mock("./api", async (importOriginal) => {
     ...actual,
     parseTrip: vi.fn(),
     agentInteract: vi.fn(),
-    generateMedia: vi.fn(),
     enhanceTrip: vi.fn(),
   };
 });
+const auth = vi.hoisted(() => ({
+  listeners: new Set<(user: { uid: string; email: string; displayName: string } | null) => void>(),
+}));
 vi.mock("./services/tripsStore", () => ({
-  onAuthChange: () => () => {},
-  completeRedirectSignIn: vi.fn().mockResolvedValue(null),
+  onAuthChange: (callback: (user: null) => void) => {
+    auth.listeners.add(callback);
+    return () => auth.listeners.delete(callback);
+  },
+  claimDeviceData: vi.fn(),
   signInWithGoogle: vi.fn(),
   signOutOfGoogle: vi.fn(),
   listTrips: vi.fn(),
   saveTrip: vi.fn(),
   loadTrip: vi.fn(),
   deleteTrip: vi.fn(),
-  deleteSharedTrip: vi.fn(),
   shareTrip: vi.fn(),
   loadSharedTrip: vi.fn().mockRejectedValue(new Error("not shared")),
 }));
@@ -57,10 +61,6 @@ const sampleTrip: TripData = {
 describe("App builder flow", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    // CloudMenu calls this unconditionally on mount (see its redirect-sign-in
-    // completion effect) — resetAllMocks wipes the factory default above, so
-    // it needs restoring or every render of App throws on a bare `vi.fn()`.
-    vi.mocked(tripsStore.completeRedirectSignIn).mockResolvedValue(null);
   });
 
   it("advances to step 2 and on to step 3 after skipping enhancements", async () => {
@@ -89,10 +89,36 @@ describe("App builder flow", () => {
       expect(screen.getByText("Sample Trip")).toBeInTheDocument();
       expect(screen.getByText("Museum")).toBeInTheDocument();
     });
-    expect(screen.queryByText(/לא הצלחנו להתחבר לשרת ה-AI/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/לא הצלחנו להגיע לספק ה-AI/)).not.toBeInTheDocument();
   });
 
-  it("falls back to the demo trip and shows a notice when the backend call fails", async () => {
+  // On a shared device, account B must not inherit (and later save) A's trip.
+  it("clears the builder when a different account connects", async () => {
+    vi.mocked(api.parseTrip).mockResolvedValue({
+      trip_data: sampleTrip,
+      initial_agent_message: "Welcome!",
+    });
+    vi.mocked(tripsStore.claimDeviceData).mockReturnValue(true);
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /צור מבנה אפליקציה ראשוני/ }));
+    await waitFor(() => {
+      expect(screen.getByText("שיפורים נוספים (אופציונלי)")).toBeInTheDocument();
+    });
+
+    act(() => {
+      for (const listener of auth.listeners) {
+        listener({ uid: "account-b", email: "b@example.com", displayName: "B" });
+      }
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /צור מבנה אפליקציה ראשוני/ })).toBeInTheDocument();
+    });
+    expect(tripsStore.claimDeviceData).toHaveBeenCalledWith("account-b");
+  });
+
+  it("falls back to the demo trip and shows a notice when the AI call fails", async () => {
     vi.mocked(api.parseTrip).mockRejectedValue(new Error("network down"));
 
     render(<App />);
@@ -100,7 +126,7 @@ describe("App builder flow", () => {
     fireEvent.click(screen.getByRole("button", { name: /צור מבנה אפליקציה ראשוני/ }));
 
     await waitFor(() => {
-      expect(screen.getByText(/לא הצלחנו להתחבר לשרת ה-AI/)).toBeInTheDocument();
+      expect(screen.getByText(/לא הצלחנו להגיע לספק ה-AI/)).toBeInTheDocument();
     });
 
     expect(screen.getByText("שיפורים נוספים (אופציונלי)")).toBeInTheDocument();
@@ -144,10 +170,45 @@ describe("App builder flow", () => {
           packing: true,
         },
         [],
-        "gemini",
-        [],
+        expect.any(AbortSignal),
       );
     });
+  });
+
+  it("cancels a running enhancement when the user leaves Step 2, with no error and no jump to Step 3", async () => {
+    vi.mocked(api.parseTrip).mockResolvedValue({
+      trip_data: sampleTrip,
+      initial_agent_message: "Welcome!",
+    });
+    let enhanceSignal: AbortSignal | undefined;
+    vi.mocked(api.enhanceTrip).mockImplementation(
+      (_trip, _options, _credentials, signal) =>
+        new Promise((_resolve, reject) => {
+          enhanceSignal = signal;
+          signal?.addEventListener("abort", () => reject(new AiCancelledError()));
+        }),
+    );
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /צור מבנה אפליקציה ראשוני/ }));
+    await waitFor(() => {
+      expect(screen.getByText("שיפורים נוספים (אופציונלי)")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("הוספת מחירים משוערים"));
+    fireEvent.click(screen.getByRole("button", { name: /הוסף את הפרטים שנבחרו/ }));
+    await waitFor(() => expect(enhanceSignal).toBeDefined());
+
+    // The browser's back button returns to Step 1 while the call is still running.
+    act(() => {
+      window.dispatchEvent(new PopStateEvent("popstate", { state: { appStep: 1 } }));
+    });
+
+    await waitFor(() => expect(enhanceSignal?.aborted).toBe(true));
+    await waitFor(() => {
+      expect(screen.getByText("שלב 1 מתוך 4")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("סוכן השלמות AI")).not.toBeInTheDocument();
+    expect(screen.queryByText(/הוספת הפרטים הנוספים נכשלה/)).not.toBeInTheDocument();
   });
 
   it("offers a one-click retry when Step 2's enhancement call fails, and it works", async () => {
@@ -186,8 +247,7 @@ describe("App builder flow", () => {
         expect.objectContaining(sampleTrip),
         { prices: true },
         [],
-        "gemini",
-        [],
+        expect.any(AbortSignal),
       );
     });
     await waitFor(() => {
@@ -260,7 +320,34 @@ describe("App builder flow", () => {
     expect(screen.getByText("₪20")).toBeInTheDocument();
   });
 
-  it("shows the backend's actual failure detail alongside the friendly message on a 502", async () => {
+  it("offers a retry for a chat message whose answer was cancelled", async () => {
+    vi.mocked(api.parseTrip).mockResolvedValue({
+      trip_data: sampleTrip,
+      initial_agent_message: "Welcome!",
+    });
+    vi.mocked(api.agentInteract).mockRejectedValue(new AiCancelledError());
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /צור מבנה אפליקציה ראשוני/ }));
+    await waitFor(() => {
+      expect(screen.getByText("שיפורים נוספים (אופציונלי)")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /דלג, המשך לסוכן/ }));
+    await waitFor(() => {
+      expect(screen.getByText("סוכן השלמות AI")).toBeInTheDocument();
+    });
+    fireEvent.change(screen.getByPlaceholderText(/ענה לסוכן/), {
+      target: { value: "תוסיף מסעדה" },
+    });
+    fireEvent.submit(screen.getByPlaceholderText(/ענה לסוכן/).closest("form")!);
+
+    await waitFor(() => {
+      expect(screen.getByText(/ההודעה האחרונה לא נענתה/)).toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "נסו שוב" })).toBeInTheDocument();
+  });
+
+  it("shows the provider's actual failure detail alongside the friendly message on a 502", async () => {
     vi.mocked(api.parseTrip).mockResolvedValue({
       trip_data: sampleTrip,
       initial_agent_message: "Welcome!",
@@ -268,7 +355,7 @@ describe("App builder flow", () => {
     vi.mocked(api.agentInteract).mockRejectedValue(
       new ApiError(
         502,
-        "LLM API rejected the request: 404 Not Found for url 'https://openrouter.ai/api/v1/chat/completions'",
+        "LLM API rejected the request: 404 Not Found for url 'https://api.groq.com/openai/v1/chat/completions'",
       ),
     );
 

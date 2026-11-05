@@ -8,10 +8,10 @@ import type { AppDesign } from "../services/appDesign";
 import {
   type CloudTripSummary,
   type TripStage,
-  deleteSharedTrip,
   deleteTrip,
   listTrips,
   loadTrip,
+  shareLinkFor,
   onAuthChange,
 } from "../services/tripsStore";
 
@@ -62,24 +62,21 @@ export default function MyTripsButton({
     });
   }, []);
 
-  const refreshTrips = useCallback(async (id: string) => {
-    setTrips(await listTrips(id));
+  const refreshTrips = useCallback(async () => {
+    setTrips(await listTrips());
   }, []);
 
-  const handleOpen = useCallback(
-    (id: string) => {
-      setIsOpen(true);
-      setNotice(null);
-      setTripsLoading(true);
-      refreshTrips(id)
-        .catch((err) => {
-          console.error(err);
-          setNotice(t("cloud.loadFailed"));
-        })
-        .finally(() => setTripsLoading(false));
-    },
-    [refreshTrips, t],
-  );
+  const handleOpen = useCallback(() => {
+    setIsOpen(true);
+    setNotice(null);
+    setTripsLoading(true);
+    refreshTrips()
+      .catch((err) => {
+        console.error(err);
+        setNotice(t("cloud.loadFailed"));
+      })
+      .finally(() => setTripsLoading(false));
+  }, [refreshTrips, t]);
 
   // The final/shared app's "My Trips" link navigates back here with
   // "myTrips=1" (see SharedAppPage's homeHref) so landing on the builder
@@ -88,7 +85,7 @@ export default function MyTripsButton({
     if (!uid) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("myTrips") !== "1") return;
-    handleOpen(uid);
+    handleOpen();
     params.delete("myTrips");
     const query = params.toString();
     window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
@@ -96,20 +93,19 @@ export default function MyTripsButton({
 
   const handleLoad = async (trip: CloudTripSummary) => {
     if (!uid) return;
-    // A trip saved as "Final app" was actually published (see CloudMenu's
-    // handleSave) — open the real "?shared=" link instead of loading it back
-    // into the builder, so "final" really means the finished app, not a
-    // look-alike preview you can still navigate away from into planning.
-    if (trip.stage === "final") {
-      const url = new URL(window.location.href);
-      url.searchParams.set("shared", trip.id);
-      window.location.assign(url.toString());
-      return;
-    }
     setBusy(true);
     setNotice(null);
     try {
-      const { trip: loaded, appDesign: loadedAppDesign } = await loadTrip(uid, trip.id);
+      // A trip saved as "Final app" was actually published (see CloudMenu's
+      // handleSave) — open its real share link instead of loading it back
+      // into the builder, so "final" really means the finished app. A final
+      // trip that was never published falls through to a normal load.
+      const link = trip.stage === "final" ? await shareLinkFor(trip.id) : null;
+      if (link) {
+        window.location.assign(link);
+        return;
+      }
+      const { trip: loaded, appDesign: loadedAppDesign } = await loadTrip(trip.id);
       onLoadTrip(loaded, trip.id, loadedAppDesign);
       closePanel();
     } catch (err) {
@@ -132,10 +128,9 @@ export default function MyTripsButton({
     setBusy(true);
     setConfirmDeleteId(null);
     try {
-      await deleteTrip(uid, trip.id);
-      // Best-effort: also revoke any public share link so it doesn't outlive the trip.
-      await deleteSharedTrip(trip.id).catch((err) => console.error(err));
-      await refreshTrips(uid);
+      // Unpublishes the trip's share link first, so it never outlives the trip.
+      await deleteTrip(trip.id);
+      await refreshTrips();
       if (tripId === trip.id) onTripIdChange(null);
     } catch (err) {
       console.error(err);
@@ -150,7 +145,7 @@ export default function MyTripsButton({
   return (
     <div className="relative" ref={panelRef}>
       <button
-        onClick={() => handleOpen(uid)}
+        onClick={() => handleOpen()}
         aria-expanded={isOpen}
         aria-haspopup="menu"
         title={t("cloud.myTrips")}
